@@ -1,8 +1,10 @@
 'use client';
+
 import { useState } from 'react';
 import Link from 'next/link';
 
-export default function LoginForm() {
+export default function SignupForm() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -11,8 +13,8 @@ export default function LoginForm() {
     e.preventDefault();
     setIsLoading(true);
 
-    // TODO: Implement authentication logic
-    console.log('Login attempt:', { email, password });
+    // TODO: Implement registration logic
+    console.log('Signup attempt:', { name, email, password });
 
     // Simulate API call
     setTimeout(() => {
@@ -23,6 +25,24 @@ export default function LoginForm() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label
+            htmlFor="name"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+          >
+            Full Name
+          </label>
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+            placeholder="John Doe"
+          />
+        </div>
+
         <div>
           <label
             htmlFor="email"
@@ -59,36 +79,18 @@ export default function LoginForm() {
           />
         </div>
 
-        <div className="flex items-center justify-between">
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-              Remember me
-            </span>
-          </label>
-          <Link
-            href="/forgot-password"
-            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            Forgot password?
-          </Link>
-        </div>
-
         <button
           type="submit"
           disabled={isLoading}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
         >
-          {isLoading ? 'Signing in...' : 'Sign In'}
+          {isLoading ? 'Creating account...' : 'Create Account'}
         </button>
 
         <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-          Don't have an account?{' '}
-          <Link href="/signup" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-            Sign up
+          Already have an account?{' '}
+          <Link href="/login" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+            Sign in
           </Link>
         </div>
       </form>
