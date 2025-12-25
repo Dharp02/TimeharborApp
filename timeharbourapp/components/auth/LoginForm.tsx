@@ -1,28 +1,43 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { auth } from '@/TimeharborAPI';
 
 export default function LoginForm() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // TODO: Implement authentication logic
-    console.log('Login attempt:', { email, password });
-
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const { error } = await auth.signIn(email, password);
+      if (error) {
+        setError(error.message);
+      } else {
+        router.push('/dashboard');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
       <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="p-3 text-sm text-red-500 bg-red-100 dark:bg-red-900/30 rounded-lg">
+            {error}
+          </div>
+        )}
         <div>
           <label
             htmlFor="email"
