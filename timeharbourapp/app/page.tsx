@@ -6,9 +6,9 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('home');
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-gray-900 pt-12">
       {/* Header - TimeHarbour branding */}
-      <header className="sticky top-0 z-10 bg-white dark:bg-gray-800 shadow-sm pt-12">
+      <header className="sticky top-0 z-10 bg-white dark:bg-gray-800 shadow-sm">
         <div className="px-4 py-4 md:py-6 md:px-8">
           <h1 className="text-2xl md:text-3xl font-bold text-blue-600 dark:text-blue-400 md:text-center ">
             TimeHarbour
