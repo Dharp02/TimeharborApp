@@ -1,14 +1,11 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.poonam.timeharbor',
+  appId: 'com.mieweb.timeharbor',
   appName: 'TimeHarbor',
   webDir: 'out',
   server: {
-    androidScheme: 'https',
-    // Uncomment the lines below for live reload during development
-    // url: 'http://YOUR_LOCAL_IP:3000',
-    // cleartext: true
+    androidScheme: 'https'
   }
 };
 

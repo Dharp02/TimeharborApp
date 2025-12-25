@@ -3,31 +3,41 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "cap:dev:android": "cap sync android && cap copy android && cap open android",
-    "cap:dev:ios": "cap sync ios && cap copy ios && cap open ios"
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report",
+    "dev:android": "CAPACITOR_CONFIG_PATH=capacitor.config.dev.ts npx cap sync android && CAPACITOR_CONFIG_PATH=capacitor.config.dev.ts npx cap open android",
+    "dev:ios": "CAPACITOR_CONFIG_PATH=capacitor.config.dev.ts npx cap sync ios && CAPACITOR_CONFIG_PATH=capacitor.config.dev.ts npx cap open ios",
+    "prod:android": "npm run build && npx cap sync android && npx cap open android",
+    "prod:ios": "npm run build && npx cap sync ios && npx cap open ios"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
     "@capacitor/cli": "^8.0.0",
     "@capacitor/core": "^8.0.0",
     "@capacitor/ios": "^8.0.0",
-    "@capacitor/push-notifications": "^8.0.0",
+    "@supabase/supabase-js": "^2.89.0",
     "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
+    "node-fetch": "^3.3.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "ws": "^8.18.3"
   }
 }

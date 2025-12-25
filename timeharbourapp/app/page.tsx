@@ -21,8 +21,9 @@ export default function Home() {
           {activeTab === 'home' && (
             <div className="space-y-6">
               <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-                Welcome to TimeHarbour
+                Welcome to TimeHarbour 
               </h2>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                   <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-100">
@@ -75,7 +76,7 @@ export default function Home() {
           )}
           {activeTab === 'profile' && (
             <div className="space-y-6">
-              <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Profile</h2>
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Profile & Settings</h2>
               <p className="text-gray-600 dark:text-gray-400">Manage your profile settings</p>
             </div>
           )}
