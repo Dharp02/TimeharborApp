@@ -5,10 +5,8 @@ const config: CapacitorConfig = {
   appName: 'TimeHarbor',
   webDir: 'out',
   server: {
-    androidScheme: 'https',
-    // Uncomment the lines below for live reload during development
-    // url: 'http://YOUR_LOCAL_IP:3000',
-    // cleartext: true
+    url: 'http://10.0.0.39:3000',
+    cleartext: true
   }
 };
 
