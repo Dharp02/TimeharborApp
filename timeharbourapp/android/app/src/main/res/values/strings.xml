@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TimeHarbor</string>
+    <string name="title_activity_main">TimeHarbor</string>
+    <string name="package_name">com.mieweb.timeharbor</string>
+    <string name="custom_url_scheme">com.mieweb.timeharbor</string>
+</resources>
