@@ -80,7 +80,8 @@ test.describe('Authentication Pages', () => {
       // Check form elements
       await expect(page.getByLabel('Full Name')).toBeVisible();
       await expect(page.getByLabel('Email')).toBeVisible();
-      await expect(page.getByLabel('Password')).toBeVisible();
+      await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+      await expect(page.getByLabel('Confirm Password')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Create Account' })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
     });
@@ -90,7 +91,8 @@ test.describe('Authentication Pages', () => {
       
       const nameInput = page.getByLabel('Full Name');
       const emailInput = page.getByLabel('Email');
-      const passwordInput = page.getByLabel('Password');
+      const passwordInput = page.getByLabel('Password', { exact: true });
+      const confirmPasswordInput = page.getByLabel('Confirm Password');
       const submitButton = page.getByRole('button', { name: 'Create Account' });
       
       // Try to submit empty form
@@ -100,15 +102,18 @@ test.describe('Authentication Pages', () => {
       await expect(nameInput).toHaveAttribute('required');
       await expect(emailInput).toHaveAttribute('required');
       await expect(passwordInput).toHaveAttribute('required');
+      await expect(confirmPasswordInput).toHaveAttribute('required');
     });
 
     test('should fill and submit signup form', async ({ page }) => {
       await page.goto('/signup');
       
-      // Fill in the form
+      // Fill in the form with a unique email to ensure success
+      const uniqueEmail = `test-${Date.now()}@example.com`;
       await page.getByLabel('Full Name').fill('John Doe');
-      await page.getByLabel('Email').fill('john@example.com');
-      await page.getByLabel('Password').fill('SecurePass123!');
+      await page.getByLabel('Email').fill(uniqueEmail);
+      await page.getByLabel('Password', { exact: true }).fill('SecurePass123!');
+      await page.getByLabel('Confirm Password').fill('SecurePass123!');
       
       // Submit the form
       await page.getByRole('button', { name: 'Create Account' }).click();
@@ -116,9 +121,8 @@ test.describe('Authentication Pages', () => {
       // Check loading state
       await expect(page.getByRole('button', { name: 'Creating account...' })).toBeVisible();
       
-      // Wait for form to complete (simulated delay)
-      await page.waitForTimeout(1100);
-      await expect(page.getByRole('button', { name: 'Create Account' })).toBeVisible();
+      // Should redirect to dashboard on success
+      await expect(page).toHaveURL('/dashboard');
     });
 
     test('should navigate to login page', async ({ page }) => {
