@@ -12,8 +12,25 @@ export default function Sidebar() {
   const isActive = (path: string) => pathname === path;
 
   const handleSignOut = async () => {
-    await auth.signOut();
-    router.push('/login');
+    try {
+      console.log('User clicked sign out');
+      const { error } = await auth.signOut();
+      
+      if (error) {
+        console.error('SignOut failed:', error);
+        // Still navigate to login even if there was an error
+        // The local storage has been cleared by the signOut function
+      } else {
+        console.log('SignOut successful');
+      }
+      
+      // Navigate to login page after signout
+      router.push('/login');
+    } catch (err) {
+      console.error('Unexpected error during signout:', err);
+      // Force navigation to login even on error
+      router.push('/login');
+    }
   };
 
   const navItems = [

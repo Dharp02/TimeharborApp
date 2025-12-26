@@ -3,13 +3,19 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
+import { clearAuthStorage } from '@/TimeharborAPI/core/storage';
 
 type AuthContextType = {
   user: any | null;
   loading: boolean;
+  clearSession: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ 
+  user: null, 
+  loading: true,
+  clearSession: async () => {},
+});
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -18,6 +24,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Manual session clear function for force logout scenarios
+  const clearSession = async () => {
+    console.log('Manually clearing session...');
+    setUser(null);
+    await clearAuthStorage();
+    router.push('/login');
+  };
 
   useEffect(() => {
     const checkSession = async () => {
@@ -67,7 +81,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [user, loading, pathname, router]);
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, clearSession }}>
       {children}
     </AuthContext.Provider>
   );

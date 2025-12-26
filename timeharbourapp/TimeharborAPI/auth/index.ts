@@ -1,4 +1,5 @@
 import { supabase } from '../core/supabase';
+import { clearAuthStorage } from '../core/storage';
 
 export const signUp = async (email: string, password: string, name: string) => {
   console.log('Signing up with:', { email, name });
@@ -32,12 +33,40 @@ export const signIn = async (email: string, password: string) => {
 };
 
 export const signOut = async () => {
-  const { error } = await supabase.auth.signOut();
-  if (error) {
-    console.warn("SignOut error, forcing local signout", error);
-    await supabase.auth.signOut({ scope: 'local' });
+  console.log('Starting signOut process...');
+  
+  try {
+    // First, attempt global signout (clears session from Supabase server)
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      console.warn("Global signOut error, attempting local signout", error);
+      // If global signout fails, force local signout
+      await supabase.auth.signOut({ scope: 'local' });
+    } else {
+      console.log('Global signOut successful (204)');
+    }
+    
+    // CRITICAL: Always clear local storage regardless of server response
+    // This prevents session persistence on iOS after successful server logout
+    console.log('Clearing local auth storage...');
+    await clearAuthStorage();
+    console.log('Local auth storage cleared');
+    
+    return { error: null };
+  } catch (err) {
+    console.error('SignOut error:', err);
+    
+    // Even if an error occurred, try to clear local storage
+    try {
+      await clearAuthStorage();
+      console.log('Local auth storage cleared after error');
+    } catch (storageError) {
+      console.error('Failed to clear storage:', storageError);
+    }
+    
+    return { error: err };
   }
-  return { error };
 };
 
 export const getSession = async () => {
