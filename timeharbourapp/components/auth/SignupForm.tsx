@@ -25,21 +25,49 @@ export default function SignupForm() {
       return;
     }
 
+    // Client-side password validation
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!/(?=.*[a-z])/.test(password)) {
+      setError('Password must contain at least one lowercase letter');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!/(?=.*[A-Z])/.test(password)) {
+      setError('Password must contain at least one uppercase letter');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!/(?=.*\d)/.test(password)) {
+      setError('Password must contain at least one number');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const { error } = await auth.signUp(email, password, name);
-      if (error) {
-        if (error.message.includes('already registered')) {
+      const { error: signupError, data } = await auth.signUp(email, password, name);
+      if (signupError) {
+        if (signupError.message.includes('already registered')) {
           setError('This email is already registered. Please sign in instead.');
+        } else if (signupError.details && Array.isArray(signupError.details)) {
+          // Show validation errors from backend
+          const errorMessages = signupError.details.map(d => d.message).join(', ');
+          setError(errorMessages);
         } else {
-          setError(error.message);
+          setError(signupError.message);
         }
-      } else {
-        // If email confirmation is disabled, this will be a success immediately
-        router.push('/dashboard');
+        setIsLoading(false);
+      } else if (data) {
+        // Success - AuthProvider will handle redirect
       }
     } catch (err) {
       setError('An unexpected error occurred');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -104,6 +132,9 @@ export default function SignupForm() {
             className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
             placeholder="••••••••"
           />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Must be at least 8 characters with uppercase, lowercase, and a number
+          </p>
         </div>
 
         <div>

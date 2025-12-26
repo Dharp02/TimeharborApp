@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
 
@@ -16,38 +16,39 @@ export const useAuth = () => useContext(AuthContext);
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const isMounted = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const { session, error } = await auth.getSession();
-        if (error) {
-          throw error;
+    if (!isMounted.current) {
+      const checkSession = async () => {
+        try {
+          const { user, error } = await auth.getUser();
+          if (error) {
+            throw error;
+          }
+          setUser(user);
+        } catch (error) {
+          console.error('Error checking session:', error);
+          setUser(null);
+        } finally {
+          setLoading(false);
         }
-        setUser(session?.user ?? null);
-      } catch (error) {
-        console.error('Error checking session:', error);
-        await auth.signOut();
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkSession();
+      };
+      checkSession();
+      isMounted.current = true;
+    }
 
     const subscription = auth.onAuthStateChange((event, session) => {
       console.log('Auth state change:', event, session);
-      setUser(session?.user ?? null);
-      setLoading(false);
       
       if (event === 'SIGNED_IN') {
-        router.push('/dashboard');
+        setUser(session?.user ?? null);
+        router.refresh();
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
-        router.push('/login');
+        router.refresh();
       }
     });
 
@@ -57,12 +58,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [router]);
 
   useEffect(() => {
-    if (!loading) {
-        if (user && (pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password' || pathname === '/')) {
-            router.push('/dashboard');
-        } else if (!user && pathname.startsWith('/dashboard')) {
-            router.push('/login');
-        }
+    if (loading) return;
+
+    const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password' || pathname === '/';
+    const isDashboardPage = pathname?.startsWith('/dashboard');
+
+    if (user && isAuthPage) {
+      router.replace('/dashboard');
+    } else if (!user && isDashboardPage) {
+      router.replace('/login');
     }
   }, [user, loading, pathname, router]);
 

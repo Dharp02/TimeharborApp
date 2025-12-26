@@ -12,8 +12,11 @@ export default function Sidebar() {
   const isActive = (path: string) => pathname === path;
 
   const handleSignOut = async () => {
-    await auth.signOut();
-    router.push('/login');
+    try {
+      await auth.signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
   };
 
   const navItems = [

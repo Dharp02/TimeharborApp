@@ -17,15 +17,20 @@ export default function LoginForm() {
     setError(null);
 
     try {
-      const { error } = await auth.signIn(email, password);
+      const { error, data } = await auth.signIn(email, password);
       if (error) {
-        setError(error.message);
-      } else {
-        router.push('/dashboard');
+        if (error.details && Array.isArray(error.details)) {
+          const errorMessages = error.details.map(d => d.message).join(', ');
+          setError(errorMessages);
+        } else {
+          setError(error.message);
+        }
+        setIsLoading(false);
+      } else if (data) {
+        // Success - AuthProvider will handle redirect
       }
     } catch (err) {
       setError('An unexpected error occurred');
-    } finally {
       setIsLoading(false);
     }
   };
