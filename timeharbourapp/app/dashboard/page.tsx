@@ -1,31 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase, auth } from '@/TimeharborAPI';
+import { auth } from '@/TimeharborAPI';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export default function Dashboard() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-      } else {
-        setUser(user);
-      }
-      setLoading(false);
-    };
-
-    checkUser();
-  }, [router]);
+  const { user, loading } = useAuth();
 
   const handleSignOut = async () => {
     await auth.signOut();
-    router.push('/login');
+    // Redirect is handled by AuthProvider
   };
 
   if (loading) {

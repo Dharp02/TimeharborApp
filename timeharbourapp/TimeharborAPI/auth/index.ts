@@ -12,7 +12,11 @@ export const signUp = async (email: string, password: string, name: string) => {
     },
   });
   if (error) {
-    console.error('Supabase SignUp Error:', error);
+    console.error('Supabase SignUp Error Message:', error.message);
+    console.error('Supabase SignUp Error Name:', error.name);
+    // @ts-ignore
+    console.error('Supabase SignUp Error Status:', error.status);
+    console.error('Supabase SignUp Error Full:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
   } else {
     console.log('Supabase SignUp Success:', data);
   }
@@ -30,4 +34,21 @@ export const signIn = async (email: string, password: string) => {
 export const signOut = async () => {
   const { error } = await supabase.auth.signOut();
   return { error };
+};
+
+export const getSession = async () => {
+  const { data, error } = await supabase.auth.getSession();
+  return { session: data.session, error };
+};
+
+export const getUser = async () => {
+  const { data, error } = await supabase.auth.getUser();
+  return { user: data.user, error };
+};
+
+export const onAuthStateChange = (callback: (event: string, session: any) => void) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    callback(event, session);
+  });
+  return subscription;
 };
