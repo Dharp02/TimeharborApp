@@ -33,6 +33,10 @@ export const signIn = async (email: string, password: string) => {
 
 export const signOut = async () => {
   const { error } = await supabase.auth.signOut();
+  if (error) {
+    console.warn("SignOut error, forcing local signout", error);
+    await supabase.auth.signOut({ scope: 'local' });
+  }
   return { error };
 };
 
