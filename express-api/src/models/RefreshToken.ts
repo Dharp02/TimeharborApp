@@ -4,8 +4,8 @@ import User from './User';
 
 // RefreshToken attributes interface
 export interface RefreshTokenAttributes {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   token: string;
   expires_at: Date;
   created_at?: Date;
@@ -17,8 +17,8 @@ interface RefreshTokenCreationAttributes extends Optional<RefreshTokenAttributes
 
 // RefreshToken model class
 class RefreshToken extends Model<RefreshTokenAttributes, RefreshTokenCreationAttributes> implements RefreshTokenAttributes {
-  public id!: number;
-  public user_id!: number;
+  public id!: string;
+  public user_id!: string;
   public token!: string;
   public expires_at!: Date;
   public readonly created_at!: Date;
@@ -40,12 +40,12 @@ class RefreshToken extends Model<RefreshTokenAttributes, RefreshTokenCreationAtt
 RefreshToken.init(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
       primaryKey: true
     },
     user_id: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       allowNull: false,
       references: {
         model: 'users',

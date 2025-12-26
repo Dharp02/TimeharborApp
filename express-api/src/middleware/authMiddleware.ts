@@ -6,7 +6,7 @@ import logger from '../utils/logger';
 // Extend Express Request type to include user
 export interface AuthRequest extends Request {
   user?: {
-    id: number;
+    id: string;
     email: string;
     full_name?: string;
   };
@@ -34,7 +34,7 @@ export const authenticateToken = async (
     }
 
     // Verify token
-    const decoded = jwt.verify(token, jwtSecret) as { id: number; email: string };
+    const decoded = jwt.verify(token, jwtSecret) as { id: string; email: string };
 
     // Fetch user from database
     const user = await User.findByPk(decoded.id, {
@@ -91,7 +91,7 @@ export const optionalAuth = async (
       return;
     }
 
-    const decoded = jwt.verify(token, jwtSecret) as { id: number; email: string };
+    const decoded = jwt.verify(token, jwtSecret) as { id: string; email: string };
     const user = await User.findByPk(decoded.id, {
       attributes: ['id', 'email', 'full_name', 'email_verified']
     });

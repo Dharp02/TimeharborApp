@@ -8,6 +8,7 @@ import { connectDatabase } from './config/sequelize';
 import authRoutes from './routes/authRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
+import { startCleanupJob } from './jobs/cleanupTokens';
 
 dotenv.config();
 
@@ -77,6 +78,9 @@ const startServer = async () => {
   try {
     // Connect to database
     await connectDatabase();
+
+    // Start token cleanup job
+    startCleanupJob();
 
     // Start server
     app.listen(PORT, '0.0.0.0', () => {

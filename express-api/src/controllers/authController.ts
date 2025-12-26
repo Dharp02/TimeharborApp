@@ -7,7 +7,7 @@ import { AppError, asyncHandler } from '../middleware/errorHandler';
 import logger from '../utils/logger';
 
 // Token generation helpers
-const generateAccessToken = (userId: number, email: string): string => {
+const generateAccessToken = (userId: string, email: string): string => {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
     throw new AppError('JWT_SECRET not configured', 500);
@@ -22,7 +22,7 @@ const generateAccessToken = (userId: number, email: string): string => {
   return token as string;
 };
 
-const generateRefreshToken = async (userId: number): Promise<string> => {
+const generateRefreshToken = async (userId: string): Promise<string> => {
   const token = crypto.randomBytes(64).toString('hex');
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
