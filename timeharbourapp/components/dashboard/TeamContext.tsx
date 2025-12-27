@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createNewTeam, joinTeamByCode } from '@/TimeharborAPI/teams';
+import { createNewTeam, joinTeamByCode, fetchMyTeams } from '@/TimeharborAPI/teams';
 
 
 export type Member = {
@@ -25,7 +25,7 @@ interface TeamContextType {
   teams: Team[];
   isLoading: boolean;
   selectTeam: (teamId: string) => void;
-  joinTeam: (code: string) => Promise<void>;
+  joinTeam: (code: string) => Promise<{ success: boolean; error?: string }>;
   createTeam: (name: string) => Promise<string>; // returns code
   deleteTeam: (teamId: string) => void;
   updateTeamName: (teamId: string, name: string) => void;
@@ -34,55 +34,35 @@ interface TeamContextType {
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
 
 export function TeamProvider({ children }: { children: React.ReactNode }) {
-  // Mock data
-  const [teams, setTeams] = useState<Team[]>([
-    { 
-      id: '1', 
-      name: 'Team A', 
-      members: [
-        { id: 'u1', name: 'You', status: 'online', role: 'Leader' },
-        { id: 'u2', name: 'Alice', status: 'online', role: 'Member' },
-        { id: 'u3', name: 'Bob', status: 'offline', role: 'Member' },
-        { id: 'u4', name: 'Charlie', status: 'offline', role: 'Member' },
-        { id: 'u5', name: 'David', status: 'online', role: 'Member' },
-      ], 
-      role: 'Leader', 
-      code: '123456' 
-    },
-    { 
-      id: '2', 
-      name: 'Team B', 
-      members: [
-        { id: 'u1', name: 'You', status: 'online', role: 'Member' },
-        { id: 'u6', name: 'Eve', status: 'online', role: 'Leader' },
-      ], 
-      role: 'Member', 
-      code: '789012' 
-    },
-    { 
-      id: '3', 
-      name: 'Team C', 
-      members: [
-        { id: 'u1', name: 'You', status: 'online', role: 'Leader' },
-        { id: 'u7', name: 'Frank', status: 'offline', role: 'Member' },
-        { id: 'u8', name: 'Grace', status: 'online', role: 'Member' },
-      ], 
-      role: 'Leader', 
-      code: '345678' 
-    },
-  ]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
-    if (savedTeamId) {
-      const team = teams.find(t => t.id === savedTeamId);
-      if (team) {
-        setCurrentTeam(team);
+    const loadTeams = async () => {
+      try {
+        const myTeams = await fetchMyTeams();
+        setTeams(myTeams);
+        
+        const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
+        if (savedTeamId) {
+          const team = myTeams.find(t => t.id === savedTeamId);
+          if (team) {
+            setCurrentTeam(team);
+          } else if (myTeams.length > 0) {
+            setCurrentTeam(myTeams[0]);
+          }
+        } else if (myTeams.length > 0) {
+          setCurrentTeam(myTeams[0]);
+        }
+      } catch (error) {
+        console.error('Failed to load teams:', error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    loadTeams();
   }, []);
 
   const selectTeam = (teamId: string) => {
@@ -94,10 +74,16 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   };
 
   const joinTeam = async (code: string) => {
-    const newTeam = await joinTeamByCode(code);
-    setTeams([...teams, newTeam]);
-    setCurrentTeam(newTeam);
-    localStorage.setItem('timeharbor-current-team-id', newTeam.id);
+    try {
+      const newTeam = await joinTeamByCode(code);
+      setTeams(prev => [...prev, newTeam]);
+      setCurrentTeam(newTeam);
+      localStorage.setItem('timeharbor-current-team-id', newTeam.id);
+      return { success: true };
+    } catch (error: any) {
+      // console.error('Error joining team:', error);
+      return { success: false, error: error.message || 'Failed to join team' };
+    }
   };
 
   const createTeam = async (name: string) => {

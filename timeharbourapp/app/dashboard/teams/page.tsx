@@ -16,16 +16,30 @@ export default function TeamsPage() {
   const [selectedTeamForAction, setSelectedTeamForAction] = useState<Team | null>(null);
   
   const [joinCode, setJoinCode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [newTeamName, setNewTeamName] = useState('');
   const [editTeamName, setEditTeamName] = useState('');
   const [createdTeamCode, setCreatedTeamCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [headerCopied, setHeaderCopied] = useState(false);
 
-  const handleJoinTeam = () => {
-    joinTeam(joinCode);
-    setIsJoinModalOpen(false);
-    setJoinCode('');
+  const handleJoinTeam = async () => {
+    if (!joinCode.trim()) return;
+    
+    setIsJoining(true);
+    setJoinError(null);
+    
+    const result = await joinTeam(joinCode);
+    
+    if (result.success) {
+      setIsJoinModalOpen(false);
+      setJoinCode('');
+    } else {
+      setJoinError(result.error || 'Failed to join team');
+    }
+    
+    setIsJoining(false);
   };
 
   const handleCreateTeam = async () => {
@@ -237,7 +251,11 @@ export default function TeamsPage() {
       {/* Join Team Modal */}
       <Modal
         isOpen={isJoinModalOpen}
-        onClose={() => setIsJoinModalOpen(false)}
+        onClose={() => {
+          setIsJoinModalOpen(false);
+          setJoinError(null);
+          setJoinCode('');
+        }}
         title="Join a Team"
       >
         <div className="space-y-4">
@@ -245,6 +263,12 @@ export default function TeamsPage() {
             Enter the 6-digit code provided by your team admin to join.
           </p>
           
+          {joinError && (
+            <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800 animate-in fade-in slide-in-from-top-2">
+              {joinError}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Team Code
@@ -252,26 +276,42 @@ export default function TeamsPage() {
             <input
               type="text"
               value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                setJoinCode(e.target.value.toUpperCase());
+                setJoinError(null);
+              }}
               placeholder="e.g. 123456"
               maxLength={6}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono text-center tracking-widest text-lg uppercase"
+              disabled={isJoining}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono text-center tracking-widest text-lg uppercase disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
             <button
-              onClick={() => setIsJoinModalOpen(false)}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              onClick={() => {
+                setIsJoinModalOpen(false);
+                setJoinError(null);
+                setJoinCode('');
+              }}
+              disabled={isJoining}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={handleJoinTeam}
-              disabled={joinCode.length < 6}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={joinCode.length < 6 || isJoining}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Join Team
+              {isJoining ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Joining...
+                </>
+              ) : (
+                'Join Team'
+              )}
             </button>
           </div>
         </div>

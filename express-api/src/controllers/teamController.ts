@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { Team, Member } from '../models';
 import { AuthRequest } from '../middleware/authMiddleware';
 import logger from '../utils/logger';
-
+import User from '../models/User';
 export const createTeam = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id, name, code, createdAt } = req.body;
@@ -97,5 +97,63 @@ export const joinTeam = async (req: AuthRequest, res: Response): Promise<void> =
   } catch (error) {
     logger.error('Error joining team:', error);
     res.status(500).json({ error: 'Failed to join team' });
+  }
+};
+
+export const getMyTeams = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    // Find all teams where the user is a member
+    const userMemberships = await Member.findAll({
+      where: { userId },
+      include: [
+        {
+          model: Team,
+          as: 'team',
+          include: [
+            {
+              model: Member,
+              as: 'members',
+              include: [
+                {
+                  model: User,
+                  as: 'user',
+                  attributes: ['id', 'full_name', 'status']
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+
+    // Format the response
+    const teams = userMemberships.map(membership => {
+      const team = (membership as any).team;
+      return {
+        id: team.id,
+        name: team.name,
+        code: team.code,
+        role: membership.role,
+        members: team.members.map((m: any) => ({
+          id: m.user.id,
+          name: m.user.full_name || 'Unknown User',
+          status: m.user.status,
+          role: m.role,
+          avatar: undefined // Add avatar logic if needed
+        }))
+      };
+    });
+
+    res.status(200).json(teams);
+  } catch (error) {
+    logger.error('Error fetching user teams:', error);
+    res.status(500).json({ error: 'Failed to fetch teams' });
   }
 };

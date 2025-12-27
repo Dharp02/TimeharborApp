@@ -176,3 +176,21 @@ export const joinTeamByCode = async (code: string): Promise<Team> => {
   saveTeam(newTeam);
   return newTeam;
 };
+
+export const fetchMyTeams = async (): Promise<Team[]> => {
+  const user = getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const response = await authenticatedFetch(`${API_URL}/teams`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch teams');
+  }
+
+  const teams: Team[] = await response.json();
+  
+  // Update local storage
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(teams));
+  
+  return teams;
+};
