@@ -10,14 +10,14 @@ import { Users, ArrowRightLeft } from 'lucide-react';
 import { useTeam } from './TeamContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { currentTeam } = useTeam();
+  const { currentTeam, isLoading } = useTeam();
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!currentTeam) {
+    if (!isLoading && !currentTeam) {
       setIsTeamModalOpen(true);
     }
-  }, [currentTeam]);
+  }, [currentTeam, isLoading]);
 
   return (
     <ClockInProvider>

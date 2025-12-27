@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState } from 'react';
 import { createNewTeam } from '@/TimeharborAPI/teams';
+import { useEffect } from 'react';
 
 export type Member = {
   id: string;
@@ -22,6 +23,7 @@ export type Team = {
 interface TeamContextType {
   currentTeam: Team | null;
   teams: Team[];
+  isLoading: boolean;
   selectTeam: (teamId: string) => void;
   joinTeam: (code: string) => void;
   createTeam: (name: string) => Promise<string>; // returns code
@@ -70,10 +72,25 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     },
   ]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
+    if (savedTeamId) {
+      const team = teams.find(t => t.id === savedTeamId);
+      if (team) {
+        setCurrentTeam(team);
+      }
+    }
+    setIsLoading(false);
+  }, []);
 
   const selectTeam = (teamId: string) => {
     const team = teams.find(t => t.id === teamId);
-    if (team) setCurrentTeam(team);
+    if (team) {
+      setCurrentTeam(team);
+      localStorage.setItem('timeharbor-current-team-id', teamId);
+    }
   };
 
   const joinTeam = (code: string) => {
@@ -89,12 +106,14 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     };
     setTeams([...teams, newTeam]);
     setCurrentTeam(newTeam);
+    localStorage.setItem('timeharbor-current-team-id', newTeam.id);
   };
 
   const createTeam = async (name: string) => {
     const newTeam = await createNewTeam(name);
     setTeams([...teams, newTeam]);
     setCurrentTeam(newTeam);
+    localStorage.setItem('timeharbor-current-team-id', newTeam.id);
     return newTeam.code;
   };
 
@@ -102,6 +121,7 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     setTeams(teams.filter(t => t.id !== teamId));
     if (currentTeam?.id === teamId) {
       setCurrentTeam(null);
+      localStorage.removeItem('timeharbor-current-team-id');
     }
   };
 
@@ -113,7 +133,7 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <TeamContext.Provider value={{ currentTeam, teams, selectTeam, joinTeam, createTeam, deleteTeam, updateTeamName }}>
+    <TeamContext.Provider value={{ currentTeam, teams, isLoading, selectTeam, joinTeam, createTeam, deleteTeam, updateTeamName }}>
       {children}
     </TeamContext.Provider>
   );
