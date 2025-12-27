@@ -79,7 +79,7 @@ export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: 
                       </div>
                       <div className="text-left">
                         <span className="block text-lg font-semibold text-gray-900 dark:text-white">{team.name}</span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">{team.members} members</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">{team.members.length} members</span>
                       </div>
                     </div>
                     

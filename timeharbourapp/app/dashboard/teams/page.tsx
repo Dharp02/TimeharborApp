@@ -1,17 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, Plus, Copy, Check } from 'lucide-react';
+import { Users, Plus, Copy, Check, Trash2, Edit2, Circle } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { useTeam } from '@/components/dashboard/TeamContext';
+import { useTeam, Team } from '@/components/dashboard/TeamContext';
 import { copyText } from '@/lib/utils';
 
 export default function TeamsPage() {
-  const { currentTeam, joinTeam, createTeam } = useTeam();
+  const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam } = useTeam();
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedTeamForAction, setSelectedTeamForAction] = useState<Team | null>(null);
+  
   const [joinCode, setJoinCode] = useState('');
   const [newTeamName, setNewTeamName] = useState('');
+  const [editTeamName, setEditTeamName] = useState('');
   const [createdTeamCode, setCreatedTeamCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [headerCopied, setHeaderCopied] = useState(false);
@@ -32,6 +37,34 @@ export default function TeamsPage() {
     setNewTeamName('');
     setCreatedTeamCode(null);
     setCopied(false);
+  };
+
+  const openEditModal = (team: Team) => {
+    setSelectedTeamForAction(team);
+    setEditTeamName(team.name);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditTeam = () => {
+    if (selectedTeamForAction && editTeamName.trim()) {
+      updateTeamName(selectedTeamForAction.id, editTeamName);
+      setIsEditModalOpen(false);
+      setSelectedTeamForAction(null);
+      setEditTeamName('');
+    }
+  };
+
+  const openDeleteModal = (team: Team) => {
+    setSelectedTeamForAction(team);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteTeam = () => {
+    if (selectedTeamForAction) {
+      deleteTeam(selectedTeamForAction.id);
+      setIsDeleteModalOpen(false);
+      setSelectedTeamForAction(null);
+    }
   };
 
   const copyToClipboard = async () => {
@@ -105,10 +138,92 @@ export default function TeamsPage() {
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Your Teams</h2>
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400">
-          <p>You haven't joined any teams yet.</p>
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Your Team</h2>
+        
+        {!currentTeam ? (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400">
+            <p>Please select or join a team to view members.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+              <div 
+                key={currentTeam.id} 
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border-2 border-blue-500 dark:border-blue-500 transition-all"
+              >
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                        {currentTeam.name}
+                        {currentTeam.role === 'Leader' && (
+                          <span className="px-2.5 py-1 text-sm font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full">
+                            Leader
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-base text-gray-500 dark:text-gray-400 mt-2">
+                        {currentTeam.members.length} members • Code: <span className="font-mono text-lg">{currentTeam.code}</span>
+                      </p>
+                    </div>
+                    
+                    {currentTeam.role === 'Leader' && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openEditModal(currentTeam)}
+                          className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          title="Edit Team"
+                        >
+                          <Edit2 className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => openDeleteModal(currentTeam)}
+                          className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Delete Team"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-100 dark:border-gray-700 pt-6">
+                    <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">
+                      Collaborators
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {currentTeam.members.map((member) => (
+                        <div 
+                          key={member.id}
+                          className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                        >
+                          <div className="relative">
+                            <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center text-lg font-medium text-gray-600 dark:text-gray-300">
+                              {member.name.charAt(0)}
+                            </div>
+                            <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 ${
+                              member.status === 'online' ? 'bg-green-500' : 'bg-gray-400'
+                            }`} />
+                          </div>
+                          <div>
+                            <p className="text-base font-semibold text-gray-900 dark:text-white">
+                              {member.name}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
+                              <Circle className={`w-2.5 h-2.5 fill-current ${
+                                member.status === 'online' ? 'text-green-500' : 'text-gray-400'
+                              }`} />
+                              {member.status === 'online' ? 'Online' : 'Offline'}
+                              {member.role === 'Leader' && ' • Leader'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+          </div>
+        )}
       </div>
 
       {/* Join Team Modal */}
@@ -230,6 +345,72 @@ export default function TeamsPage() {
               </button>
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* Edit Team Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Team"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Team Name
+            </label>
+            <input
+              type="text"
+              value={editTeamName}
+              onChange={(e) => setEditTeamName(e.target.value)}
+              placeholder="e.g. Engineering Team"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => setIsEditModalOpen(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleEditTeam}
+              disabled={!editTeamName.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Team Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Delete Team"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Are you sure you want to delete <span className="font-bold">{selectedTeamForAction?.name}</span>? This action cannot be undone.
+          </p>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => setIsDeleteModalOpen(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteTeam}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Delete Team
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

@@ -1,24 +1,32 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock } from 'lucide-react';
+import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User } from 'lucide-react';
 import { useClockIn } from '@/components/dashboard/ClockInContext';
+import { useTeam } from '@/components/dashboard/TeamContext';
 import { Modal } from '@/components/ui/Modal';
 
 export default function TicketsPage() {
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
+  const { currentTeam } = useTeam();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
   const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
+  
+  const [openMenuTicketId, setOpenMenuTicketId] = useState<string | null>(null);
+  const [selectedTicketForAction, setSelectedTicketForAction] = useState<{id: string, title: string} | null>(null);
 
   // Mock data for tickets
-  const allTickets = [
+  const [allTickets, setAllTickets] = useState([
     { id: 'T-101', title: 'Fix login page responsiveness', status: 'In Progress', priority: 'High', assignee: 'JD' },
     { id: 'T-102', title: 'Update user profile API', status: 'Open', priority: 'Medium', assignee: 'JD' },
     { id: 'T-103', title: 'Design dashboard mockups', status: 'Review', priority: 'High', assignee: 'AS' },
@@ -28,7 +36,7 @@ export default function TicketsPage() {
     { id: 'T-107', title: 'Refactor auth context', status: 'Completed', priority: 'High', assignee: 'JD' },
     { id: 'T-108', title: 'Update documentation', status: 'Open', priority: 'Low', assignee: 'AS' },
     { id: 'T-109', title: 'Optimize image loading', status: 'In Progress', priority: 'Medium', assignee: 'TS' },
-  ];
+  ]);
 
   const tabs = ['All', 'Open', 'In Progress', 'Review', 'Completed'];
 
@@ -84,6 +92,42 @@ export default function TicketsPage() {
     console.log('Creating ticket:', newTicket);
     setIsAddTicketModalOpen(false);
     setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
+  };
+
+  const handleAssignTicket = (memberId: string, memberName: string) => {
+    if (selectedTicketForAction) {
+      // Update ticket assignee
+      const initials = memberName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+      setAllTickets(allTickets.map(t => 
+        t.id === selectedTicketForAction.id ? { ...t, assignee: initials } : t
+      ));
+      setIsAssignModalOpen(false);
+      setSelectedTicketForAction(null);
+      setOpenMenuTicketId(null);
+    }
+  };
+
+  const handleDeleteTicket = () => {
+    if (selectedTicketForAction) {
+      setAllTickets(allTickets.filter(t => t.id !== selectedTicketForAction.id));
+      setIsDeleteModalOpen(false);
+      setSelectedTicketForAction(null);
+      setOpenMenuTicketId(null);
+    }
+  };
+
+  const openAssignModal = (e: React.MouseEvent, ticket: {id: string, title: string}) => {
+    e.stopPropagation();
+    setSelectedTicketForAction(ticket);
+    setIsAssignModalOpen(true);
+    setOpenMenuTicketId(null);
+  };
+
+  const openDeleteModal = (e: React.MouseEvent, ticket: {id: string, title: string}) => {
+    e.stopPropagation();
+    setSelectedTicketForAction(ticket);
+    setIsDeleteModalOpen(true);
+    setOpenMenuTicketId(null);
   };
 
   const getStatusColor = (status: string) => {
@@ -225,9 +269,45 @@ export default function TicketsPage() {
                   </div>
 
                   {/* Actions Menu */}
-                  <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                    <MoreHorizontal className="w-5 h-5" />
-                  </button>
+                  <div className="relative">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuTicketId(openMenuTicketId === ticket.id ? null : ticket.id);
+                      }}
+                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <MoreHorizontal className="w-5 h-5" />
+                    </button>
+                    
+                    {openMenuTicketId === ticket.id && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-10" 
+                          onClick={(e) => { e.stopPropagation(); setOpenMenuTicketId(null); }} 
+                        />
+                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-20 overflow-hidden py-1">
+                          <button
+                            onClick={(e) => openAssignModal(e, ticket)}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                          >
+                            <UserPlus className="w-4 h-4" />
+                            Assign Ticket
+                          </button>
+                          
+                          {currentTeam?.role === 'Leader' && (
+                            <button
+                              onClick={(e) => openDeleteModal(e, ticket)}
+                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete Ticket
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
@@ -363,6 +443,81 @@ export default function TicketsPage() {
               className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
+      {/* Assign Ticket Modal */}
+      <Modal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        title="Assign Ticket"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Select a team member to assign <span className="font-semibold">{selectedTicketForAction?.title}</span> to.
+          </p>
+          
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {currentTeam?.members.map((member) => (
+              <button
+                key={member.id}
+                onClick={() => handleAssignTicket(member.id, member.name)}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300">
+                    {member.name.charAt(0)}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{member.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{member.role}</p>
+                  </div>
+                </div>
+                {member.status === 'online' && (
+                  <span className="w-2 h-2 bg-green-500 rounded-full" title="Online" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={() => setIsAssignModalOpen(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Ticket Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Delete Ticket"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg">
+            <Trash2 className="w-5 h-5 shrink-0" />
+            <p className="text-sm">
+              Are you sure you want to delete <span className="font-bold">{selectedTicketForAction?.title}</span>? This action cannot be undone.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => setIsDeleteModalOpen(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteTicket}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Delete Ticket
             </button>
           </div>
         </div>

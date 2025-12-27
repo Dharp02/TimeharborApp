@@ -2,10 +2,18 @@
 
 import React, { createContext, useContext, useState } from 'react';
 
+export type Member = {
+  id: string;
+  name: string;
+  status: 'online' | 'offline';
+  role: 'Leader' | 'Member';
+  avatar?: string;
+};
+
 export type Team = {
   id: string;
   name: string;
-  members: number;
+  members: Member[];
   role: 'Leader' | 'Member';
   code: string;
 };
@@ -17,6 +25,7 @@ interface TeamContextType {
   joinTeam: (code: string) => void;
   createTeam: (name: string) => string; // returns code
   deleteTeam: (teamId: string) => void;
+  updateTeamName: (teamId: string, name: string) => void;
 }
 
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
@@ -24,9 +33,40 @@ const TeamContext = createContext<TeamContextType | undefined>(undefined);
 export function TeamProvider({ children }: { children: React.ReactNode }) {
   // Mock data
   const [teams, setTeams] = useState<Team[]>([
-    { id: '1', name: 'Team A', members: 5, role: 'Leader', code: '123456' },
-    { id: '2', name: 'Team B', members: 12, role: 'Member', code: '789012' },
-    { id: '3', name: 'Team C', members: 3, role: 'Leader', code: '345678' },
+    { 
+      id: '1', 
+      name: 'Team A', 
+      members: [
+        { id: 'u1', name: 'You', status: 'online', role: 'Leader' },
+        { id: 'u2', name: 'Alice', status: 'online', role: 'Member' },
+        { id: 'u3', name: 'Bob', status: 'offline', role: 'Member' },
+        { id: 'u4', name: 'Charlie', status: 'offline', role: 'Member' },
+        { id: 'u5', name: 'David', status: 'online', role: 'Member' },
+      ], 
+      role: 'Leader', 
+      code: '123456' 
+    },
+    { 
+      id: '2', 
+      name: 'Team B', 
+      members: [
+        { id: 'u1', name: 'You', status: 'online', role: 'Member' },
+        { id: 'u6', name: 'Eve', status: 'online', role: 'Leader' },
+      ], 
+      role: 'Member', 
+      code: '789012' 
+    },
+    { 
+      id: '3', 
+      name: 'Team C', 
+      members: [
+        { id: 'u1', name: 'You', status: 'online', role: 'Leader' },
+        { id: 'u7', name: 'Frank', status: 'offline', role: 'Member' },
+        { id: 'u8', name: 'Grace', status: 'online', role: 'Member' },
+      ], 
+      role: 'Leader', 
+      code: '345678' 
+    },
   ]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
 
@@ -40,7 +80,9 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     const newTeam: Team = {
       id: Math.random().toString(),
       name: `Team ${code}`,
-      members: 1,
+      members: [
+        { id: 'u1', name: 'You', status: 'online', role: 'Member' }
+      ],
       role: 'Member',
       code: code
     };
@@ -53,7 +95,9 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     const newTeam: Team = {
       id: Math.random().toString(),
       name,
-      members: 1,
+      members: [
+        { id: 'u1', name: 'You', status: 'online', role: 'Leader' }
+      ],
       role: 'Leader',
       code
     };
@@ -69,8 +113,15 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateTeamName = (teamId: string, name: string) => {
+    setTeams(teams.map(t => t.id === teamId ? { ...t, name } : t));
+    if (currentTeam?.id === teamId) {
+      setCurrentTeam(prev => prev ? { ...prev, name } : null);
+    }
+  };
+
   return (
-    <TeamContext.Provider value={{ currentTeam, teams, selectTeam, joinTeam, createTeam, deleteTeam }}>
+    <TeamContext.Provider value={{ currentTeam, teams, selectTeam, joinTeam, createTeam, deleteTeam, updateTeamName }}>
       {children}
     </TeamContext.Provider>
   );
