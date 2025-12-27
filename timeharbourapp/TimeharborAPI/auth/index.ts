@@ -3,7 +3,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.39:3001';
 
 // Types
 export interface User {
-  id: number;
+  id: string;
   email: string;
   full_name?: string;
   email_verified: boolean;
@@ -281,13 +281,21 @@ export const getUser = async () => {
         return { user: retryData.user, error: null };
       }
       
-      return { user: null, error: { message: data.error } };
+      return { user: null, error: { message: data.error || 'Failed to fetch user' } };
     }
 
     return { user: data.user, error: null };
-  } catch (err) {
-    console.error('Get user error:', err);
-    return { user: null, error: { message: 'Network error' } };
+  } catch (err: any) {
+    // Don't log session expired errors
+    if (err?.message !== 'Session expired. Please sign in again.') {
+      console.error('Get user error:', err);
+    }
+    
+    const message = err?.message === 'Session expired. Please sign in again.' 
+      ? 'Session expired' 
+      : 'Network error';
+      
+    return { user: null, error: { message } };
   }
 };
 

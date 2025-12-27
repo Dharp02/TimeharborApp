@@ -29,9 +29,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             throw error;
           }
           setUser(user);
-        } catch (error) {
-          console.error('Error checking session:', error);
-          setUser(null);
+        } catch (error: any) {
+          // Only log real errors, not session expiration
+          if (error?.message !== 'Session expired') {
+            console.error('Error checking session:', error);
+          }
+          // Don't overwrite an existing user (e.g. from immediate signup) with null
+          // If checkSession fails, we just leave the user as is (null or set by signup)
         } finally {
           setLoading(false);
         }
@@ -69,6 +73,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       router.replace('/login');
     }
   }, [user, loading, pathname, router]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={{ user, loading }}>
