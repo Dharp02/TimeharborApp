@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createNewTeam, joinTeamByCode, fetchMyTeams } from '@/TimeharborAPI/teams';
+import { createNewTeam, joinTeamByCode, fetchMyTeams, updateTeam as apiUpdateTeam, deleteTeam as apiDeleteTeam } from '@/TimeharborAPI/teams';
 
 
 export type Member = {
@@ -27,8 +27,9 @@ interface TeamContextType {
   selectTeam: (teamId: string) => void;
   joinTeam: (code: string) => Promise<{ success: boolean; error?: string }>;
   createTeam: (name: string) => Promise<string>; // returns code
-  deleteTeam: (teamId: string) => void;
-  updateTeamName: (teamId: string, name: string) => void;
+  deleteTeam: (teamId: string) => Promise<void>;
+  updateTeamName: (teamId: string, name: string) => Promise<void>;
+  refreshTeams: () => Promise<void>;
 }
 
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
@@ -38,30 +39,32 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const loadTeams = async () => {
-      try {
-        const myTeams = await fetchMyTeams();
-        setTeams(myTeams);
-        
-        const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
-        if (savedTeamId) {
-          const team = myTeams.find(t => t.id === savedTeamId);
-          if (team) {
-            setCurrentTeam(team);
-          } else if (myTeams.length > 0) {
-            setCurrentTeam(myTeams[0]);
-          }
+  const loadTeams = async () => {
+    try {
+      const myTeams = await fetchMyTeams();
+      setTeams(myTeams);
+      
+      const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
+      if (savedTeamId) {
+        const team = myTeams.find(t => t.id === savedTeamId);
+        if (team) {
+          setCurrentTeam(team);
         } else if (myTeams.length > 0) {
           setCurrentTeam(myTeams[0]);
+          localStorage.setItem('timeharbor-current-team-id', myTeams[0].id);
         }
-      } catch (error) {
-        console.error('Failed to load teams:', error);
-      } finally {
-        setIsLoading(false);
+      } else if (myTeams.length > 0) {
+        setCurrentTeam(myTeams[0]);
+        localStorage.setItem('timeharbor-current-team-id', myTeams[0].id);
       }
-    };
+    } catch (error) {
+      console.error('Failed to load teams:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadTeams();
   }, []);
 
@@ -76,9 +79,8 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   const joinTeam = async (code: string) => {
     try {
       const newTeam = await joinTeamByCode(code);
-      setTeams(prev => [...prev, newTeam]);
-      setCurrentTeam(newTeam);
       localStorage.setItem('timeharbor-current-team-id', newTeam.id);
+      await loadTeams();
       return { success: true };
     } catch (error: any) {
       // console.error('Error joining team:', error);
@@ -88,29 +90,37 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
 
   const createTeam = async (name: string) => {
     const newTeam = await createNewTeam(name);
-    setTeams([...teams, newTeam]);
-    setCurrentTeam(newTeam);
     localStorage.setItem('timeharbor-current-team-id', newTeam.id);
+    await loadTeams();
     return newTeam.code;
   };
 
-  const deleteTeam = (teamId: string) => {
-    setTeams(teams.filter(t => t.id !== teamId));
-    if (currentTeam?.id === teamId) {
-      setCurrentTeam(null);
-      localStorage.removeItem('timeharbor-current-team-id');
+  const deleteTeam = async (teamId: string) => {
+    try {
+      await apiDeleteTeam(teamId);
+      if (currentTeam?.id === teamId) {
+        localStorage.removeItem('timeharbor-current-team-id');
+        setCurrentTeam(null);
+      }
+      await loadTeams();
+    } catch (error) {
+      console.error('Failed to delete team:', error);
+      throw error;
     }
   };
 
-  const updateTeamName = (teamId: string, name: string) => {
-    setTeams(teams.map(t => t.id === teamId ? { ...t, name } : t));
-    if (currentTeam?.id === teamId) {
-      setCurrentTeam(prev => prev ? { ...prev, name } : null);
+  const updateTeamName = async (teamId: string, name: string) => {
+    try {
+      await apiUpdateTeam(teamId, name);
+      await loadTeams();
+    } catch (error) {
+      console.error('Failed to update team:', error);
+      throw error;
     }
   };
 
   return (
-    <TeamContext.Provider value={{ currentTeam, teams, isLoading, selectTeam, joinTeam, createTeam, deleteTeam, updateTeamName }}>
+    <TeamContext.Provider value={{ currentTeam, teams, isLoading, selectTeam, joinTeam, createTeam, deleteTeam, updateTeamName, refreshTeams: loadTeams }}>
       {children}
     </TeamContext.Provider>
   );

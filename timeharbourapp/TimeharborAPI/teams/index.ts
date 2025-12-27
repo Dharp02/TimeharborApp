@@ -194,3 +194,59 @@ export const fetchMyTeams = async (): Promise<Team[]> => {
   
   return teams;
 };
+
+export const updateTeam = async (teamId: string, name: string): Promise<Team> => {
+  const user = getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const response = await authenticatedFetch(`${API_URL}/teams/${teamId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ name })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to update team');
+  }
+
+  const updatedTeam = await response.json();
+  
+  // Update local storage
+  if (isBrowser) {
+    const storedTeamsStr = localStorage.getItem(STORAGE_KEY);
+    if (storedTeamsStr) {
+      const teams: Team[] = JSON.parse(storedTeamsStr);
+      const updatedTeams = teams.map(t => t.id === teamId ? { ...t, name: updatedTeam.name } : t);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTeams));
+    }
+  }
+
+  return updatedTeam;
+};
+
+export const deleteTeam = async (teamId: string): Promise<void> => {
+  const user = getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const response = await authenticatedFetch(`${API_URL}/teams/${teamId}`, {
+    method: 'DELETE'
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to delete team');
+  }
+
+  // Update local storage
+  if (isBrowser) {
+    const storedTeamsStr = localStorage.getItem(STORAGE_KEY);
+    if (storedTeamsStr) {
+      const teams: Team[] = JSON.parse(storedTeamsStr);
+      const updatedTeams = teams.filter(t => t.id !== teamId);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTeams));
+    }
+  }
+};

@@ -4,10 +4,12 @@ import { Home, Users, Clock, Ticket, Settings, StopCircle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useClockIn } from './ClockInContext';
+import { useTeam } from './TeamContext';
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { isSessionActive, sessionDuration, sessionFormat, toggleSession } = useClockIn();
+  const { refreshTeams } = useTeam();
 
   const isActive = (path: string) => pathname === path;
 
@@ -26,6 +28,7 @@ export default function BottomNav() {
 
         <Link
           href="/dashboard/teams"
+          onClick={() => refreshTeams()}
           className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
             isActive('/dashboard/teams') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
           }`}

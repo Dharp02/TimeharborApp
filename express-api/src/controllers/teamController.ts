@@ -157,3 +157,80 @@ export const getMyTeams = async (req: AuthRequest, res: Response): Promise<void>
     res.status(500).json({ error: 'Failed to fetch teams' });
   }
 };
+
+export const updateTeam = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    if (!name) {
+      res.status(400).json({ error: 'Team name is required' });
+      return;
+    }
+
+    // Check if user is a leader of the team
+    const membership = await Member.findOne({
+      where: { userId, teamId: id, role: 'Leader' }
+    });
+
+    if (!membership) {
+      res.status(403).json({ error: 'Not authorized to update this team' });
+      return;
+    }
+
+    const team = await Team.findByPk(id);
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    team.name = name;
+    await team.save();
+
+    res.status(200).json(team);
+  } catch (error) {
+    logger.error('Error updating team:', error);
+    res.status(500).json({ error: 'Failed to update team' });
+  }
+};
+
+export const deleteTeam = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    // Check if user is a leader of the team
+    const membership = await Member.findOne({
+      where: { userId, teamId: id, role: 'Leader' }
+    });
+
+    if (!membership) {
+      res.status(403).json({ error: 'Not authorized to delete this team' });
+      return;
+    }
+
+    const team = await Team.findByPk(id);
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    await team.destroy();
+
+    res.status(200).json({ message: 'Team deleted successfully' });
+  } catch (error) {
+    logger.error('Error deleting team:', error);
+    res.status(500).json({ error: 'Failed to delete team' });
+  }
+};
