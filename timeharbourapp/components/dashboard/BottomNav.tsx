@@ -1,11 +1,13 @@
 'use client';
 
-import { Home, Users, Clock, Ticket, Settings } from 'lucide-react';
+import { Home, Users, Clock, Ticket, Settings, StopCircle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useClockIn } from './ClockInContext';
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const { isClockedIn, duration, format, toggleClockIn } = useClockIn();
 
   const isActive = (path: string) => pathname === path;
 
@@ -33,13 +35,27 @@ export default function BottomNav() {
         </Link>
 
         <div className="relative -top-5">
-          <Link href="/dashboard/clock-in">
-            <button className="flex flex-col items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-colors ring-4 ring-white dark:ring-gray-800">
-              <Clock className="w-7 h-7" />
-            </button>
-          </Link>
-          <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-medium text-blue-600 dark:text-blue-400 whitespace-nowrap">
-            Clock In
+          <button 
+            onClick={toggleClockIn}
+            className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-white dark:ring-gray-800 ${
+              isClockedIn 
+                ? 'bg-red-500 hover:bg-red-600 animate-pulse w-16 h-16' 
+                : 'bg-blue-600 hover:bg-blue-700 w-14 h-14'
+            }`}
+          >
+            {isClockedIn ? (
+              <>
+                <span className="text-xs font-bold font-mono leading-none">{duration}</span>
+                <span className="text-[8px] font-medium opacity-80 leading-none mt-0.5">{format}</span>
+              </>
+            ) : (
+              <Clock className="w-8 h-8" />
+            )}
+          </button>
+          <span className={`absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap ${
+            isClockedIn ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
+          }`}>
+            {isClockedIn ? 'Clock Out' : 'Clock In'}
           </span>
         </div>
 
