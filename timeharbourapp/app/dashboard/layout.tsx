@@ -1,5 +1,10 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import { TeamProvider } from '@/components/dashboard/TeamContext';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return (
+    <TeamProvider>
+      <DashboardLayout>{children}</DashboardLayout>
+    </TeamProvider>
+  );
 }

@@ -10,9 +10,11 @@ export default function OpenTickets() {
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
+  const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
 
   // Mock data for tickets
   const tickets = [
@@ -64,6 +66,13 @@ export default function OpenTickets() {
     setComment('');
   };
 
+  const handleAddTicket = () => {
+    // Here you would typically call an API to create the ticket
+    console.log('Creating ticket:', newTicket);
+    setIsAddTicketModalOpen(false);
+    setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
+  };
+
   return (
     <>
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
@@ -71,10 +80,10 @@ export default function OpenTickets() {
         <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Open Tickets</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
-            <button className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-              <Search className="w-5 h-5" />
-            </button>
-            <button className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+            <button 
+              onClick={() => setIsAddTicketModalOpen(true)}
+              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            >
               <Plus className="w-5 h-5" />
             </button>
           </div>
@@ -182,6 +191,91 @@ export default function OpenTickets() {
               }`}
             >
               {modalType === 'stop' ? 'Stop Timer' : 'Switch Task'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Ticket Modal */}
+      <Modal
+        isOpen={isAddTicketModalOpen}
+        onClose={() => setIsAddTicketModalOpen(false)}
+        title="Add Ticket"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 -mt-2 mb-4 text-gray-500 dark:text-gray-400">
+            <Ticket className="w-5 h-5 text-green-500" />
+            <p className="text-sm">Create a new ticket to track your work.</p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Title
+              </label>
+              <input
+                type="text"
+                value={newTicket.title}
+                onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
+                placeholder="Enter ticket title"
+                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Description (optional)
+              </label>
+              <textarea
+                value={newTicket.description}
+                onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+                placeholder="Add more details..."
+                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500 min-h-[100px]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Reference Link (optional)
+              </label>
+              <input
+                type="url"
+                value={newTicket.reference}
+                onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
+                placeholder="https://..."
+                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Status
+              </label>
+              <select
+                value={newTicket.status}
+                onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
+                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white"
+              >
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Review">Review</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 mt-6">
+            <button
+              onClick={handleAddTicket}
+              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+            >
+              Create Ticket
+            </button>
+            <button
+              onClick={() => setIsAddTicketModalOpen(false)}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Cancel
             </button>
           </div>
         </div>
