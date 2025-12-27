@@ -31,7 +31,7 @@ export default function SettingsPage() {
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Full Name</p>
               <p className="font-medium text-gray-900 dark:text-white">
-                {user?.user_metadata?.full_name || 'Not set'}
+                {user?.full_name || 'Not set'}
               </p>
             </div>
           </div>
@@ -43,18 +43,6 @@ export default function SettingsPage() {
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Email Address</p>
               <p className="font-medium text-gray-900 dark:text-white">{user?.email}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
-            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-full">
-              <Shield className="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">User ID</p>
-              <p className="font-medium text-gray-900 dark:text-white font-mono text-xs">
-                {user?.id}
-              </p>
             </div>
           </div>
         </div>

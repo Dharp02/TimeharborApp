@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { connectDatabase } from './config/sequelize';
 import authRoutes from './routes/authRoutes';
+import teamRoutes from './routes/teamRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
 import { startCleanupJob } from './jobs/cleanupTokens';
@@ -49,6 +50,7 @@ app.use(morgan('combined', { stream: morganStream }));
 
 // Routes
 app.use('/auth', authLimiter, authRoutes);
+app.use('/teams', teamRoutes);
 
 // Health check
 app.get('/', (req, res) => {

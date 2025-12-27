@@ -12,7 +12,9 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0"),
-        .package(name: "CapacitorClipboard", path: "../../../node_modules/@capacitor/clipboard")
+        .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
+        .package(name: "CapacitorClipboard", path: "../../../node_modules/@capacitor/clipboard"),
+        .package(name: "CapacitorNetwork", path: "../../../node_modules/@capacitor/network")
     ],
     targets: [
         .target(
@@ -20,7 +22,9 @@ let package = Package(
             dependencies: [
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
-                .product(name: "CapacitorClipboard", package: "CapacitorClipboard")
+                .product(name: "CapacitorApp", package: "CapacitorApp"),
+                .product(name: "CapacitorClipboard", package: "CapacitorClipboard"),
+                .product(name: "CapacitorNetwork", package: "CapacitorNetwork")
             ]
         )
     ]

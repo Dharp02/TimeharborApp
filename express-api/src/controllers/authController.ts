@@ -7,7 +7,7 @@ import { AppError, asyncHandler } from '../middleware/errorHandler';
 import logger from '../utils/logger';
 
 // Token generation helpers
-const generateAccessToken = (userId: string, email: string): string => {
+const generateAccessToken = (userId: string, email: string, full_name?: string): string => {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
     throw new AppError('JWT_SECRET not configured', 500);
@@ -15,7 +15,7 @@ const generateAccessToken = (userId: string, email: string): string => {
   
   const expiresIn = process.env.JWT_EXPIRES_IN || '15m';
   const token = jwt.sign(
-    { id: userId, email },
+    { id: userId, email, full_name },
     jwtSecret as jwt.Secret,
     { expiresIn } as jwt.SignOptions
   );
@@ -55,7 +55,7 @@ export const signup = asyncHandler(async (req: AuthRequest, res: Response) => {
   });
 
   // Generate tokens
-  const accessToken = generateAccessToken(user.id, user.email);
+  const accessToken = generateAccessToken(user.id, user.email, user.full_name);
   const refreshToken = await generateRefreshToken(user.id);
 
   logger.info(`New user registered: ${email}`);
@@ -87,7 +87,7 @@ export const signin = asyncHandler(async (req: AuthRequest, res: Response) => {
   }
 
   // Generate tokens
-  const accessToken = generateAccessToken(user.id, user.email);
+  const accessToken = generateAccessToken(user.id, user.email, user.full_name);
   const refreshToken = await generateRefreshToken(user.id);
 
   logger.info(`User signed in: ${email}`);

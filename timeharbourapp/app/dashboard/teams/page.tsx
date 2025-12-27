@@ -28,8 +28,8 @@ export default function TeamsPage() {
     setJoinCode('');
   };
 
-  const handleCreateTeam = () => {
-    const code = createTeam(newTeamName);
+  const handleCreateTeam = async () => {
+    const code = await createTeam(newTeamName);
     setCreatedTeamCode(code);
   };
 

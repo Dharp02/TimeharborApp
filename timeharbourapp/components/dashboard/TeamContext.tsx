@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState } from 'react';
+import { createNewTeam } from '@/TimeharborAPI/teams';
 
 export type Member = {
   id: string;
@@ -23,7 +24,7 @@ interface TeamContextType {
   teams: Team[];
   selectTeam: (teamId: string) => void;
   joinTeam: (code: string) => void;
-  createTeam: (name: string) => string; // returns code
+  createTeam: (name: string) => Promise<string>; // returns code
   deleteTeam: (teamId: string) => void;
   updateTeamName: (teamId: string, name: string) => void;
 }
@@ -90,20 +91,11 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     setCurrentTeam(newTeam);
   };
 
-  const createTeam = (name: string) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const newTeam: Team = {
-      id: Math.random().toString(),
-      name,
-      members: [
-        { id: 'u1', name: 'You', status: 'online', role: 'Leader' }
-      ],
-      role: 'Leader',
-      code
-    };
+  const createTeam = async (name: string) => {
+    const newTeam = await createNewTeam(name);
     setTeams([...teams, newTeam]);
     setCurrentTeam(newTeam);
-    return code;
+    return newTeam.code;
   };
 
   const deleteTeam = (teamId: string) => {

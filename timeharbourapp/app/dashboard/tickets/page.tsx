@@ -319,7 +319,7 @@ export default function TicketsPage() {
                     {activeTicketId === ticket.id && (
                       <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-medium font-mono">
                         <Clock className="w-4 h-4" />
-                        {getFormattedTotalTime()}
+                        {getFormattedTotalTime(ticket.id)}
                       </div>
                     )}
                   </div>

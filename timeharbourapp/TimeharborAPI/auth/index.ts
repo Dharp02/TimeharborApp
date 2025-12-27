@@ -1,5 +1,6 @@
 // API URL from environment variable
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.39:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { db } from '../../lib/db';
 
 // Types
 export interface User {
@@ -45,11 +46,36 @@ const setTokens = (session: Session) => {
   localStorage.setItem('token_expires_at', String(Date.now() + session.expires_in * 1000));
 };
 
-const clearTokens = () => {
+const setUser = async (user: User) => {
+  if (!isBrowser) return;
+  try {
+    await db.profile.put({ key: 'user', data: user });
+  } catch (error) {
+    console.error('Failed to save user to Dexie:', error);
+  }
+};
+
+const getStoredUser = async (): Promise<User | null> => {
+  if (!isBrowser) return null;
+  try {
+    const record = await db.profile.get('user');
+    return record ? record.data : null;
+  } catch (error) {
+    console.error('Failed to get user from Dexie:', error);
+    return null;
+  }
+};
+
+const clearTokens = async () => {
   if (!isBrowser) return;
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('token_expires_at');
+  try {
+    await db.profile.delete('user');
+  } catch (error) {
+    console.error('Failed to delete user from Dexie:', error);
+  }
 };
 
 const getAccessToken = (): string | null => {
@@ -91,8 +117,11 @@ export const refreshAccessToken = async (): Promise<{ data: Session | null; erro
     const data = await response.json();
 
     if (!response.ok) {
-      clearTokens();
-      notifyListeners('TOKEN_EXPIRED', null);
+      // Only clear tokens if the server explicitly rejected the refresh token (401/403)
+      if (response.status === 401 || response.status === 403) {
+        await clearTokens();
+        notifyListeners('TOKEN_EXPIRED', null);
+      }
       return { data: null, error: { message: data.error || 'Token refresh failed' } };
     }
 
@@ -102,13 +131,13 @@ export const refreshAccessToken = async (): Promise<{ data: Session | null; erro
     return { data: data.session, error: null };
   } catch (err) {
     console.error('Token refresh error:', err);
-    clearTokens();
+    // Do NOT clear tokens on network error - allow offline mode
     return { data: null, error: { message: 'Network error' } };
   }
 };
 
 // Authenticated fetch wrapper
-const authenticatedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+export const authenticatedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
   let token = getAccessToken();
 
   // Check if token is expired and refresh if needed
@@ -155,6 +184,7 @@ export const signUp = async (email: string, password: string, name: string) => {
 
     if (data.session) {
       setTokens(data.session);
+      await setUser(data.user);
       notifyListeners('SIGNED_IN', { user: data.user, session: data.session });
     }
 
@@ -183,6 +213,7 @@ export const signIn = async (email: string, password: string) => {
 
     if (data.session) {
       setTokens(data.session);
+      await setUser(data.user);
       notifyListeners('SIGNED_IN', { user: data.user, session: data.session });
     }
 
@@ -210,7 +241,7 @@ export const signOut = async () => {
   } catch (err) {
     console.error('Signout error:', err);
   } finally {
-    clearTokens();
+    await clearTokens();
     notifyListeners('SIGNED_OUT', null);
   }
   
@@ -278,12 +309,14 @@ export const getUser = async () => {
           return { user: null, error: { message: retryData.error } };
         }
         
+        await setUser(retryData.user);
         return { user: retryData.user, error: null };
       }
       
       return { user: null, error: { message: data.error || 'Failed to fetch user' } };
     }
 
+    await setUser(data.user);
     return { user: data.user, error: null };
   } catch (err: any) {
     // Don't log session expired errors
@@ -291,6 +324,12 @@ export const getUser = async () => {
       console.error('Get user error:', err);
     }
     
+    // If network error, try to return stored user
+    const storedUser = await getStoredUser();
+    if (storedUser) {
+      return { user: storedUser, error: null };
+    }
+
     const message = err?.message === 'Session expired. Please sign in again.' 
       ? 'Session expired' 
       : 'Network error';
