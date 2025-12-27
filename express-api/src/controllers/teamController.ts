@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { Team } from '../models';
+import { Team, Member } from '../models';
 import { AuthRequest } from '../middleware/authMiddleware';
 import logger from '../utils/logger';
 
@@ -35,9 +35,67 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
 
     logger.info(`Team created: ${team.id} by user ${userId}`);
 
+    // Also add the creator as a Leader in the members table
+    await Member.create({
+      userId,
+      teamId: team.id,
+      role: 'Leader'
+    });
+
     res.status(201).json(team);
   } catch (error) {
     logger.error('Error creating team:', error);
     res.status(500).json({ error: 'Failed to create team' });
+  }
+};
+
+export const joinTeam = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { code } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    if (!code) {
+      res.status(400).json({ error: 'Team code is required' });
+      return;
+    }
+
+    // Find the team
+    const team = await Team.findOne({ where: { code } });
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    // Check if already a member
+    const existingMember = await Member.findOne({
+      where: {
+        userId,
+        teamId: team.id
+      }
+    });
+
+    if (existingMember) {
+      res.status(409).json({ error: 'You are already a member of this team' });
+      return;
+    }
+
+    // Create member record
+    await Member.create({
+      userId,
+      teamId: team.id,
+      role: 'Member'
+    });
+
+    logger.info(`User ${userId} joined team ${team.id}`);
+
+    res.status(200).json(team);
+  } catch (error) {
+    logger.error('Error joining team:', error);
+    res.status(500).json({ error: 'Failed to join team' });
   }
 };

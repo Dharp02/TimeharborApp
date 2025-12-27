@@ -9,6 +9,7 @@ export interface UserAttributes {
   password: string;
   full_name?: string;
   email_verified: boolean;
+  status: 'online' | 'offline';
   reset_token?: string;
   reset_token_expiry?: Date;
   created_at?: Date;
@@ -25,6 +26,7 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
   public password!: string;
   public full_name?: string;
   public email_verified!: boolean;
+  public status!: 'online' | 'offline';
   public reset_token?: string;
   public reset_token_expiry?: Date;
   public readonly created_at!: Date;
@@ -88,8 +90,11 @@ User.init(
     },
     email_verified: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false
-    },
+          status: {
+      type: DataTypes.ENUM('online', 'offline'),
+      defaultValue: 'offline',
+      allowNull: false,
+    },    },
     reset_token: {
       type: DataTypes.STRING(255),
       allowNull: true

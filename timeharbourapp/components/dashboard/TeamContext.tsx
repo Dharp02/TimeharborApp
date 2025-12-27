@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createNewTeam } from '@/TimeharborAPI/teams';
-import { useEffect } from 'react';
+
 
 export type Member = {
   id: string;
