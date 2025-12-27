@@ -1,11 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useClockIn } from './ClockInContext';
+import { Modal } from '@/components/ui/Modal';
 
 export default function OpenTickets() {
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
+  const [comment, setComment] = useState('');
+  const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
 
   // Mock data for tickets
   const tickets = [
@@ -17,7 +24,48 @@ export default function OpenTickets() {
     { id: 'T-106', title: 'Add unit tests', status: 'Open' },
   ];
 
+  const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
+    e.stopPropagation();
+    
+    if (!isSessionActive) return;
+
+    // If stopping the current ticket
+    if (activeTicketId === ticketId) {
+      setPendingTicket({ id: ticketId, title: ticketTitle });
+      setModalType('stop');
+      setComment('');
+      setIsModalOpen(true);
+    } 
+    // If starting a new ticket (and potentially stopping another)
+    else {
+      if (activeTicketId) {
+        setPendingTicket({ id: ticketId, title: ticketTitle });
+        setModalType('switch');
+        setComment('');
+        setIsModalOpen(true);
+      } else {
+        // Just starting a new ticket
+        toggleTicketTimer(ticketId, ticketTitle);
+      }
+    }
+  };
+
+  const handleConfirm = () => {
+    if (!pendingTicket) return;
+
+    if (modalType === 'stop') {
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, comment);
+    } else {
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, comment);
+    }
+
+    setIsModalOpen(false);
+    setPendingTicket(null);
+    setComment('');
+  };
+
   return (
+    <>
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Open Tickets</h2>
@@ -66,12 +114,7 @@ export default function OpenTickets() {
               </span>
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                 <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isSessionActive) {
-                      toggleTicketTimer(ticket.id, ticket.title);
-                    }
-                  }}
+                  onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
                   disabled={!isSessionActive}
                   className={`p-2 rounded-full transition-colors ${
                     !isSessionActive 
@@ -104,5 +147,45 @@ export default function OpenTickets() {
         </Link>
       </div>
     </div>
+
+    <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={modalType === 'stop' ? 'Stop Timer?' : 'Switching Tasks'}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            {modalType === 'stop' 
+              ? 'Enter a comment for this session:' 
+              : 'Enter a comment for the current task before switching:'}
+          </p>
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="What did you work on?"
+            className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            autoFocus
+          />
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
+                modalType === 'stop'
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              {modalType === 'stop' ? 'Stop Timer' : 'Switch Task'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }

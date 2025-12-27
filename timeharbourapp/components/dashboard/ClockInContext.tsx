@@ -19,7 +19,7 @@ type ClockInContextType = {
 
   // Actions
   toggleSession: () => void;
-  toggleTicketTimer: (ticketId: string, ticketTitle: string) => void;
+  toggleTicketTimer: (ticketId: string, ticketTitle: string, comment?: string) => void;
   getFormattedTotalTime: (ticketId: string) => string;
 };
 
@@ -161,7 +161,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const toggleTicketTimer = (ticketId: string, ticketTitle: string) => {
+  const toggleTicketTimer = (ticketId: string, ticketTitle: string, comment?: string) => {
     if (!isSessionActive) return; // Cannot start ticket timer if session is not active
 
     if (activeTicketId === ticketId) {
@@ -175,6 +175,12 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         const updatedDurations = { ...ticketDurations, [ticketId]: newTotal };
         setTicketDurations(updatedDurations);
         localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
+        
+        // Here you would typically save the comment and session details to a backend
+        if (comment) {
+          console.log(`Saved comment for ticket ${ticketId}: ${comment}`);
+          // For now we just log it, but you could add it to a history state
+        }
       }
 
       setActiveTicketId(null);
@@ -194,6 +200,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         const updatedDurations = { ...ticketDurations, [activeTicketId]: newTotal };
         setTicketDurations(updatedDurations);
         localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
+        
+        // If we're switching, the comment passed is for the OLD ticket (the one stopping)
+        if (comment) {
+          console.log(`Saved comment for ticket ${activeTicketId}: ${comment}`);
+        }
       }
 
       // Start new ticket
