@@ -7,7 +7,7 @@ import { useClockIn } from './ClockInContext';
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const { isClockedIn, duration, format, toggleClockIn } = useClockIn();
+  const { isSessionActive, sessionDuration, sessionFormat, toggleSession } = useClockIn();
 
   const isActive = (path: string) => pathname === path;
 
@@ -36,26 +36,26 @@ export default function BottomNav() {
 
         <div className="relative -top-5">
           <button 
-            onClick={toggleClockIn}
+            onClick={toggleSession}
             className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-white dark:ring-gray-800 ${
-              isClockedIn 
+              isSessionActive 
                 ? 'bg-red-500 hover:bg-red-600 animate-pulse w-16 h-16' 
                 : 'bg-blue-600 hover:bg-blue-700 w-14 h-14'
             }`}
           >
-            {isClockedIn ? (
+            {isSessionActive ? (
               <>
-                <span className="text-xs font-bold font-mono leading-none">{duration}</span>
-                <span className="text-[8px] font-medium opacity-80 leading-none mt-0.5">{format}</span>
+                <span className="text-xs font-bold font-mono leading-none">{sessionDuration}</span>
+                <span className="text-[8px] font-medium opacity-80 leading-none mt-0.5">{sessionFormat}</span>
               </>
             ) : (
               <Clock className="w-8 h-8" />
             )}
           </button>
           <span className={`absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap ${
-            isClockedIn ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
+            isSessionActive ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
           }`}>
-            {isClockedIn ? 'Clock Out' : 'Clock In'}
+            {isSessionActive ? 'Clock Out' : 'Clock In'}
           </span>
         </div>
 
