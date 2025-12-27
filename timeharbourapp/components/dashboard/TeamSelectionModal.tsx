@@ -17,6 +17,8 @@ export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: 
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [joinCode, setJoinCode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSelect = (teamId: string) => {
     selectTeam(teamId);
@@ -43,12 +45,20 @@ export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: 
     }
   };
 
-  const handleJoinSubmit = () => {
+  const handleJoinSubmit = async () => {
     if (joinCode.trim()) {
-      joinTeam(joinCode);
-      setIsJoinModalOpen(false);
-      setJoinCode('');
-      onClose();
+      setIsJoining(true);
+      setError(null);
+      try {
+        await joinTeam(joinCode);
+        setIsJoinModalOpen(false);
+        setJoinCode('');
+        onClose();
+      } catch (err: any) {
+        setError(err.message || 'Failed to join team');
+      } finally {
+        setIsJoining(false);
+      }
     }
   };
 
@@ -159,11 +169,25 @@ export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: 
             />
           </div>
 
+          {error && (
+            <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg">
+              {error}
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 mt-6">
             <button
               onClick={() => setIsJoinModalOpen(false)}
               className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
+              Cancel
+            </button>
+            <button
+              onClick={handleJoinSubmit}
+              disabled={!joinCode.trim() || isJoining}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isJoining ? 'Joining...' : 'Join Team'}
               Cancel
             </button>
             <button

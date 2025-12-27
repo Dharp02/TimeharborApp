@@ -17,7 +17,7 @@ export interface UserAttributes {
 }
 
 // Optional attributes for creation
-interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'email_verified' | 'created_at' | 'updated_at'> {}
+interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'email_verified' | 'status' | 'created_at' | 'updated_at'> {}
 
 // User model class
 class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
@@ -90,11 +90,14 @@ User.init(
     },
     email_verified: {
       type: DataTypes.BOOLEAN,
-          status: {
+      defaultValue: false,
+      allowNull: false
+    },
+    status: {
       type: DataTypes.ENUM('online', 'offline'),
       defaultValue: 'offline',
-      allowNull: false,
-    },    },
+      allowNull: false
+    },
     reset_token: {
       type: DataTypes.STRING(255),
       allowNull: true

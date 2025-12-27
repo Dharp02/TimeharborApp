@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createNewTeam } from '@/TimeharborAPI/teams';
+import { createNewTeam, joinTeamByCode } from '@/TimeharborAPI/teams';
 
 
 export type Member = {
@@ -25,7 +25,7 @@ interface TeamContextType {
   teams: Team[];
   isLoading: boolean;
   selectTeam: (teamId: string) => void;
-  joinTeam: (code: string) => void;
+  joinTeam: (code: string) => Promise<void>;
   createTeam: (name: string) => Promise<string>; // returns code
   deleteTeam: (teamId: string) => void;
   updateTeamName: (teamId: string, name: string) => void;
@@ -93,17 +93,8 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const joinTeam = (code: string) => {
-    // Mock join logic
-    const newTeam: Team = {
-      id: Math.random().toString(),
-      name: `Team ${code}`,
-      members: [
-        { id: 'u1', name: 'You', status: 'online', role: 'Member' }
-      ],
-      role: 'Member',
-      code: code
-    };
+  const joinTeam = async (code: string) => {
+    const newTeam = await joinTeamByCode(code);
     setTeams([...teams, newTeam]);
     setCurrentTeam(newTeam);
     localStorage.setItem('timeharbor-current-team-id', newTeam.id);

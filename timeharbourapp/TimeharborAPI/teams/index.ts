@@ -137,3 +137,42 @@ export const createNewTeam = async (name: string): Promise<Team> => {
 
   return newTeam;
 };
+
+export const joinTeamByCode = async (code: string): Promise<Team> => {
+  const { user } = await getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const url = `${API_URL}/teams/join`;
+  
+  const response = await authenticatedFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to join team');
+  }
+
+  const teamData = await response.json();
+
+  // Construct local Team object
+  const member: Member = {
+    id: user.id,
+    name: user.full_name || user.email,
+    status: 'online',
+    role: 'Member'
+  };
+
+  const newTeam: Team = {
+    id: teamData.id,
+    name: teamData.name,
+    members: [member],
+    role: 'Member',
+    code: teamData.code
+  };
+
+  saveTeam(newTeam);
+  return newTeam;
+};
