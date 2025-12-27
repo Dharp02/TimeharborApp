@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User } from 'lucide-react';
+import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User, ArrowRightLeft, Check, Edit2, ExternalLink, AlignLeft } from 'lucide-react';
 import { useClockIn } from '@/components/dashboard/ClockInContext';
 import { useTeam } from '@/components/dashboard/TeamContext';
 import { Modal } from '@/components/ui/Modal';
@@ -13,29 +13,34 @@ export default function TicketsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isMobileDetailModalOpen, setIsMobileDetailModalOpen] = useState(false);
   
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
-  const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
+  const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', priority: 'Medium', reference: '' });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   
   const [openMenuTicketId, setOpenMenuTicketId] = useState<string | null>(null);
   const [selectedTicketForAction, setSelectedTicketForAction] = useState<{id: string, title: string} | null>(null);
+  const [mobileDetailTicketId, setMobileDetailTicketId] = useState<string | null>(null);
 
   // Mock data for tickets
   const [allTickets, setAllTickets] = useState([
-    { id: 'T-101', title: 'Fix login page responsiveness', status: 'In Progress', priority: 'High', assignee: 'JD' },
-    { id: 'T-102', title: 'Update user profile API', status: 'Open', priority: 'Medium', assignee: 'JD' },
-    { id: 'T-103', title: 'Design dashboard mockups', status: 'Review', priority: 'High', assignee: 'AS' },
-    { id: 'T-104', title: 'Implement dark mode', status: 'Open', priority: 'Low', assignee: 'JD' },
-    { id: 'T-105', title: 'Fix navigation bug', status: 'In Progress', priority: 'Critical', assignee: 'JD' },
-    { id: 'T-106', title: 'Add unit tests', status: 'Open', priority: 'Medium', assignee: 'TS' },
-    { id: 'T-107', title: 'Refactor auth context', status: 'Completed', priority: 'High', assignee: 'JD' },
-    { id: 'T-108', title: 'Update documentation', status: 'Open', priority: 'Low', assignee: 'AS' },
-    { id: 'T-109', title: 'Optimize image loading', status: 'In Progress', priority: 'Medium', assignee: 'TS' },
+    { id: 'T-101', title: 'Fix login page responsiveness', status: 'In Progress', priority: 'High', assignee: 'JD', description: 'Login page is broken on mobile devices.', reference: '' },
+    { id: 'T-102', title: 'Update user profile API', status: 'Open', priority: 'Medium', assignee: 'JD', description: 'Add new fields to the user profile API.', reference: 'https://jira.example.com/T-102' },
+    { id: 'T-103', title: 'Design dashboard mockups', status: 'Review', priority: 'High', assignee: 'AS', description: 'Create high-fidelity mockups for the new dashboard.', reference: '' },
+    { id: 'T-104', title: 'Implement dark mode', status: 'Open', priority: 'Low', assignee: 'JD', description: 'Add dark mode support to the application.', reference: '' },
+    { id: 'T-105', title: 'Fix navigation bug', status: 'In Progress', priority: 'Critical', assignee: 'JD', description: 'Navigation menu is not closing on mobile.', reference: '' },
+    { id: 'T-106', title: 'Add unit tests', status: 'Open', priority: 'Medium', assignee: 'TS', description: 'Increase test coverage for the auth module.', reference: '' },
+    { id: 'T-107', title: 'Refactor auth context', status: 'Completed', priority: 'High', assignee: 'JD', description: 'Simplify the authentication logic.', reference: '' },
+    { id: 'T-108', title: 'Update documentation', status: 'Open', priority: 'Low', assignee: 'AS', description: 'Update the README with setup instructions.', reference: '' },
+    { id: 'T-109', title: 'Optimize image loading', status: 'In Progress', priority: 'Medium', assignee: 'TS', description: 'Implement lazy loading for images.', reference: '' },
   ]);
 
   const tabs = ['All', 'Open', 'In Progress', 'Review', 'Completed'];
@@ -88,10 +93,43 @@ export default function TicketsPage() {
   };
 
   const handleAddTicket = () => {
-    // Here you would typically call an API to create the ticket
-    console.log('Creating ticket:', newTicket);
+    if (isEditing && editingTicketId) {
+      // Update existing ticket
+      setAllTickets(allTickets.map(t => 
+        t.id === editingTicketId 
+          ? { ...t, ...newTicket } 
+          : t
+      ));
+      setIsEditing(false);
+      setEditingTicketId(null);
+    } else {
+      // Create new ticket
+      const newId = `T-${100 + allTickets.length + 1}`;
+      setAllTickets([...allTickets, { id: newId, assignee: 'ME', ...newTicket }]);
+    }
     setIsAddTicketModalOpen(false);
-    setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
+    setNewTicket({ title: '', description: '', status: 'Open', priority: 'Medium', reference: '' });
+  };
+
+  const openEditModal = (ticket: any) => {
+    setNewTicket({
+      title: ticket.title,
+      description: ticket.description || '',
+      status: ticket.status,
+      priority: ticket.priority,
+      reference: ticket.reference || ''
+    });
+    setIsEditing(true);
+    setEditingTicketId(ticket.id);
+    setIsAddTicketModalOpen(true);
+    setIsMobileDetailModalOpen(false); // Close detail modal if open
+    setOpenMenuTicketId(null);
+  };
+
+  const openMobileDetails = (e: React.MouseEvent, ticketId: string) => {
+    e.stopPropagation();
+    setMobileDetailTicketId(ticketId);
+    setIsMobileDetailModalOpen(true);
   };
 
   const handleAssignTicket = (memberId: string, memberName: string) => {
@@ -102,6 +140,17 @@ export default function TicketsPage() {
         t.id === selectedTicketForAction.id ? { ...t, assignee: initials } : t
       ));
       setIsAssignModalOpen(false);
+      setSelectedTicketForAction(null);
+      setOpenMenuTicketId(null);
+    }
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+    if (selectedTicketForAction) {
+      setAllTickets(allTickets.map(t => 
+        t.id === selectedTicketForAction.id ? { ...t, status: newStatus } : t
+      ));
+      setIsStatusModalOpen(false);
       setSelectedTicketForAction(null);
       setOpenMenuTicketId(null);
     }
@@ -120,6 +169,13 @@ export default function TicketsPage() {
     e.stopPropagation();
     setSelectedTicketForAction(ticket);
     setIsAssignModalOpen(true);
+    setOpenMenuTicketId(null);
+  };
+
+  const openStatusModal = (e: React.MouseEvent, ticket: {id: string, title: string}) => {
+    e.stopPropagation();
+    setSelectedTicketForAction(ticket);
+    setIsStatusModalOpen(true);
     setOpenMenuTicketId(null);
   };
 
@@ -270,12 +326,21 @@ export default function TicketsPage() {
 
                   {/* Actions Menu */}
                   <div className="relative">
+                    {/* Mobile Menu Button */}
+                    <button 
+                      onClick={(e) => openMobileDetails(e, ticket.id)}
+                      className="md:hidden p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <MoreHorizontal className="w-5 h-5" />
+                    </button>
+
+                    {/* Desktop Menu Button */}
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
                         setOpenMenuTicketId(openMenuTicketId === ticket.id ? null : ticket.id);
                       }}
-                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      className="hidden md:block p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <MoreHorizontal className="w-5 h-5" />
                     </button>
@@ -293,6 +358,22 @@ export default function TicketsPage() {
                           >
                             <UserPlus className="w-4 h-4" />
                             Assign Ticket
+                          </button>
+
+                          <button
+                            onClick={(e) => openStatusModal(e, ticket)}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                          >
+                            <ArrowRightLeft className="w-4 h-4" />
+                            Change Status
+                          </button>
+
+                          <button
+                            onClick={() => openEditModal(ticket)}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Edit Ticket
                           </button>
                           
                           {currentTeam?.role === 'Leader' && (
@@ -367,12 +448,12 @@ export default function TicketsPage() {
       <Modal
         isOpen={isAddTicketModalOpen}
         onClose={() => setIsAddTicketModalOpen(false)}
-        title="Add Ticket"
+        title={isEditing ? "Edit Ticket" : "Add Ticket"}
       >
         <div className="space-y-4">
           <div className="flex items-center gap-2 -mt-2 mb-4 text-gray-500 dark:text-gray-400">
             <Ticket className="w-5 h-5 text-green-500" />
-            <p className="text-sm">Create a new ticket to track your work.</p>
+            <p className="text-sm">{isEditing ? "Update ticket details." : "Create a new ticket to track your work."}</p>
           </div>
 
           <div className="space-y-4">
@@ -414,20 +495,38 @@ export default function TicketsPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Status
-              </label>
-              <select
-                value={newTicket.status}
-                onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
-                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white"
-              >
-                <option value="Open">Open</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Review">Review</option>
-                <option value="Completed">Completed</option>
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Status
+                </label>
+                <select
+                  value={newTicket.status}
+                  onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
+                  className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white"
+                >
+                  <option value="Open">Open</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Review">Review</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Priority
+                </label>
+                <select
+                  value={newTicket.priority}
+                  onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
+                  className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white"
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                  <option value="Critical">Critical</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -436,7 +535,7 @@ export default function TicketsPage() {
               onClick={handleAddTicket}
               className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
             >
-              Create Ticket
+              {isEditing ? "Update Ticket" : "Create Ticket"}
             </button>
             <button
               onClick={() => setIsAddTicketModalOpen(false)}
@@ -490,6 +589,166 @@ export default function TicketsPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Change Status Modal */}
+      <Modal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+        title="Change Status"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Select a new status for <span className="font-semibold">{selectedTicketForAction?.title}</span>.
+          </p>
+          
+          <div className="space-y-2">
+            {['Open', 'In Progress', 'Review', 'Completed'].map((status) => (
+              <button
+                key={status}
+                onClick={() => handleStatusChange(status)}
+                className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
+                  selectedTicketForAction && allTickets.find(t => t.id === selectedTicketForAction.id)?.status === status
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`w-3 h-3 rounded-full ${
+                    status === 'Open' ? 'bg-gray-400' :
+                    status === 'In Progress' ? 'bg-blue-500' :
+                    status === 'Review' ? 'bg-purple-500' :
+                    'bg-green-500'
+                  }`} />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{status}</span>
+                </div>
+                {selectedTicketForAction && allTickets.find(t => t.id === selectedTicketForAction.id)?.status === status && (
+                  <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={() => setIsStatusModalOpen(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Mobile Ticket Details Modal */}
+      <Modal
+        isOpen={isMobileDetailModalOpen}
+        onClose={() => setIsMobileDetailModalOpen(false)}
+        title="Ticket Details"
+      >
+        {mobileDetailTicketId && (() => {
+          const ticket = allTickets.find(t => t.id === mobileDetailTicketId);
+          if (!ticket) return null;
+          
+          return (
+            <div className="space-y-6">
+              {/* Header Info */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-mono text-gray-500 dark:text-gray-400">{ticket.id}</span>
+                  <div className="flex gap-2">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
+                      {ticket.status}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
+                      {ticket.priority}
+                    </span>
+                  </div>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                  {ticket.title}
+                </h3>
+              </div>
+
+              {/* Description */}
+              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Description</h4>
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                  {ticket.description || "No description provided."}
+                </p>
+                {ticket.reference && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                    <a 
+                      href={ticket.reference} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Reference Link
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Assignee */}
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300">
+                    {ticket.assignee}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">Assignee</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Currently assigned</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={(e) => {
+                    setIsMobileDetailModalOpen(false);
+                    openAssignModal(e, ticket);
+                  }}
+                  className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                >
+                  <UserPlus className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Actions Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={(e) => {
+                    setIsMobileDetailModalOpen(false);
+                    openStatusModal(e, ticket);
+                  }}
+                  className="flex items-center justify-center gap-2 p-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <ArrowRightLeft className="w-4 h-4" />
+                  Change Status
+                </button>
+                <button
+                  onClick={() => openEditModal(ticket)}
+                  className="flex items-center justify-center gap-2 p-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit Ticket
+                </button>
+              </div>
+
+              {currentTeam?.role === 'Leader' && (
+                <button
+                  onClick={(e) => {
+                    setIsMobileDetailModalOpen(false);
+                    openDeleteModal(e, ticket);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 p-3 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Ticket
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* Delete Ticket Modal */}

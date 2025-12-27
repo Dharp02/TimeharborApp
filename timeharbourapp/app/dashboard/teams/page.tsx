@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Users, Plus, Copy, Check, Trash2, Edit2, Circle } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useTeam, Team } from '@/components/dashboard/TeamContext';
+import { TeamActivityReport } from '@/components/dashboard/TeamActivityReport';
 import { copyText } from '@/lib/utils';
 
 export default function TeamsPage() {
@@ -225,6 +226,13 @@ export default function TeamsPage() {
           </div>
         )}
       </div>
+
+      {/* Team Activity Report */}
+      {currentTeam && (
+        <div className="mt-8">
+          <TeamActivityReport />
+        </div>
+      )}
 
       {/* Join Team Modal */}
       <Modal
