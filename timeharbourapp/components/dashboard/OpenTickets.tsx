@@ -1,13 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useClockIn } from './ClockInContext';
 import { Modal } from '@/components/ui/Modal';
+import { useTeam } from './TeamContext';
+import { tickets as ticketsApi } from '@/TimeharborAPI';
+import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 
 export default function OpenTickets() {
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
+  const { currentTeam } = useTeam();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
@@ -15,16 +19,29 @@ export default function OpenTickets() {
   const [comment, setComment] = useState('');
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
   const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
+  const [tickets, setTickets] = useState<TicketType[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Mock data for tickets
-  const tickets = [
-    { id: 'T-101', title: 'Fix login page responsiveness', status: 'In Progress' },
-    { id: 'T-102', title: 'Update user profile API', status: 'Open' },
-    { id: 'T-103', title: 'Design dashboard mockups', status: 'Review' },
-    { id: 'T-104', title: 'Implement dark mode', status: 'Open' },
-    { id: 'T-105', title: 'Fix navigation bug', status: 'In Progress' },
-    { id: 'T-106', title: 'Add unit tests', status: 'Open' },
-  ];
+  useEffect(() => {
+    if (currentTeam) {
+      loadTickets();
+    } else {
+      setTickets([]);
+    }
+  }, [currentTeam]);
+
+  const loadTickets = async () => {
+    if (!currentTeam) return;
+    setIsLoading(true);
+    try {
+      const fetchedTickets = await ticketsApi.getTickets(currentTeam.id);
+      setTickets(fetchedTickets);
+    } catch (error) {
+      console.error('Failed to load tickets:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
@@ -66,11 +83,23 @@ export default function OpenTickets() {
     setComment('');
   };
 
-  const handleAddTicket = () => {
-    // Here you would typically call an API to create the ticket
-    console.log('Creating ticket:', newTicket);
-    setIsAddTicketModalOpen(false);
-    setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
+  const handleAddTicket = async () => {
+    if (!currentTeam) return;
+    
+    try {
+      await ticketsApi.createTicket(currentTeam.id, {
+        title: newTicket.title,
+        description: newTicket.description,
+        status: newTicket.status as any,
+        link: newTicket.reference
+      });
+      
+      setIsAddTicketModalOpen(false);
+      setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
+      loadTickets();
+    } catch (error) {
+      console.error('Failed to create ticket:', error);
+    }
   };
 
   return (
@@ -82,7 +111,8 @@ export default function OpenTickets() {
           <div className="flex gap-2">
             <button 
               onClick={() => setIsAddTicketModalOpen(true)}
-              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              disabled={!currentTeam}
+              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-5 h-5" />
             </button>
@@ -94,9 +124,14 @@ export default function OpenTickets() {
       </div>
 
       <div className="space-y-3">
-        {tickets.slice(0, 5).map((ticket) => (
-          <div 
-            key={ticket.id}
+        {isLoading ? (
+          <div className="text-center py-4 text-gray-500">Loading tickets...</div>
+        ) : tickets.length === 0 ? (
+          <div className="text-center py-4 text-gray-500">No tickets found. Create one to get started!</div>
+        ) : (
+          tickets.slice(0, 5).map((ticket) => (
+            <div 
+              key={ticket.id}
             className="flex items-center justify-between p-3 md:p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 transition-colors cursor-pointer group"
           >
             <div className="flex items-center gap-3 md:gap-4 overflow-hidden flex-1">
@@ -108,7 +143,7 @@ export default function OpenTickets() {
                   {ticket.title}
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{ticket.id}</span>
+                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{ticket.id.substring(0, 8)}</span>
                   <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
                   <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
                     {getFormattedTotalTime(ticket.id)}
@@ -147,7 +182,8 @@ export default function OpenTickets() {
               </div>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
       
       <div className="mt-4 md:hidden text-center">
@@ -258,8 +294,7 @@ export default function OpenTickets() {
               >
                 <option value="Open">Open</option>
                 <option value="In Progress">In Progress</option>
-                <option value="Review">Review</option>
-                <option value="Completed">Completed</option>
+                <option value="Closed">Closed</option>
               </select>
             </div>
           </div>

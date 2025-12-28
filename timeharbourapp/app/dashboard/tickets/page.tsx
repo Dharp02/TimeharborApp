@@ -1,21 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User, ArrowRightLeft, Check, Edit2, ExternalLink, AlignLeft } from 'lucide-react';
 import { useClockIn } from '@/components/dashboard/ClockInContext';
 import { useTeam } from '@/components/dashboard/TeamContext';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { Modal } from '@/components/ui/Modal';
+import { tickets as ticketsApi } from '@/TimeharborAPI';
+import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 
 export default function TicketsPage() {
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
   const { currentTeam } = useTeam();
+  const { user } = useAuth();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isMobileDetailModalOpen, setIsMobileDetailModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
@@ -28,22 +32,49 @@ export default function TicketsPage() {
   
   const [openMenuTicketId, setOpenMenuTicketId] = useState<string | null>(null);
   const [selectedTicketForAction, setSelectedTicketForAction] = useState<{id: string, title: string} | null>(null);
-  const [mobileDetailTicketId, setMobileDetailTicketId] = useState<string | null>(null);
+  const [detailTicketId, setDetailTicketId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Mock data for tickets
-  const [allTickets, setAllTickets] = useState([
-    { id: 'T-101', title: 'Fix login page responsiveness', status: 'In Progress', priority: 'High', assignee: 'JD', description: 'Login page is broken on mobile devices.', reference: '' },
-    { id: 'T-102', title: 'Update user profile API', status: 'Open', priority: 'Medium', assignee: 'JD', description: 'Add new fields to the user profile API.', reference: 'https://jira.example.com/T-102' },
-    { id: 'T-103', title: 'Design dashboard mockups', status: 'Review', priority: 'High', assignee: 'AS', description: 'Create high-fidelity mockups for the new dashboard.', reference: '' },
-    { id: 'T-104', title: 'Implement dark mode', status: 'Open', priority: 'Low', assignee: 'JD', description: 'Add dark mode support to the application.', reference: '' },
-    { id: 'T-105', title: 'Fix navigation bug', status: 'In Progress', priority: 'Critical', assignee: 'JD', description: 'Navigation menu is not closing on mobile.', reference: '' },
-    { id: 'T-106', title: 'Add unit tests', status: 'Open', priority: 'Medium', assignee: 'TS', description: 'Increase test coverage for the auth module.', reference: '' },
-    { id: 'T-107', title: 'Refactor auth context', status: 'Completed', priority: 'High', assignee: 'JD', description: 'Simplify the authentication logic.', reference: '' },
-    { id: 'T-108', title: 'Update documentation', status: 'Open', priority: 'Low', assignee: 'AS', description: 'Update the README with setup instructions.', reference: '' },
-    { id: 'T-109', title: 'Optimize image loading', status: 'In Progress', priority: 'Medium', assignee: 'TS', description: 'Implement lazy loading for images.', reference: '' },
-  ]);
+  const [allTickets, setAllTickets] = useState<any[]>([]);
 
-  const tabs = ['All', 'Open', 'In Progress', 'Review', 'Completed'];
+  useEffect(() => {
+    if (currentTeam) {
+      loadTickets();
+    } else {
+      setAllTickets([]);
+    }
+  }, [currentTeam]);
+
+  const loadTickets = async () => {
+    if (!currentTeam) return;
+    setIsLoading(true);
+    try {
+      const fetchedTickets = await ticketsApi.getTickets(currentTeam.id);
+      // Map API response to component state structure if needed, or use directly
+      // The API returns TicketType, but the component uses a slightly different structure (assignee initials vs object)
+      // Let's adapt the data
+      const mappedTickets = fetchedTickets.map(t => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        priority: t.priority,
+        assignee: t.assignee ? t.assignee.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) : 'UN',
+        assigneeName: t.assignee ? t.assignee.full_name : 'Unassigned',
+        description: t.description || '',
+        reference: t.link || '',
+        createdAt: t.createdAt,
+        createdBy: t.createdBy
+      }));
+      setAllTickets(mappedTickets);
+    } catch (error) {
+      console.error('Failed to load tickets:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const tabs = ['All', 'Open', 'In Progress', 'Closed'];
 
   const filteredTickets = allTickets.filter(ticket => {
     const matchesSearch = ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -92,23 +123,39 @@ export default function TicketsPage() {
     setComment('');
   };
 
-  const handleAddTicket = () => {
-    if (isEditing && editingTicketId) {
-      // Update existing ticket
-      setAllTickets(allTickets.map(t => 
-        t.id === editingTicketId 
-          ? { ...t, ...newTicket } 
-          : t
-      ));
+  const handleAddTicket = async () => {
+    if (!currentTeam) return;
+
+    try {
+      if (isEditing && editingTicketId) {
+        // Update existing ticket
+        await ticketsApi.updateTicket(currentTeam.id, editingTicketId, {
+          title: newTicket.title,
+          description: newTicket.description,
+          status: newTicket.status as any,
+          priority: newTicket.priority as any,
+          link: newTicket.reference
+        });
+      } else {
+        // Create new ticket
+        await ticketsApi.createTicket(currentTeam.id, {
+          title: newTicket.title,
+          description: newTicket.description,
+          status: newTicket.status as any,
+          priority: newTicket.priority as any,
+          link: newTicket.reference
+        });
+      }
+      
+      setIsAddTicketModalOpen(false);
+      setNewTicket({ title: '', description: '', status: 'Open', priority: 'Medium', reference: '' });
       setIsEditing(false);
       setEditingTicketId(null);
-    } else {
-      // Create new ticket
-      const newId = `T-${100 + allTickets.length + 1}`;
-      setAllTickets([...allTickets, { id: newId, assignee: 'ME', ...newTicket }]);
+      loadTickets();
+    } catch (error: any) {
+      console.error('Failed to save ticket:', error);
+      alert(error.message || 'Failed to save ticket');
     }
-    setIsAddTicketModalOpen(false);
-    setNewTicket({ title: '', description: '', status: 'Open', priority: 'Medium', reference: '' });
   };
 
   const openEditModal = (ticket: any) => {
@@ -122,46 +169,61 @@ export default function TicketsPage() {
     setIsEditing(true);
     setEditingTicketId(ticket.id);
     setIsAddTicketModalOpen(true);
-    setIsMobileDetailModalOpen(false); // Close detail modal if open
+    setIsDetailModalOpen(false); // Close detail modal if open
     setOpenMenuTicketId(null);
   };
 
-  const openMobileDetails = (e: React.MouseEvent, ticketId: string) => {
-    e.stopPropagation();
-    setMobileDetailTicketId(ticketId);
-    setIsMobileDetailModalOpen(true);
+  const openDetails = (ticketId: string) => {
+    setDetailTicketId(ticketId);
+    setIsDetailModalOpen(true);
   };
 
-  const handleAssignTicket = (memberId: string, memberName: string) => {
-    if (selectedTicketForAction) {
-      // Update ticket assignee
-      const initials = memberName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-      setAllTickets(allTickets.map(t => 
-        t.id === selectedTicketForAction.id ? { ...t, assignee: initials } : t
-      ));
-      setIsAssignModalOpen(false);
-      setSelectedTicketForAction(null);
-      setOpenMenuTicketId(null);
+  const handleAssignTicket = async (memberId: string, memberName: string) => {
+    if (selectedTicketForAction && currentTeam) {
+      try {
+        await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
+          assignedTo: memberId
+        });
+        setIsAssignModalOpen(false);
+        setSelectedTicketForAction(null);
+        setOpenMenuTicketId(null);
+        loadTickets();
+      } catch (error: any) {
+        console.error('Failed to assign ticket:', error);
+        alert(error.message || 'Failed to assign ticket');
+      }
     }
   };
 
-  const handleStatusChange = (newStatus: string) => {
-    if (selectedTicketForAction) {
-      setAllTickets(allTickets.map(t => 
-        t.id === selectedTicketForAction.id ? { ...t, status: newStatus } : t
-      ));
-      setIsStatusModalOpen(false);
-      setSelectedTicketForAction(null);
-      setOpenMenuTicketId(null);
+  const handleStatusChange = async (newStatus: string) => {
+    if (selectedTicketForAction && currentTeam) {
+      try {
+        await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
+          status: newStatus as any
+        });
+        setIsStatusModalOpen(false);
+        setSelectedTicketForAction(null);
+        setOpenMenuTicketId(null);
+        loadTickets();
+      } catch (error: any) {
+        console.error('Failed to update status:', error);
+        alert(error.message || 'Failed to update status');
+      }
     }
   };
 
-  const handleDeleteTicket = () => {
-    if (selectedTicketForAction) {
-      setAllTickets(allTickets.filter(t => t.id !== selectedTicketForAction.id));
-      setIsDeleteModalOpen(false);
-      setSelectedTicketForAction(null);
-      setOpenMenuTicketId(null);
+  const handleDeleteTicket = async () => {
+    if (selectedTicketForAction && currentTeam) {
+      try {
+        await ticketsApi.deleteTicket(currentTeam.id, selectedTicketForAction.id);
+        setIsDeleteModalOpen(false);
+        setSelectedTicketForAction(null);
+        setOpenMenuTicketId(null);
+        loadTickets();
+      } catch (error: any) {
+        console.error('Failed to delete ticket:', error);
+        alert(error.message || 'Failed to delete ticket');
+      }
     }
   };
 
@@ -190,8 +252,7 @@ export default function TicketsPage() {
     switch (status) {
       case 'Open': return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
       case 'In Progress': return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'Review': return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400';
-      case 'Completed': return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
+      case 'Closed': return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
       default: return 'bg-gray-100 text-gray-600';
     }
   };
@@ -263,13 +324,16 @@ export default function TicketsPage() {
       </div>
 
       {/* Ticket List */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm min-h-[400px]">
         <div className="divide-y divide-gray-100 dark:divide-gray-700">
-          {filteredTickets.length > 0 ? (
+          {isLoading ? (
+            <div className="p-8 text-center text-gray-500">Loading tickets...</div>
+          ) : filteredTickets.length > 0 ? (
             filteredTickets.map((ticket) => (
               <div 
                 key={ticket.id}
-                className={`group p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${
+                onClick={() => openDetails(ticket.id)}
+                className={`group p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors first:rounded-t-2xl last:rounded-b-2xl cursor-pointer ${
                   activeTicketId === ticket.id ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                 }`}
               >
@@ -295,11 +359,14 @@ export default function TicketsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                        {ticket.id}
+                        {ticket.id.substring(0, 8)}
                       </span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
+                      <button 
+                        onClick={(e) => openStatusModal(e, ticket)}
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)} hover:opacity-80 transition-opacity`}
+                      >
                         {ticket.status}
-                      </span>
+                      </button>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
                         {ticket.priority}
                       </span>
@@ -328,7 +395,10 @@ export default function TicketsPage() {
                   <div className="relative">
                     {/* Mobile Menu Button */}
                     <button 
-                      onClick={(e) => openMobileDetails(e, ticket.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDetails(ticket.id);
+                      }}
                       className="md:hidden p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <MoreHorizontal className="w-5 h-5" />
@@ -352,14 +422,18 @@ export default function TicketsPage() {
                           onClick={(e) => { e.stopPropagation(); setOpenMenuTicketId(null); }} 
                         />
                         <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-20 overflow-hidden py-1">
-                          <button
-                            onClick={(e) => openAssignModal(e, ticket)}
-                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
-                          >
-                            <UserPlus className="w-4 h-4" />
-                            Assign Ticket
-                          </button>
+                          {/* Assign - Creator Only */}
+                          {user && ticket.createdBy === user.id && (
+                            <button
+                              onClick={(e) => openAssignModal(e, ticket)}
+                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                            >
+                              <UserPlus className="w-4 h-4" />
+                              Assign Ticket
+                            </button>
+                          )}
 
+                          {/* Change Status - Everyone */}
                           <button
                             onClick={(e) => openStatusModal(e, ticket)}
                             className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
@@ -368,15 +442,22 @@ export default function TicketsPage() {
                             Change Status
                           </button>
 
-                          <button
-                            onClick={() => openEditModal(ticket)}
-                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Edit Ticket
-                          </button>
+                          {/* Edit - Creator Only */}
+                          {user && ticket.createdBy === user.id && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditModal(ticket);
+                              }}
+                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                              Edit Ticket
+                            </button>
+                          )}
                           
-                          {currentTeam?.role === 'Leader' && (
+                          {/* Delete - Creator Only */}
+                          {user && ticket.createdBy === user.id && (
                             <button
                               onClick={(e) => openDeleteModal(e, ticket)}
                               className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
@@ -507,8 +588,7 @@ export default function TicketsPage() {
                 >
                   <option value="Open">Open</option>
                   <option value="In Progress">In Progress</option>
-                  <option value="Review">Review</option>
-                  <option value="Completed">Completed</option>
+                <option value="Closed">Closed</option>
                 </select>
               </div>
 
@@ -524,7 +604,6 @@ export default function TicketsPage() {
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
                   <option value="High">High</option>
-                  <option value="Critical">Critical</option>
                 </select>
               </div>
             </div>
@@ -603,7 +682,7 @@ export default function TicketsPage() {
           </p>
           
           <div className="space-y-2">
-            {['Open', 'In Progress', 'Review', 'Completed'].map((status) => (
+            {['Open', 'In Progress', 'Closed'].map((status) => (
               <button
                 key={status}
                 onClick={() => handleStatusChange(status)}
@@ -617,7 +696,6 @@ export default function TicketsPage() {
                   <span className={`w-3 h-3 rounded-full ${
                     status === 'Open' ? 'bg-gray-400' :
                     status === 'In Progress' ? 'bg-blue-500' :
-                    status === 'Review' ? 'bg-purple-500' :
                     'bg-green-500'
                   }`} />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">{status}</span>
@@ -640,14 +718,14 @@ export default function TicketsPage() {
         </div>
       </Modal>
 
-      {/* Mobile Ticket Details Modal */}
+      {/* Ticket Details Modal */}
       <Modal
-        isOpen={isMobileDetailModalOpen}
-        onClose={() => setIsMobileDetailModalOpen(false)}
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
         title="Ticket Details"
       >
-        {mobileDetailTicketId && (() => {
-          const ticket = allTickets.find(t => t.id === mobileDetailTicketId);
+        {detailTicketId && (() => {
+          const ticket = allTickets.find(t => t.id === detailTicketId);
           if (!ticket) return null;
           
           return (
@@ -655,7 +733,7 @@ export default function TicketsPage() {
               {/* Header Info */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-mono text-gray-500 dark:text-gray-400">{ticket.id}</span>
+                  <span className="text-sm font-mono text-gray-500 dark:text-gray-400">{ticket.id.substring(0, 8)}</span>
                   <div className="flex gap-2">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
                       {ticket.status}
@@ -698,26 +776,28 @@ export default function TicketsPage() {
                     {ticket.assignee}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Assignee</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{ticket.assigneeName}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Currently assigned</p>
                   </div>
                 </div>
-                <button 
-                  onClick={(e) => {
-                    setIsMobileDetailModalOpen(false);
-                    openAssignModal(e, ticket);
-                  }}
-                  className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                >
-                  <UserPlus className="w-5 h-5" />
-                </button>
+                {user && ticket.createdBy === user.id && (
+                  <button 
+                    onClick={(e) => {
+                      setIsDetailModalOpen(false);
+                      openAssignModal(e, ticket);
+                    }}
+                    className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                  >
+                    <UserPlus className="w-5 h-5" />
+                  </button>
+                )}
               </div>
 
               {/* Actions Grid */}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={(e) => {
-                    setIsMobileDetailModalOpen(false);
+                    setIsDetailModalOpen(false);
                     openStatusModal(e, ticket);
                   }}
                   className="flex items-center justify-center gap-2 p-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
@@ -725,19 +805,22 @@ export default function TicketsPage() {
                   <ArrowRightLeft className="w-4 h-4" />
                   Change Status
                 </button>
-                <button
-                  onClick={() => openEditModal(ticket)}
-                  className="flex items-center justify-center gap-2 p-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  Edit Ticket
-                </button>
+                
+                {user && ticket.createdBy === user.id && (
+                  <button
+                    onClick={() => openEditModal(ticket)}
+                    className="flex items-center justify-center gap-2 p-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Edit Ticket
+                  </button>
+                )}
               </div>
 
-              {currentTeam?.role === 'Leader' && (
+              {user && ticket.createdBy === user.id && (
                 <button
                   onClick={(e) => {
-                    setIsMobileDetailModalOpen(false);
+                    setIsDetailModalOpen(false);
                     openDeleteModal(e, ticket);
                   }}
                   className="w-full flex items-center justify-center gap-2 p-3 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
