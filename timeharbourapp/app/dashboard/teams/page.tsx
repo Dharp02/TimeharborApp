@@ -149,13 +149,13 @@ export default function TeamsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Teams</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Teams</h1>
           {currentTeam && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <span className="text-sm font-mono text-gray-600 dark:text-gray-300">
+            <div className="flex items-center gap-2 px-2 md:px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <span className="text-xs md:text-sm font-mono text-gray-600 dark:text-gray-300">
                 Code: {currentTeam.code}
               </span>
               <button
@@ -170,36 +170,38 @@ export default function TeamsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
         <button 
           onClick={() => setIsJoinModalOpen(true)}
-          className="flex items-center justify-center gap-3 p-6 rounded-xl border-2 border-blue-100 dark:border-blue-900 hover:border-blue-500 dark:hover:border-blue-500 bg-blue-50 dark:bg-blue-900/20 transition-all group"
+          className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 p-4 md:p-6 rounded-xl border-2 border-blue-100 dark:border-blue-900 hover:border-blue-500 dark:hover:border-blue-500 bg-blue-50 dark:bg-blue-900/20 transition-all group"
         >
-          <div className="p-3 bg-blue-100 dark:bg-blue-800 rounded-full group-hover:bg-blue-200 dark:group-hover:bg-blue-700 transition-colors">
-            <Users className="w-6 h-6 text-blue-600 dark:text-blue-300" />
+          <div className="p-2 md:p-3 bg-blue-100 dark:bg-blue-800 rounded-full group-hover:bg-blue-200 dark:group-hover:bg-blue-700 transition-colors">
+            <Users className="w-5 h-5 md:w-6 md:h-6 text-blue-600 dark:text-blue-300" />
           </div>
-          <div className="text-left">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Join a Team</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Find your team and start collaborating</p>
+          <div className="text-center md:text-left">
+            <h3 className="text-sm md:text-base font-semibold text-gray-900 dark:text-white">Join a Team</h3>
+            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 hidden md:block">Find your team and start collaborating</p>
+            <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 md:hidden">Find & join</p>
           </div>
         </button>
 
         <button 
           onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center justify-center gap-3 p-6 rounded-xl border-2 border-purple-100 dark:border-purple-900 hover:border-purple-500 dark:hover:border-purple-500 bg-purple-50 dark:bg-purple-900/20 transition-all group"
+          className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 p-4 md:p-6 rounded-xl border-2 border-purple-100 dark:border-purple-900 hover:border-purple-500 dark:hover:border-purple-500 bg-purple-50 dark:bg-purple-900/20 transition-all group"
         >
-          <div className="p-3 bg-purple-100 dark:bg-purple-800 rounded-full group-hover:bg-purple-200 dark:group-hover:bg-purple-700 transition-colors">
-            <Plus className="w-6 h-6 text-purple-600 dark:text-purple-300" />
+          <div className="p-2 md:p-3 bg-purple-100 dark:bg-purple-800 rounded-full group-hover:bg-purple-200 dark:group-hover:bg-purple-700 transition-colors">
+            <Plus className="w-5 h-5 md:w-6 md:h-6 text-purple-600 dark:text-purple-300" />
           </div>
-          <div className="text-left">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Create a Team</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Set up a new workspace for your team</p>
+          <div className="text-center md:text-left">
+            <h3 className="text-sm md:text-base font-semibold text-gray-900 dark:text-white">Create a Team</h3>
+            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 hidden md:block">Set up a new workspace for your team</p>
+            <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 md:hidden">New workspace</p>
           </div>
         </button>
       </div>
 
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Your Team</h2>
+      <div className="mt-6 md:mt-8">
+        <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3 md:mb-4">Your Team</h2>
         
         {!currentTeam ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400">
@@ -211,53 +213,55 @@ export default function TeamsPage() {
                 key={currentTeam.id} 
                 className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border-2 border-blue-500 dark:border-blue-500 transition-all"
               >
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-6">
-                    <div className="flex-1">
-                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                        {currentTeam.name}
+                <div className="p-4 md:p-6">
+                  <div className="flex justify-between items-start mb-4 md:mb-6">
+                    <div className="flex-1 min-w-0 mr-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white truncate">
+                          {currentTeam.name}
+                        </h3>
                         {currentTeam.role === 'Leader' && (
-                          <span className="px-2.5 py-1 text-sm font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full">
+                          <span className="px-2 py-0.5 text-xs md:text-sm font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
                             Leader
                           </span>
                         )}
-                      </h3>
-                      <p className="text-base text-gray-500 dark:text-gray-400 mt-2">
-                        {currentTeam.members.length} members • Code: <span className="font-mono text-lg">{currentTeam.code}</span>
+                      </div>
+                      <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1 md:mt-2 break-words">
+                        {currentTeam.members.length} members
                       </p>
                     </div>
                     
                     {currentTeam.role === 'Leader' && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 md:gap-2 shrink-0">
                         <button
                           onClick={() => openEditModal(currentTeam)}
-                          className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                           title="Edit Team"
                         >
-                          <Edit2 className="w-5 h-5" />
+                          <Edit2 className="w-4 h-4 md:w-5 md:h-5" />
                         </button>
                         <button
                           onClick={() => openDeleteModal(currentTeam)}
-                          className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                           title="Delete Team"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
                         </button>
                       </div>
                     )}
                   </div>
 
-                  <div className="border-t border-gray-100 dark:border-gray-700 pt-6">
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                  <div className="border-t border-gray-100 dark:border-gray-700 pt-4 md:pt-6">
+                    <div className="flex justify-between items-center mb-3 md:mb-4">
+                      <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
                         Collaborators
                       </h4>
                       {currentTeam.role === 'Leader' && (
                         <button
                           onClick={() => setIsAddMemberModalOpen(true)}
-                          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                          className="flex items-center gap-1.5 md:gap-2 px-2.5 py-1.5 text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
                         >
-                          <UserPlus className="w-4 h-4" />
+                          <UserPlus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                           Add Member
                         </button>
                       )}
