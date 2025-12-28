@@ -1,6 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { localTimeStore } from '@/TimeharborAPI/time/LocalTimeStore';
+import { TimeService } from '@/TimeharborAPI/time/TimeService';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { Network } from '@capacitor/network';
 
 type ClockInContextType = {
   // Global Session
@@ -26,11 +30,14 @@ type ClockInContextType = {
 const ClockInContext = createContext<ClockInContextType | undefined>(undefined);
 
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  
   // Session State
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [sessionDuration, setSessionDuration] = useState('00:00');
   const [sessionFormat, setSessionFormat] = useState('mm:ss');
+  const [currentAttendanceId, setCurrentAttendanceId] = useState<string | null>(null);
 
   // Ticket State
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
@@ -39,6 +46,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [ticketDuration, setTicketDuration] = useState('00:00');
   const [ticketFormat, setTicketFormat] = useState('mm:ss');
   const [ticketDurations, setTicketDurations] = useState<Record<string, number>>({});
+  const [currentWorkLogId, setCurrentWorkLogId] = useState<string | null>(null);
 
   useEffect(() => {
     // Load state from local storage on mount
@@ -47,16 +55,26 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     const storedTicketId = localStorage.getItem('activeTicketId');
     const storedTicketTitle = localStorage.getItem('activeTicketTitle');
     const storedDurations = localStorage.getItem('ticketDurations');
+    const storedAttendanceId = localStorage.getItem('currentAttendanceId');
+    const storedWorkLogId = localStorage.getItem('currentWorkLogId');
     
     if (storedSessionStart) {
       setSessionStartTime(parseInt(storedSessionStart, 10));
       setIsSessionActive(true);
     }
 
+    if (storedAttendanceId) {
+      setCurrentAttendanceId(storedAttendanceId);
+    }
+
     if (storedTicketStart && storedTicketId) {
       setTicketStartTime(parseInt(storedTicketStart, 10));
       setActiveTicketId(storedTicketId);
       if (storedTicketTitle) setActiveTicketTitle(storedTicketTitle);
+    }
+
+    if (storedWorkLogId) {
+      setCurrentWorkLogId(storedWorkLogId);
     }
 
     if (storedDurations) {
@@ -66,7 +84,36 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         console.error('Failed to parse ticket durations', e);
       }
     }
+
+    // Network listener for auto-sync
+    const setupNetworkListener = async () => {
+      Network.addListener('networkStatusChange', async (status) => {
+        if (status.connected) {
+          await attemptSync();
+        }
+      });
+    };
+    
+    setupNetworkListener();
+
+    return () => {
+      Network.removeAllListeners();
+    };
   }, []);
+
+  const attemptSync = async () => {
+    try {
+      const hasPending = await localTimeStore.hasPendingData();
+      if (hasPending) {
+        const data = await localTimeStore.getPendingSyncData();
+        await TimeService.syncTimeData(data);
+        await localTimeStore.clearSyncedData();
+        console.log('Synced offline time data successfully');
+      }
+    } catch (error) {
+      console.error('Auto-sync failed:', error);
+    }
+  };
 
   // Session Timer Effect
   useEffect(() => {
@@ -127,12 +174,24 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [activeTicketId, ticketStartTime]);
 
-  const toggleSession = () => {
+  const toggleSession = async () => {
+    if (!user?.id) {
+      console.error('Cannot toggle session: User not logged in');
+      return;
+    }
+
     if (isSessionActive) {
       // Clock Out Session
       setIsSessionActive(false);
       setSessionStartTime(null);
       localStorage.removeItem('sessionStartTime');
+      
+      // End attendance in Dexie
+      if (currentAttendanceId) {
+        await localTimeStore.endShift(currentAttendanceId);
+        setCurrentAttendanceId(null);
+        localStorage.removeItem('currentAttendanceId');
+      }
       
       // Also stop any active ticket and save its duration
       if (activeTicketId && ticketStartTime) {
@@ -145,6 +204,13 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         setTicketDurations(updatedDurations);
         localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
 
+        // End work log in Dexie
+        if (currentWorkLogId) {
+          await localTimeStore.endTicket(currentWorkLogId, 'Session ended');
+          setCurrentWorkLogId(null);
+          localStorage.removeItem('currentWorkLogId');
+        }
+
         setActiveTicketId(null);
         setActiveTicketTitle(null);
         setTicketStartTime(null);
@@ -152,17 +218,30 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('activeTicketTitle');
         localStorage.removeItem('ticketStartTime');
       }
+
+      // Attempt to sync immediately
+      await attemptSync();
+
     } else {
       // Clock In Session
       const now = Date.now();
       setIsSessionActive(true);
       setSessionStartTime(now);
       localStorage.setItem('sessionStartTime', now.toString());
+
+      // Start attendance in Dexie
+      const attendanceId = await localTimeStore.startShift(user.id);
+      setCurrentAttendanceId(attendanceId);
+      localStorage.setItem('currentAttendanceId', attendanceId);
     }
   };
 
-  const toggleTicketTimer = (ticketId: string, ticketTitle: string, comment?: string) => {
+  const toggleTicketTimer = async (ticketId: string, ticketTitle: string, comment?: string) => {
     if (!isSessionActive) return; // Cannot start ticket timer if session is not active
+    if (!user?.id || !currentAttendanceId) {
+      console.error('Cannot toggle ticket: Missing user or attendance ID');
+      return;
+    }
 
     if (activeTicketId === ticketId) {
       // Stop current ticket and save duration
@@ -176,10 +255,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         setTicketDurations(updatedDurations);
         localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
         
-        // Here you would typically save the comment and session details to a backend
-        if (comment) {
-          console.log(`Saved comment for ticket ${ticketId}: ${comment}`);
-          // For now we just log it, but you could add it to a history state
+        // End work log in Dexie
+        if (currentWorkLogId) {
+          await localTimeStore.endTicket(currentWorkLogId, comment);
+          setCurrentWorkLogId(null);
+          localStorage.removeItem('currentWorkLogId');
         }
       }
 
@@ -201,9 +281,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         setTicketDurations(updatedDurations);
         localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
         
-        // If we're switching, the comment passed is for the OLD ticket (the one stopping)
-        if (comment) {
-          console.log(`Saved comment for ticket ${activeTicketId}: ${comment}`);
+        // End previous work log in Dexie
+        if (currentWorkLogId) {
+          // If we're switching, the comment passed is for the OLD ticket (the one stopping)
+          await localTimeStore.endTicket(currentWorkLogId, comment);
         }
       }
 
@@ -215,6 +296,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('activeTicketId', ticketId);
       localStorage.setItem('activeTicketTitle', ticketTitle);
       localStorage.setItem('ticketStartTime', now.toString());
+
+      // Start work log in Dexie
+      const workLogId = await localTimeStore.startTicket(user.id, ticketId, currentAttendanceId);
+      setCurrentWorkLogId(workLogId);
+      localStorage.setItem('currentWorkLogId', workLogId);
     }
   };
 
