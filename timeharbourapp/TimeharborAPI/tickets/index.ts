@@ -29,6 +29,7 @@ export interface Ticket {
 export interface CreateTicketData {
   title: string;
   description?: string;
+  status?: 'Open' | 'In Progress' | 'Closed';
   priority?: 'Low' | 'Medium' | 'High';
   link?: string;
   assignedTo?: string;

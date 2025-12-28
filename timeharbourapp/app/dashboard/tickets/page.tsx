@@ -7,7 +7,7 @@ import { useTeam } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Modal } from '@/components/ui/Modal';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
-import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
+import { Ticket as TicketType, CreateTicketData, UpdateTicketData } from '@/TimeharborAPI/tickets';
 
 export default function TicketsPage() {
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
@@ -129,22 +129,24 @@ export default function TicketsPage() {
     try {
       if (isEditing && editingTicketId) {
         // Update existing ticket
-        await ticketsApi.updateTicket(currentTeam.id, editingTicketId, {
+        const updateData: UpdateTicketData = {
           title: newTicket.title,
           description: newTicket.description,
           status: newTicket.status as any,
           priority: newTicket.priority as any,
           link: newTicket.reference
-        });
+        };
+        await ticketsApi.updateTicket(currentTeam.id, editingTicketId, updateData);
       } else {
         // Create new ticket
-        await ticketsApi.createTicket(currentTeam.id, {
+        const ticketData: CreateTicketData = {
           title: newTicket.title,
           description: newTicket.description,
           status: newTicket.status as any,
           priority: newTicket.priority as any,
           link: newTicket.reference
-        });
+        };
+        await ticketsApi.createTicket(currentTeam.id, ticketData);
       }
       
       setIsAddTicketModalOpen(false);

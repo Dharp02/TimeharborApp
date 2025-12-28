@@ -6,7 +6,7 @@ export const createTicket = async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   try {
     const { teamId } = authReq.params;
-    const { title, description, priority, link, assignedTo } = authReq.body;
+    const { title, description, priority, link, assignedTo, status } = authReq.body;
     const userId = authReq.user!.id;
 
     // Check if user is a member of the team
@@ -31,7 +31,7 @@ export const createTicket = async (req: Request, res: Response) => {
       teamId,
       createdBy: userId,
       assignedTo,
-      status: 'Open'
+      status: status || 'Open'
     });
 
     const ticketWithDetails = await Ticket.findByPk(ticket.id, {
