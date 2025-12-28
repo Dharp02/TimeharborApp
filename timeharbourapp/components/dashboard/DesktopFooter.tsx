@@ -2,15 +2,17 @@
 
 import { Clock, StopCircle } from 'lucide-react';
 import { useClockIn } from './ClockInContext';
+import { useTeam } from './TeamContext';
 
 export default function DesktopFooter() {
   const { isSessionActive, sessionDuration, sessionFormat, toggleSession } = useClockIn();
+  const { currentTeam } = useTeam();
 
   return (
     <div className="hidden md:flex fixed bottom-0 right-0 left-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 justify-center items-center z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
       <div className="relative flex items-center gap-4">
         <button
-          onClick={toggleSession}
+          onClick={() => toggleSession(currentTeam?.id)}
           className={`flex items-center justify-center rounded-full transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 ${
             isSessionActive
               ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse w-14 h-14'

@@ -9,7 +9,7 @@ import { useTeam } from './TeamContext';
 export default function BottomNav() {
   const pathname = usePathname();
   const { isSessionActive, sessionDuration, sessionFormat, toggleSession } = useClockIn();
-  const { refreshTeams } = useTeam();
+  const { refreshTeams, currentTeam } = useTeam();
 
   const isActive = (path: string) => pathname === path;
 
@@ -39,7 +39,7 @@ export default function BottomNav() {
 
         <div className="relative -top-5">
           <button 
-            onClick={toggleSession}
+            onClick={() => toggleSession(currentTeam?.id)}
             className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-white dark:ring-gray-800 ${
               isSessionActive 
                 ? 'bg-red-500 hover:bg-red-600 animate-pulse w-16 h-16' 

@@ -1,32 +1,39 @@
 import Dexie, { type Table } from 'dexie';
 import { v4 as uuidv4 } from 'uuid';
 
-export interface LocalAttendance {
-  id: string;
-  userId: string;
-  clockIn: string; // ISO string
-  clockOut?: string; // ISO string
-}
+export type TimeEventType = 'CLOCK_IN' | 'CLOCK_OUT' | 'START_TICKET' | 'STOP_TICKET';
 
-export interface LocalWorkLog {
+export interface TimeEvent {
   id: string;
   userId: string;
-  ticketId: string;
-  attendanceId: string;
-  startTime: string; // ISO string
-  endTime?: string; // ISO string
-  description?: string;
+  type: TimeEventType;
+  timestamp: string; // ISO string
+  ticketId?: string | null;
+  teamId?: string | null;
+  ticketTitle?: string | null;
+  comment?: string | null;
+  synced: number; // 0 for false, 1 for true
 }
 
 export class TimeharborDB extends Dexie {
-  attendance!: Table<LocalAttendance>;
-  workLogs!: Table<LocalWorkLog>;
+  events!: Table<TimeEvent>;
 
   constructor() {
     super('TimeharborDB');
+    // Keep previous versions for migration history if needed, or just overwrite for dev
     this.version(1).stores({
       attendance: 'id, userId, clockIn, clockOut',
       workLogs: 'id, userId, ticketId, attendanceId, startTime, endTime'
+    });
+    
+    this.version(2).stores({
+      attendance: null,
+      workLogs: 'id, userId, ticketId, startTime, endTime'
+    });
+
+    this.version(3).stores({
+      workLogs: null, // Drop old table
+      events: 'id, userId, type, timestamp, synced'
     });
   }
 }
@@ -34,59 +41,55 @@ export class TimeharborDB extends Dexie {
 export const db = new TimeharborDB();
 
 export class LocalTimeStore {
-  async startShift(userId: string): Promise<string> {
-    const id = uuidv4();
-    await db.attendance.add({
-      id,
+  
+  async logEvent(
+    userId: string, 
+    type: TimeEventType, 
+    ticketId: string | null = null, 
+    ticketTitle: string | null = null,
+    comment: string | null = null,
+    teamId: string | null = null
+  ): Promise<void> {
+    await db.events.add({
+      id: uuidv4(),
       userId,
-      clockIn: new Date().toISOString()
-    });
-    return id;
-  }
-
-  async endShift(id: string): Promise<void> {
-    await db.attendance.update(id, {
-      clockOut: new Date().toISOString()
-    });
-  }
-
-  async startTicket(userId: string, ticketId: string, attendanceId: string): Promise<string> {
-    const id = uuidv4();
-    await db.workLogs.add({
-      id,
-      userId,
+      type,
+      timestamp: new Date().toISOString(),
       ticketId,
-      attendanceId,
-      startTime: new Date().toISOString()
+      teamId,
+      ticketTitle,
+      comment,
+      synced: 0
     });
-    return id;
   }
 
-  async endTicket(id: string, description?: string): Promise<void> {
-    const updates: Partial<LocalWorkLog> = {
-      endTime: new Date().toISOString()
-    };
-    if (description) {
-      updates.description = description;
-    }
-    await db.workLogs.update(id, updates);
+  async clockIn(userId: string, teamId: string | null = null) {
+    return this.logEvent(userId, 'CLOCK_IN', null, null, null, teamId);
   }
 
-  async getPendingSyncData() {
-    const attendance = await db.attendance.toArray();
-    const workLogs = await db.workLogs.toArray();
-    return { attendance, workLogs };
+  async clockOut(userId: string, comment: string | null = null, teamId: string | null = null) {
+    return this.logEvent(userId, 'CLOCK_OUT', null, null, comment, teamId);
   }
 
-  async clearSyncedData() {
-    await db.attendance.clear();
-    await db.workLogs.clear();
+  async startTicket(userId: string, ticketId: string, ticketTitle: string, teamId: string | null = null) {
+    return this.logEvent(userId, 'START_TICKET', ticketId, ticketTitle, null, teamId);
+  }
+
+  async stopTicket(userId: string, ticketId: string, comment: string | null = null, teamId: string | null = null) {
+    return this.logEvent(userId, 'STOP_TICKET', ticketId, null, comment, teamId);
+  }
+
+  async getPendingEvents() {
+    return await db.events.where('synced').equals(0).toArray();
+  }
+
+  async clearEvents(eventIds: string[]) {
+    await db.events.where('id').anyOf(eventIds).delete();
   }
 
   async hasPendingData(): Promise<boolean> {
-    const attendanceCount = await db.attendance.count();
-    const workLogsCount = await db.workLogs.count();
-    return attendanceCount > 0 || workLogsCount > 0;
+    const count = await db.events.where('synced').equals(0).count();
+    return count > 0;
   }
 }
 

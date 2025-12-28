@@ -104,7 +104,7 @@ export default function TicketsPage() {
         setIsModalOpen(true);
       } else {
         // Just starting a new ticket
-        toggleTicketTimer(ticketId, ticketTitle);
+        toggleTicketTimer(ticketId, ticketTitle, currentTeam?.id);
       }
     }
   };
@@ -113,9 +113,9 @@ export default function TicketsPage() {
     if (!pendingTicket) return;
 
     if (modalType === 'stop') {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, comment);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment);
     } else {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, comment);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment);
     }
 
     setIsModalOpen(false);

@@ -2,7 +2,7 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
 import { AuthRequest } from '../middleware/authMiddleware';
-import { Attendance, Ticket, Member, Team, WorkLog } from '../models';
+import { Ticket, Member, Team, WorkLog } from '../models';
 import sequelize from '../config/sequelize';
 
 export const getDashboardStats = async (req: AuthRequest, res: Response) => {
@@ -22,51 +22,92 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     const startOfWeek = new Date(startOfToday);
     startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
 
+    // Helper to calculate duration
+    const getDurationForPeriod = async (userId: string, startTime: Date, teamId?: string) => {
+       const whereClause: any = {
+         userId,
+         timestamp: { [Op.lt]: startTime }
+       };
+       if (teamId) {
+         whereClause.teamId = teamId;
+       }
+
+       // Get last event before period to determine initial state
+       const lastEvent = await WorkLog.findOne({
+         where: whereClause,
+         order: [['timestamp', 'DESC']]
+       });
+
+       const eventsWhereClause: any = {
+         userId,
+         timestamp: { [Op.gte]: startTime }
+       };
+       if (teamId) {
+         eventsWhereClause.teamId = teamId;
+       }
+
+       // Get events in period
+       const events = await WorkLog.findAll({
+         where: eventsWhereClause,
+         order: [['timestamp', 'ASC']]
+       });
+
+       let totalMs = 0;
+       let currentTime = startTime.getTime();
+       let isClockedIn = false;
+
+       // Determine initial state
+       if (lastEvent) {
+         if (lastEvent.type === 'CLOCK_IN' || lastEvent.type === 'START_TICKET' || lastEvent.type === 'STOP_TICKET') {
+            // If last event was NOT CLOCK_OUT, we are clocked in
+            isClockedIn = true;
+         }
+         // If last event was CLOCK_OUT, isClockedIn remains false
+       }
+
+       for (const event of events) {
+         const eventTime = new Date(event.timestamp).getTime();
+         
+         if (isClockedIn) {
+           totalMs += (eventTime - currentTime);
+         }
+
+         currentTime = eventTime;
+
+         switch (event.type) {
+           case 'CLOCK_IN':
+             isClockedIn = true;
+             break;
+           case 'CLOCK_OUT':
+             isClockedIn = false;
+             break;
+           case 'START_TICKET':
+             isClockedIn = true;
+             break;
+           case 'STOP_TICKET':
+             isClockedIn = true;
+             break;
+         }
+       }
+
+       // If still clocked in, add time until now
+       if (isClockedIn) {
+         const nowMs = new Date().getTime();
+         if (nowMs > currentTime) {
+            totalMs += (nowMs - currentTime);
+         }
+       }
+
+       return totalMs;
+    };
+
     // 1. Total Hours Today
-    // "summation first clock in for the day to last clock out for the day"
-    // Implementation: We will fetch all attendance records for today and sum the durations.
-    // If a record has no clockOut, we use 'now' for calculation (or ignore it? usually 'now' for live tracking).
-    // However, the prompt says "first clock in ... to last clock out". 
-    // If the user insists on "Span of day", it would be (Max(clockOut) - Min(clockIn)).
-    // But "Total Hours" usually means worked hours. I will stick to Sum(Duration).
-    
-    const todayAttendance = await Attendance.findAll({
-      where: {
-        userId,
-        clockIn: {
-          [Op.gte]: startOfToday
-        }
-      }
-    });
-
-    let totalMillisecondsToday = 0;
-    todayAttendance.forEach(record => {
-      const start = new Date(record.clockIn).getTime();
-      const end = record.clockOut ? new Date(record.clockOut).getTime() : now.getTime();
-      totalMillisecondsToday += (end - start);
-    });
-
+    const totalMillisecondsToday = await getDurationForPeriod(userId, startOfToday, teamId as string);
     const totalHoursToday = Math.floor(totalMillisecondsToday / (1000 * 60 * 60));
     const totalMinutesToday = Math.floor((totalMillisecondsToday % (1000 * 60 * 60)) / (1000 * 60));
 
-
     // 2. Total Hours This Week
-    const weekAttendance = await Attendance.findAll({
-      where: {
-        userId,
-        clockIn: {
-          [Op.gte]: startOfWeek
-        }
-      }
-    });
-
-    let totalMillisecondsWeek = 0;
-    weekAttendance.forEach(record => {
-      const start = new Date(record.clockIn).getTime();
-      const end = record.clockOut ? new Date(record.clockOut).getTime() : now.getTime();
-      totalMillisecondsWeek += (end - start);
-    });
-
+    const totalMillisecondsWeek = await getDurationForPeriod(userId, startOfWeek, teamId as string);
     const totalHoursWeek = Math.floor(totalMillisecondsWeek / (1000 * 60 * 60));
     const totalMinutesWeek = Math.floor((totalMillisecondsWeek % (1000 * 60 * 60)) / (1000 * 60));
 
@@ -119,72 +160,58 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Fetch recent attendance sessions with their work logs
-    const sessions = await Attendance.findAll({
-      where: { userId },
-      include: [
-        {
-          model: WorkLog,
-          as: 'workLogs',
-          include: [
-            {
-              model: Ticket,
-              as: 'ticket',
-              attributes: ['title', 'teamId'],
-              include: [
-                {
-                  model: Team,
-                  as: 'team',
-                  attributes: ['name']
-                }
-              ]
-            }
-          ]
-        }
-      ],
-      order: [['clockIn', 'DESC']],
-      limit: 5
+    // Fetch recent work logs (events)
+    const eventsWhereClause: any = { userId };
+    if (teamId) {
+      eventsWhereClause.teamId = teamId;
+    }
+
+    const events = await WorkLog.findAll({
+      where: eventsWhereClause,
+      order: [['timestamp', 'DESC']],
+      limit: 20
     });
 
-    const activities: any[] = sessions.map((session: any) => {
-      const workLogs = session.workLogs || [];
-      
-      // Filter tickets if teamId is provided
-      const relevantLogs = teamId 
-        ? workLogs.filter((log: any) => log.ticket?.teamId === teamId)
-        : workLogs;
+    const activities = events.map((event) => {
+      let title = '';
+      let subtitle = '';
+      let status = 'Completed';
 
-      // Get unique ticket titles
-      const ticketTitles = Array.from(new Set(relevantLogs.map((log: any) => log.ticket?.title).filter(Boolean)));
-      
-      let subtitle = 'No recorded tasks';
-      if (ticketTitles.length > 0) {
-        subtitle = `Worked on: ${ticketTitles.join(', ')}`;
-      } else if (workLogs.length > 0 && teamId) {
-        // If there are logs but none for this team
-        subtitle = 'Worked on tasks for other teams';
+      switch (event.type) {
+        case 'CLOCK_IN':
+          title = 'Clocked In';
+          subtitle = 'Started session';
+          break;
+        case 'CLOCK_OUT':
+          title = 'Clocked Out';
+          subtitle = event.comment || 'Ended session';
+          break;
+        case 'START_TICKET':
+          title = event.ticketTitle || 'Started Ticket';
+          subtitle = 'Started working on ticket';
+          status = 'Active';
+          break;
+        case 'STOP_TICKET':
+          title = event.ticketTitle || 'Stopped Ticket';
+          subtitle = event.comment || 'Stopped working on ticket';
+          break;
+        default:
+          title = 'Unknown Event';
       }
 
-      const now = new Date();
-      const start = new Date(session.clockIn).getTime();
-      const end = session.clockOut ? new Date(session.clockOut).getTime() : now.getTime();
-      const durationMs = end - start;
-
-      // Format duration
-      const hours = Math.floor(durationMs / (1000 * 60 * 60));
-      const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((durationMs % (1000 * 60)) / 1000);
-      const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
+      // Filter by teamId if needed (though events might not have teamId directly, 
+      // we'd need to join with Ticket if we want to be strict, but for now we show all user activity)
+      // If strict team filtering is required, we would need to fetch Ticket info.
+      
       return {
-        id: session.id,
-        type: 'SESSION',
-        title: 'Work Session',
-        subtitle: subtitle,
-        startTime: session.clockIn,
-        endTime: session.clockOut,
-        status: session.clockOut ? 'Completed' : 'Active',
-        duration: durationStr
+        id: event.id,
+        type: event.type,
+        title,
+        subtitle,
+        startTime: event.timestamp,
+        endTime: null, // Events are point-in-time
+        status,
+        duration: '' // Duration is not applicable for single events
       };
     });
 

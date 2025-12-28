@@ -20,7 +20,7 @@ export const connectDatabase = async (): Promise<void> => {
     
     // Sync models in development (not recommended for production)
     if (env === 'development') {
-      await sequelize.sync({ alter: false });
+      await sequelize.sync({ alter: true });
       console.log('✅ Database models synchronized.');
     }
   } catch (error) {
