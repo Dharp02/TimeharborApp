@@ -289,8 +289,19 @@ export const getUser = async () => {
     return { user: null, error: null };
   }
   
+  // Try to return stored user immediately for better UX
+  const storedUser = await getStoredUser();
+  
   try {
-    const response = await authenticatedFetch(`${API_URL}/auth/me`);
+    // Use a timeout for the network request to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+    const response = await authenticatedFetch(`${API_URL}/auth/me`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -313,6 +324,12 @@ export const getUser = async () => {
         return { user: retryData.user, error: null };
       }
       
+      // If we have a stored user but the server request failed (non-401), 
+      // we might want to return the stored user anyway if it's a temporary server issue
+      if (storedUser) {
+        return { user: storedUser, error: null };
+      }
+
       return { user: null, error: { message: data.error || 'Failed to fetch user' } };
     }
 
@@ -324,8 +341,7 @@ export const getUser = async () => {
       console.error('Get user error:', err);
     }
     
-    // If network error, try to return stored user
-    const storedUser = await getStoredUser();
+    // If network error or timeout, return stored user
     if (storedUser) {
       return { user: storedUser, error: null };
     }

@@ -6,6 +6,7 @@ import NetworkDetector from '../NetworkDetector';
 export interface Member {
   id: string;
   name: string;
+  email?: string;
   status: 'online' | 'offline';
   role: 'Leader' | 'Member';
   avatar?: string;
@@ -82,6 +83,7 @@ export const createNewTeam = async (name: string): Promise<Team> => {
   const member: Member = user ? {
     id: user.id,
     name: user.full_name || user.email,
+    email: user.email,
     status: 'online',
     role: 'Leader'
   } : {
@@ -160,6 +162,7 @@ export const joinTeamByCode = async (code: string): Promise<Team> => {
   // Construct local Team object
   const member: Member = {
     id: user.id,
+    email: user.email,
     name: user.full_name || user.email,
     status: 'online',
     role: 'Member'

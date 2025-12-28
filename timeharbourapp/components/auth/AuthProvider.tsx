@@ -24,6 +24,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (!isMounted.current) {
       const checkSession = async () => {
         try {
+          // Try to get stored user first for immediate UI feedback
+          // The getUser function in API is now optimized to return stored user on network failure
+          // but we can also check local storage directly here if needed.
+          // For now, we rely on the optimized getUser()
+          
           const { user, error } = await auth.getUser();
           if (error) {
             throw error;

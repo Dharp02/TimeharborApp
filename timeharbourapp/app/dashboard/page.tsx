@@ -1,9 +1,23 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthProvider';
-import DashboardSummary from '@/components/dashboard/DashboardSummary';
-import OpenTickets from '@/components/dashboard/OpenTickets';
-import RecentActivity from '@/components/dashboard/RecentActivity';
+import dynamic from 'next/dynamic';
+
+const DashboardSummary = dynamic(() => import('@/components/dashboard/DashboardSummary'), {
+  loading: () => <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 animate-pulse">
+    {[...Array(4)].map((_, i) => (
+      <div key={i} className="h-32 bg-gray-100 dark:bg-gray-800 rounded-xl" />
+    ))}
+  </div>
+});
+
+const OpenTickets = dynamic(() => import('@/components/dashboard/OpenTickets'), {
+  loading: () => <div className="h-64 bg-white dark:bg-gray-800 rounded-2xl shadow-sm animate-pulse" />
+});
+
+const RecentActivity = dynamic(() => import('@/components/dashboard/RecentActivity'), {
+  loading: () => <div className="h-64 bg-white dark:bg-gray-800 rounded-2xl shadow-sm animate-pulse" />
+});
 
 export default function Dashboard() {
   const { user, loading } = useAuth();

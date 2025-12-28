@@ -7,6 +7,7 @@ import { createNewTeam, joinTeamByCode, fetchMyTeams, updateTeam as apiUpdateTea
 export type Member = {
   id: string;
   name: string;
+  email?: string;
   status: 'online' | 'offline';
   role: 'Leader' | 'Member';
   avatar?: string;

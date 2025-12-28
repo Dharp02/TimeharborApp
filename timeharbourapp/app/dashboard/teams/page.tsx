@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useTeam, Team, Member } from '@/components/dashboard/TeamContext';
@@ -10,9 +10,14 @@ import { copyText } from '@/lib/utils';
 
 export default function TeamsPage() {
   const { user } = useAuth();
-  const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam, addMember, removeMember } = useTeam();
+  const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams } = useTeam();
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  useEffect(() => {
+    refreshTeams();
+  }, []);
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
