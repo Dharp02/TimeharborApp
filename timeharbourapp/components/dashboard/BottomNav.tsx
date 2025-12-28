@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, Users, Clock, Ticket, Settings, StopCircle } from 'lucide-react';
+import { Home, Users, Clock, Ticket, Menu, StopCircle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useClockIn } from './ClockInContext';
@@ -78,8 +78,8 @@ export default function BottomNav() {
             isActive('/dashboard/settings') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
           }`}
         >
-          <Settings className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Settings</span>
+          <Menu className="w-6 h-6" />
+          <span className="text-[10px] font-medium">Menu</span>
         </Link>
       </div>
     </div>
