@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Plus, Copy, Trash2, Check, Shield, User } from 'lucide-react';
+import { Users, Plus, Copy, Check, Shield, User } from 'lucide-react';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/lib/utils';
@@ -53,13 +53,6 @@ export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: 
     if (success) {
       setCopiedCode(code);
       setTimeout(() => setCopiedCode(null), 2000);
-    }
-  };
-
-  const handleDeleteTeam = (e: React.MouseEvent, teamId: string) => {
-    e.stopPropagation();
-    if (confirm('Are you sure you want to delete this team? This action cannot be undone.')) {
-      deleteTeam(teamId);
     }
   };
 
@@ -181,16 +174,6 @@ export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: 
                             {copiedCode === team.code ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
                           </button>
                         </div>
-                        
-                        {team.role === 'Leader' && (
-                          <button
-                            onClick={(e) => handleDeleteTeam(e, team.id)}
-                            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            title="Delete Team"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        )}
                       </div>
                     </div>
                   );

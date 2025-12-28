@@ -234,3 +234,104 @@ export const deleteTeam = async (req: AuthRequest, res: Response): Promise<void>
     res.status(500).json({ error: 'Failed to delete team' });
   }
 };
+
+export const addMember = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    // Check if requester is a leader
+    const membership = await Member.findOne({
+      where: { userId, teamId: id, role: 'Leader' }
+    });
+
+    if (!membership) {
+      res.status(403).json({ error: 'Not authorized to add members to this team' });
+      return;
+    }
+
+    // Find user to add
+    const userToAdd = await User.findOne({ where: { email } });
+    if (!userToAdd) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Check if already a member
+    const existingMember = await Member.findOne({
+      where: { userId: userToAdd.id, teamId: id }
+    });
+
+    if (existingMember) {
+      res.status(409).json({ error: 'User is already a member of this team' });
+      return;
+    }
+
+    await Member.create({
+      userId: userToAdd.id,
+      teamId: id,
+      role: 'Member'
+    });
+
+    res.status(201).json({
+      id: userToAdd.id,
+      name: userToAdd.full_name || 'Unknown User',
+      status: userToAdd.status,
+      role: 'Member'
+    });
+
+  } catch (error) {
+    logger.error('Error adding member:', error);
+    res.status(500).json({ error: 'Failed to add member' });
+  }
+};
+
+export const removeMember = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id, userId: memberIdToRemove } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    // Check if requester is a leader
+    const membership = await Member.findOne({
+      where: { userId, teamId: id, role: 'Leader' }
+    });
+
+    if (!membership) {
+      res.status(403).json({ error: 'Not authorized to remove members from this team' });
+      return;
+    }
+
+    const memberToRemove = await Member.findOne({
+      where: { userId: memberIdToRemove, teamId: id }
+    });
+
+    if (!memberToRemove) {
+      res.status(404).json({ error: 'Member not found in this team' });
+      return;
+    }
+
+    await memberToRemove.destroy();
+
+    res.status(200).json({ message: 'Member removed successfully' });
+
+  } catch (error) {
+    logger.error('Error removing member:', error);
+    res.status(500).json({ error: 'Failed to remove member' });
+  }
+};

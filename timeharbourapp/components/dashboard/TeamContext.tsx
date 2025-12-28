@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createNewTeam, joinTeamByCode, fetchMyTeams, updateTeam as apiUpdateTeam, deleteTeam as apiDeleteTeam } from '@/TimeharborAPI/teams';
+import { createNewTeam, joinTeamByCode, fetchMyTeams, updateTeam as apiUpdateTeam, deleteTeam as apiDeleteTeam, addMemberToTeam, removeMemberFromTeam } from '@/TimeharborAPI/teams';
 
 
 export type Member = {
@@ -29,6 +29,8 @@ interface TeamContextType {
   createTeam: (name: string) => Promise<string>; // returns code
   deleteTeam: (teamId: string) => Promise<void>;
   updateTeamName: (teamId: string, name: string) => Promise<void>;
+  addMember: (teamId: string, email: string) => Promise<void>;
+  removeMember: (teamId: string, userId: string) => Promise<void>;
   refreshTeams: () => Promise<void>;
 }
 
@@ -119,8 +121,28 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const addMember = async (teamId: string, email: string) => {
+    try {
+      await addMemberToTeam(teamId, email);
+      await loadTeams();
+    } catch (error) {
+      console.error('Failed to add member:', error);
+      throw error;
+    }
+  };
+
+  const removeMember = async (teamId: string, userId: string) => {
+    try {
+      await removeMemberFromTeam(teamId, userId);
+      await loadTeams();
+    } catch (error) {
+      console.error('Failed to remove member:', error);
+      throw error;
+    }
+  };
+
   return (
-    <TeamContext.Provider value={{ currentTeam, teams, isLoading, selectTeam, joinTeam, createTeam, deleteTeam, updateTeamName, refreshTeams: loadTeams }}>
+    <TeamContext.Provider value={{ currentTeam, teams, isLoading, selectTeam, joinTeam, createTeam, deleteTeam, updateTeamName, addMember, removeMember, refreshTeams: loadTeams }}>
       {children}
     </TeamContext.Provider>
   );

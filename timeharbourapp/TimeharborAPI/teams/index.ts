@@ -250,3 +250,37 @@ export const deleteTeam = async (teamId: string): Promise<void> => {
     }
   }
 };
+
+export const addMemberToTeam = async (teamId: string, email: string): Promise<Member> => {
+  const user = getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/members`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to add member');
+  }
+
+  return await response.json();
+};
+
+export const removeMemberFromTeam = async (teamId: string, userIdToRemove: string): Promise<void> => {
+  const user = getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/members/${userIdToRemove}`, {
+    method: 'DELETE'
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to remove member');
+  }
+};

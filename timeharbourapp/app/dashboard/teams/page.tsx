@@ -1,25 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, Plus, Copy, Check, Trash2, Edit2, Circle } from 'lucide-react';
+import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { useTeam, Team } from '@/components/dashboard/TeamContext';
+import { useTeam, Team, Member } from '@/components/dashboard/TeamContext';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { TeamActivityReport } from '@/components/dashboard/TeamActivityReport';
 import { copyText } from '@/lib/utils';
 
 export default function TeamsPage() {
-  const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam } = useTeam();
+  const { user } = useAuth();
+  const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam, addMember, removeMember } = useTeam();
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [isRemoveMemberModalOpen, setIsRemoveMemberModalOpen] = useState(false);
   const [selectedTeamForAction, setSelectedTeamForAction] = useState<Team | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
   
   const [joinCode, setJoinCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [newTeamName, setNewTeamName] = useState('');
   const [editTeamName, setEditTeamName] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
+  const [isAddingMember, setIsAddingMember] = useState(false);
   const [createdTeamCode, setCreatedTeamCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [headerCopied, setHeaderCopied] = useState(false);
@@ -79,6 +87,39 @@ export default function TeamsPage() {
       deleteTeam(selectedTeamForAction.id);
       setIsDeleteModalOpen(false);
       setSelectedTeamForAction(null);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (currentTeam && newMemberEmail.trim()) {
+      setIsAddingMember(true);
+      setAddMemberError(null);
+      try {
+        await addMember(currentTeam.id, newMemberEmail);
+        setIsAddMemberModalOpen(false);
+        setNewMemberEmail('');
+      } catch (error: any) {
+        setAddMemberError(error.message || 'Failed to add member');
+      } finally {
+        setIsAddingMember(false);
+      }
+    }
+  };
+
+  const openRemoveMemberModal = (member: Member) => {
+    setMemberToRemove(member);
+    setIsRemoveMemberModalOpen(true);
+  };
+
+  const handleRemoveMember = async () => {
+    if (currentTeam && memberToRemove) {
+      try {
+        await removeMember(currentTeam.id, memberToRemove.id);
+        setIsRemoveMemberModalOpen(false);
+        setMemberToRemove(null);
+      } catch (error) {
+        console.error('Failed to remove member:', error);
+      }
     }
   };
 
@@ -202,35 +243,46 @@ export default function TeamsPage() {
                   </div>
 
                   <div className="border-t border-gray-100 dark:border-gray-700 pt-6">
-                    <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">
-                      Collaborators
-                    </h4>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                        Collaborators
+                      </h4>
+                      {currentTeam.role === 'Leader' && (
+                        <button
+                          onClick={() => setIsAddMemberModalOpen(true)}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          Add Member
+                        </button>
+                      )}
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                       {currentTeam.members.map((member) => (
                         <div 
                           key={member.id}
-                          className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                          className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
                         >
-                          <div className="relative">
-                            <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center text-lg font-medium text-gray-600 dark:text-gray-300">
-                              {member.name.charAt(0)}
-                            </div>
-                            <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 ${
-                              member.status === 'online' ? 'bg-green-500' : 'bg-gray-400'
-                            }`} />
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
+                            {member.name.charAt(0)}
                           </div>
-                          <div>
-                            <p className="text-base font-semibold text-gray-900 dark:text-white">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 dark:text-white truncate">
                               {member.name}
                             </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
-                              <Circle className={`w-2.5 h-2.5 fill-current ${
-                                member.status === 'online' ? 'text-green-500' : 'text-gray-400'
-                              }`} />
-                              {member.status === 'online' ? 'Online' : 'Offline'}
-                              {member.role === 'Leader' && ' • Leader'}
+                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                              {member.email}
                             </p>
                           </div>
+                          {currentTeam.role === 'Leader' && member.id !== user?.id && (
+                            <button
+                              onClick={() => openRemoveMemberModal(member)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Remove Member"
+                            >
+                              <UserMinus className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -457,6 +509,92 @@ export default function TeamsPage() {
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
               Delete Team
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Member Modal */}
+      <Modal
+        isOpen={isAddMemberModalOpen}
+        onClose={() => {
+          setIsAddMemberModalOpen(false);
+          setNewMemberEmail('');
+          setAddMemberError(null);
+        }}
+        title="Add Team Member"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Member Email
+            </label>
+            <input
+              type="email"
+              value={newMemberEmail}
+              onChange={(e) => setNewMemberEmail(e.target.value)}
+              placeholder="colleague@example.com"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+            {addMemberError && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                {addMemberError}
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => {
+                setIsAddMemberModalOpen(false);
+                setNewMemberEmail('');
+                setAddMemberError(null);
+              }}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAddMember}
+              disabled={!newMemberEmail.trim() || isAddingMember}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isAddingMember ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                'Add Member'
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Remove Member Modal */}
+      <Modal
+        isOpen={isRemoveMemberModalOpen}
+        onClose={() => setIsRemoveMemberModalOpen(false)}
+        title="Remove Team Member"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Are you sure you want to remove <span className="font-bold">{memberToRemove?.name}</span> from the team? They will lose access to all team resources.
+          </p>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => setIsRemoveMemberModalOpen(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleRemoveMember}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Remove Member
             </button>
           </div>
         </div>
