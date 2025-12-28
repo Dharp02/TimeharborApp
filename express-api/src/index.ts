@@ -8,6 +8,7 @@ import { connectDatabase } from './config/sequelize';
 import authRoutes from './routes/authRoutes';
 import teamRoutes from './routes/teamRoutes';
 import timeRoutes from './routes/timeRoutes';
+import dashboardRoutes from './routes/dashboardRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
 import { startCleanupJob } from './jobs/cleanupTokens';
@@ -53,6 +54,7 @@ app.use(morgan('combined', { stream: morganStream }));
 app.use('/auth', authLimiter, authRoutes);
 app.use('/teams', teamRoutes);
 app.use('/time', timeRoutes);
+app.use('/dashboard', dashboardRoutes);
 
 // Health check
 app.get('/', (req, res) => {
