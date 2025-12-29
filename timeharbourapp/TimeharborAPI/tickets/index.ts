@@ -61,8 +61,14 @@ export const createTicket = async (teamId: string, data: CreateTicketData): Prom
   return response.json();
 };
 
-export const getTickets = async (teamId: string): Promise<Ticket[]> => {
-  const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/tickets`, {
+export const getTickets = async (teamId: string, options?: { sort?: string; status?: string }): Promise<Ticket[]> => {
+  const queryParams = new URLSearchParams();
+  if (options?.sort) queryParams.append('sort', options.sort);
+  if (options?.status) queryParams.append('status', options.status);
+
+  const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
+  const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/tickets${queryString}`, {
     method: 'GET',
   });
 

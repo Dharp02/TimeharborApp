@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
+import { Op } from 'sequelize';
 import { Ticket, Member, User, Team } from '../models';
 import { AuthRequest } from '../middleware/authMiddleware';
+import sequelize from '../config/sequelize';
 
 export const createTicket = async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
@@ -52,6 +54,7 @@ export const getTickets = async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   try {
     const { teamId } = authReq.params;
+    const { sort, status } = req.query;
     const userId = authReq.user!.id;
 
     // Check if user is a member of the team
@@ -60,13 +63,34 @@ export const getTickets = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'You are not a member of this team' });
     }
 
+    const whereClause: any = { teamId };
+    
+    if (status === 'open') {
+      whereClause.status = { [Op.ne]: 'Closed' };
+    } else if (status) {
+      whereClause.status = status;
+    }
+
+    let order: any = [['createdAt', 'DESC']];
+
+    if (sort === 'recent') {
+      order = [
+        [sequelize.literal(`(
+          SELECT MAX("timestamp")
+          FROM "work_logs" AS "WorkLog"
+          WHERE "WorkLog"."ticketId" = "Ticket"."id"
+        )`), 'DESC NULLS LAST'],
+        ['createdAt', 'DESC']
+      ];
+    }
+
     const tickets = await Ticket.findAll({
-      where: { teamId },
+      where: whereClause,
       include: [
         { model: User, as: 'creator', attributes: ['id', 'full_name', 'email'] },
         { model: User, as: 'assignee', attributes: ['id', 'full_name', 'email'] }
       ],
-      order: [['createdAt', 'DESC']]
+      order: order
     });
 
     res.json(tickets);

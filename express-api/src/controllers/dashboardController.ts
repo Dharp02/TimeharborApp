@@ -166,56 +166,107 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
       eventsWhereClause.teamId = teamId;
     }
 
+    // Fetch last 100 events to reconstruct recent sessions
     const events = await WorkLog.findAll({
       where: eventsWhereClause,
       order: [['timestamp', 'DESC']],
-      limit: 20
+      limit: 100
     });
 
-    const activities = events.map((event) => {
-      let title = '';
-      let subtitle = '';
-      let status = 'Completed';
+    // Process events chronologically
+    const processedEvents = events.reverse();
+    const sessions: any[] = [];
+    let currentSession: any = null;
 
-      switch (event.type) {
-        case 'CLOCK_IN':
-          title = 'Clocked In';
-          subtitle = 'Started session';
-          break;
-        case 'CLOCK_OUT':
-          title = 'Clocked Out';
-          subtitle = event.comment || 'Ended session';
-          break;
-        case 'START_TICKET':
-          title = event.ticketTitle || 'Started Ticket';
-          subtitle = 'Started working on ticket';
-          status = 'Active';
-          break;
-        case 'STOP_TICKET':
-          title = event.ticketTitle || 'Stopped Ticket';
-          subtitle = event.comment || 'Stopped working on ticket';
-          break;
-        default:
-          title = 'Unknown Event';
+    for (const event of processedEvents) {
+      if (event.type === 'CLOCK_IN') {
+        // If there's an open session, close it
+        if (currentSession && !currentSession.endTime) {
+          currentSession.endTime = event.timestamp;
+          currentSession.status = 'Completed';
+        }
+
+        currentSession = {
+          id: event.id,
+          type: 'SESSION',
+          startTime: event.timestamp,
+          endTime: null,
+          tickets: new Set<string>(),
+          status: 'Active'
+        };
+        sessions.push(currentSession);
+      } else if (event.type === 'CLOCK_OUT') {
+        if (currentSession) {
+          currentSession.endTime = event.timestamp;
+          currentSession.status = 'Completed';
+          // We don't nullify currentSession immediately to allow for potential trailing events 
+          // (though unlikely in normal flow), but effectively this session is done.
+          currentSession = null;
+        }
+      } else if (event.type === 'START_TICKET' || event.type === 'STOP_TICKET') {
+        if (!currentSession) {
+          // If we encounter ticket activity without a session, create one
+          currentSession = {
+            id: event.id,
+            type: 'SESSION',
+            startTime: event.timestamp,
+            endTime: null,
+            tickets: new Set<string>(),
+            status: 'Active'
+          };
+          sessions.push(currentSession);
+        }
+
+        if (event.ticketTitle) {
+          currentSession.tickets.add(event.ticketTitle);
+        }
+      }
+    }
+
+    const activities = sessions.map(session => {
+      const ticketList = Array.from(session.tickets as Set<string>);
+      let subtitle = '';
+      
+      if (ticketList.length > 0) {
+        // Limit to showing first 2 tickets and count for rest
+        if (ticketList.length <= 2) {
+          subtitle = `Worked on: ${ticketList.join(', ')}`;
+        } else {
+          subtitle = `Worked on: ${ticketList.slice(0, 2).join(', ')} +${ticketList.length - 2} more`;
+        }
+      } else {
+        subtitle = session.status === 'Active' ? 'Session in progress' : 'No tickets recorded';
       }
 
-      // Filter by teamId if needed (though events might not have teamId directly, 
-      // we'd need to join with Ticket if we want to be strict, but for now we show all user activity)
-      // If strict team filtering is required, we would need to fetch Ticket info.
+      // Calculate duration
+      let duration = '';
+      const start = new Date(session.startTime);
+      const end = session.endTime ? new Date(session.endTime) : new Date();
+      const diffMs = end.getTime() - start.getTime();
       
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (hours > 0) {
+        duration = `${hours}h ${minutes}m`;
+      } else {
+        duration = `${minutes}m`;
+      }
+
       return {
-        id: event.id,
-        type: event.type,
-        title,
+        id: session.id,
+        type: 'SESSION',
+        title: 'Work Session',
         subtitle,
-        startTime: event.timestamp,
-        endTime: null, // Events are point-in-time
-        status,
-        duration: '' // Duration is not applicable for single events
+        startTime: session.startTime,
+        endTime: session.endTime,
+        status: session.status,
+        duration
       };
     });
 
-    res.json(activities);
+    // Return newest first, limited to top 5
+    res.json(activities.reverse().slice(0, 5));
 
   } catch (error) {
     console.error('Error fetching recent activity:', error);

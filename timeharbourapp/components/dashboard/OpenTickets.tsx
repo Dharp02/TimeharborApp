@@ -34,7 +34,7 @@ export default function OpenTickets() {
     if (!currentTeam) return;
     setIsLoading(true);
     try {
-      const fetchedTickets = await ticketsApi.getTickets(currentTeam.id);
+      const fetchedTickets = await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' });
       setTickets(fetchedTickets);
     } catch (error) {
       console.error('Failed to load tickets:', error);
