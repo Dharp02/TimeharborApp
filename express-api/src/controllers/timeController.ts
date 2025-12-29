@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
-import { WorkLog, Ticket } from '../models';
+import { WorkLog, Ticket, Team } from '../models';
 import sequelize from '../config/sequelize';
 import logger from '../utils/logger';
 import { Op } from 'sequelize';
@@ -46,19 +46,56 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
          if (!uuidRegex.test(finalTicketId)) {
            finalTicketId = null;
+         } else {
+             // Check if ticket exists to avoid FK error
+             const ticketExists = await Ticket.findByPk(finalTicketId, { transaction });
+             if (!ticketExists) {
+                 console.warn(`Ticket ${finalTicketId} not found for event ${id}, setting ticketId to null`);
+                 finalTicketId = null;
+             }
          }
       }
 
-      await WorkLog.create({
-        id: id || undefined, // Use client-side ID if available
-        userId,
-        type,
-        timestamp: new Date(timestamp),
-        ticketId: finalTicketId,
-        teamId: teamId || null,
-        ticketTitle,
-        comment
-      }, { transaction });
+      // Validate Team if present
+      let finalTeamId = teamId || null;
+      if (finalTeamId) {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!uuidRegex.test(finalTeamId)) {
+              finalTeamId = null;
+          } else {
+              const teamExists = await Team.findByPk(finalTeamId, { transaction });
+              if (!teamExists) {
+                  console.warn(`Team ${finalTeamId} not found for event ${id}, setting teamId to null`);
+                  finalTeamId = null;
+              }
+          }
+      }
+
+      // Check if event already exists
+      const existingLog = id ? await WorkLog.findByPk(id, { transaction }) : null;
+
+      if (existingLog) {
+          await existingLog.update({
+            userId,
+            type,
+            timestamp: new Date(timestamp),
+            ticketId: finalTicketId,
+            teamId: finalTeamId,
+            ticketTitle,
+            comment
+          }, { transaction });
+      } else {
+          await WorkLog.create({
+            id: id || undefined,
+            userId,
+            type,
+            timestamp: new Date(timestamp),
+            ticketId: finalTicketId,
+            teamId: finalTeamId,
+            ticketTitle,
+            comment
+          }, { transaction });
+      }
     }
 
     await transaction.commit();
