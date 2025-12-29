@@ -45,11 +45,36 @@ export interface Team {
   code: string;
 }
 
+export interface Ticket {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'Open' | 'In Progress' | 'Closed';
+  priority: 'Low' | 'Medium' | 'High';
+  link?: string;
+  teamId: string;
+  createdBy: string;
+  assignedTo?: string;
+  createdAt: string;
+  updatedAt: string;
+  creator?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+  assignee?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+}
+
 export class TimeharborDB extends Dexie {
   offlineMutations!: Table<OfflineMutation>;
   profile!: Table<UserProfile>;
   events!: Table<TimeEvent>;
   teams!: Table<Team>;
+  tickets!: Table<Ticket>;
 
   constructor() {
     super('TimeharborDB');
@@ -75,6 +100,10 @@ export class TimeharborDB extends Dexie {
 
     this.version(4).stores({
       teams: 'id'
+    });
+
+    this.version(5).stores({
+      tickets: 'id, teamId'
     });
   }
 }

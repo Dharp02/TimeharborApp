@@ -55,7 +55,7 @@ const setUser = async (user: User) => {
   }
 };
 
-const getStoredUser = async (): Promise<User | null> => {
+export const getStoredUser = async (): Promise<User | null> => {
   if (!isBrowser) return null;
   try {
     const record = await db.profile.get('user');
