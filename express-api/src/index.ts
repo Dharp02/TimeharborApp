@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { connectDatabase } from './config/sequelize';
@@ -27,22 +26,6 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting for auth endpoints (more lenient for development)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 20 : 1000, // 1000 in dev, 20 in production
-  message: 'Too many authentication attempts, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => {
-    // Skip rate limiting for /auth/me endpoint in development
-    if (process.env.NODE_ENV !== 'production' && req.path === '/me') {
-      return true;
-    }
-    return false;
-  }
-});
-
 // Body parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -51,7 +34,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan('combined', { stream: morganStream }));
 
 // Routes
-app.use('/auth', authLimiter, authRoutes);
+app.use('/auth', authRoutes);
 app.use('/teams', teamRoutes);
 app.use('/time', timeRoutes);
 app.use('/dashboard', dashboardRoutes);

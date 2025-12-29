@@ -93,15 +93,19 @@ export const getStats = async (teamId?: string): Promise<DashboardStats> => {
   }
 };
 
-export const getActivity = async (teamId?: string): Promise<Activity[]> => {
+export const getActivity = async (teamId?: string, limit?: number | 'all'): Promise<Activity[]> => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
   const cacheKey = teamId || 'global';
 
   try {
     if (!token) throw new Error('No access token found');
 
-    const queryParams = teamId ? `?teamId=${teamId}` : '';
-    const response = await fetch(`${API_URL}/dashboard/activity${queryParams}`, {
+    const params = new URLSearchParams();
+    if (teamId) params.append('teamId', teamId);
+    if (limit) params.append('limit', limit.toString());
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const response = await fetch(`${API_URL}/dashboard/activity${queryString}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',

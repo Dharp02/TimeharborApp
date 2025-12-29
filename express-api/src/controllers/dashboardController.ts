@@ -153,7 +153,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 export const getRecentActivity = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { teamId } = req.query;
+    const { teamId, limit } = req.query;
 
     if (!userId) {
       res.status(401).json({ message: 'Unauthorized' });
@@ -166,11 +166,18 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
       eventsWhereClause.teamId = teamId;
     }
 
-    // Fetch last 100 events to reconstruct recent sessions
+    const isAll = limit === 'all';
+    const limitNum = typeof limit === 'string' && !isAll ? parseInt(limit) : 5;
+    
+    // Fetch events to reconstruct sessions
+    // If 'all', fetch more events (e.g., last 1000)
+    // If specific limit, fetch enough events to likely cover it (e.g. limit * 10)
+    const eventLimit = isAll ? 1000 : (limitNum * 20);
+
     const events = await WorkLog.findAll({
       where: eventsWhereClause,
       order: [['timestamp', 'DESC']],
-      limit: 100
+      limit: eventLimit
     });
 
     // Process events chronologically
@@ -265,8 +272,14 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    // Return newest first, limited to top 5
-    res.json(activities.reverse().slice(0, 5));
+    // Return newest first
+    const reversedActivities = activities.reverse();
+    
+    if (isAll) {
+      res.json(reversedActivities);
+    } else {
+      res.json(reversedActivities.slice(0, limitNum));
+    }
 
   } catch (error) {
     console.error('Error fetching recent activity:', error);
