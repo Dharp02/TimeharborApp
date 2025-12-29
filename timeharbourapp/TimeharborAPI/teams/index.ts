@@ -368,32 +368,177 @@ export const addMemberToTeam = async (teamId: string, email: string): Promise<Me
   const user = getUser();
   if (!user) throw new Error('User not authenticated');
 
-  const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/members`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ email })
-  });
+  const url = `${API_URL}/teams/${teamId}/members`;
+  const body = { email };
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to add member');
+  try {
+    const response = await authenticatedFetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to add member');
+    }
+
+    const newMember = await response.json();
+    
+    // Update local storage
+    if (isBrowser) {
+      const storedTeamsStr = localStorage.getItem(STORAGE_KEY);
+      if (storedTeamsStr) {
+        const teams: Team[] = JSON.parse(storedTeamsStr);
+        const updatedTeams = teams.map(t => {
+          if (t.id === teamId) {
+            // Check if member already exists to avoid duplicates
+            if (!t.members.some(m => m.id === newMember.id)) {
+              return { ...t, members: [...t.members, newMember] };
+            }
+          }
+          return t;
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTeams));
+      }
+      
+      // Update Dexie
+      const team = await db.teams.get(teamId);
+      if (team) {
+        if (!team.members.some(m => m.id === newMember.id)) {
+          team.members.push(newMember);
+          await db.teams.put(team);
+        }
+      }
+    }
+
+    return newMember;
+  } catch (error) {
+    console.warn('Add member failed, queuing offline mutation', error);
+
+    // Create temporary member
+    const tempId = uuidv4();
+    const tempMember: Member = {
+      id: tempId,
+      name: email, // Use email as name temporarily
+      email: email,
+      status: 'offline',
+      role: 'Member',
+      avatar: undefined
+    };
+
+    // Optimistic update
+    if (isBrowser) {
+      const storedTeamsStr = localStorage.getItem(STORAGE_KEY);
+      if (storedTeamsStr) {
+        const teams: Team[] = JSON.parse(storedTeamsStr);
+        const updatedTeams = teams.map(t => {
+          if (t.id === teamId) {
+             return { ...t, members: [...t.members, tempMember] };
+          }
+          return t;
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTeams));
+      }
+      
+      // Update Dexie
+      const team = await db.teams.get(teamId);
+      if (team) {
+        team.members.push(tempMember);
+        await db.teams.put(team);
+      }
+    }
+
+    await db.offlineMutations.add({
+      url,
+      method: 'POST',
+      body,
+      timestamp: Date.now(),
+      retryCount: 0,
+      tempId // Store tempId so we can update it later if needed
+    });
+
+    // Trigger sync attempt in case we are actually online
+    NetworkDetector.getInstance().triggerSync();
+
+    return tempMember;
   }
-
-  return await response.json();
 };
 
 export const removeMemberFromTeam = async (teamId: string, userIdToRemove: string): Promise<void> => {
   const user = getUser();
   if (!user) throw new Error('User not authenticated');
 
-  const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/members/${userIdToRemove}`, {
-    method: 'DELETE'
-  });
+  const url = `${API_URL}/teams/${teamId}/members/${userIdToRemove}`;
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to remove member');
+  try {
+    const response = await authenticatedFetch(url, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to remove member');
+    }
+
+    // Update local storage
+    if (isBrowser) {
+      const storedTeamsStr = localStorage.getItem(STORAGE_KEY);
+      if (storedTeamsStr) {
+        const teams: Team[] = JSON.parse(storedTeamsStr);
+        const updatedTeams = teams.map(t => {
+          if (t.id === teamId) {
+            return { ...t, members: t.members.filter(m => m.id !== userIdToRemove) };
+          }
+          return t;
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTeams));
+      }
+      
+      // Update Dexie
+      const team = await db.teams.get(teamId);
+      if (team) {
+        team.members = team.members.filter(m => m.id !== userIdToRemove);
+        await db.teams.put(team);
+      }
+    }
+
+  } catch (error) {
+    console.warn('Remove member failed, queuing offline mutation', error);
+
+    // Optimistic update
+    if (isBrowser) {
+      const storedTeamsStr = localStorage.getItem(STORAGE_KEY);
+      if (storedTeamsStr) {
+        const teams: Team[] = JSON.parse(storedTeamsStr);
+        const updatedTeams = teams.map(t => {
+          if (t.id === teamId) {
+            return { ...t, members: t.members.filter(m => m.id !== userIdToRemove) };
+          }
+          return t;
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTeams));
+      }
+      
+      // Update Dexie
+      const team = await db.teams.get(teamId);
+      if (team) {
+        team.members = team.members.filter(m => m.id !== userIdToRemove);
+        await db.teams.put(team);
+      }
+    }
+
+    await db.offlineMutations.add({
+      url,
+      method: 'DELETE',
+      body: {},
+      timestamp: Date.now(),
+      retryCount: 0
+    });
+    
+    // Trigger sync attempt in case we are actually online
+    NetworkDetector.getInstance().triggerSync();
   }
 };

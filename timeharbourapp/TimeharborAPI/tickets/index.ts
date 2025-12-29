@@ -73,6 +73,22 @@ export const createTicket = async (teamId: string, data: CreateTicketData): Prom
     const user = await getStoredUser();
 
     // Create temporary ticket for offline use
+    let assignee;
+    if (data.assignedTo) {
+      const teams = await db.teams.toArray();
+      for (const team of teams) {
+        const member = team.members.find(m => m.id === data.assignedTo);
+        if (member) {
+          assignee = {
+            id: member.id,
+            full_name: member.name,
+            email: member.email || ''
+          };
+          break;
+        }
+      }
+    }
+
     const tempTicket: Ticket = {
       id, // Use the pre-generated ID
       title: data.title,
@@ -83,6 +99,7 @@ export const createTicket = async (teamId: string, data: CreateTicketData): Prom
       teamId,
       createdBy: user?.id || 'offline-user',
       assignedTo: data.assignedTo,
+      assignee,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -162,7 +179,30 @@ export const updateTicket = async (teamId: string, ticketId: string, data: Updat
     // Update local cache
     const existingTicket = await db.tickets.get(ticketId);
     if (existingTicket) {
-      const updatedTicket = { ...existingTicket, ...data, updatedAt: new Date().toISOString() };
+      let assignee = existingTicket.assignee;
+      
+      // If assignedTo is changing, try to find the new assignee details
+      if (data.assignedTo && data.assignedTo !== existingTicket.assignedTo) {
+        const teams = await db.teams.toArray();
+        for (const team of teams) {
+          const member = team.members.find(m => m.id === data.assignedTo);
+          if (member) {
+            assignee = {
+              id: member.id,
+              full_name: member.name,
+              email: member.email || ''
+            };
+            break;
+          }
+        }
+      }
+
+      const updatedTicket = { 
+        ...existingTicket, 
+        ...data, 
+        assignee,
+        updatedAt: new Date().toISOString() 
+      };
       await db.tickets.put(updatedTicket);
       
       await db.offlineMutations.add({
