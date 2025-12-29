@@ -10,6 +10,52 @@ The repository is organized into three main components:
 *   **`timeharbourapp/`**: The frontend application built with Next.js, React, and Tailwind CSS. It also serves as the mobile app source using Capacitor.
 *   **`timeharbor-proxy/`**: A lightweight proxy server for routing requests in production environments.
 
+## Architecture & App Flow
+
+TimeharborApp is designed with an **Offline-First** architecture, ensuring users can track time and manage tasks regardless of internet connectivity.
+
+### System Architecture
+
+```mermaid
+graph TD
+    subgraph Client [Client Device - Mobile/Web]
+        UI[User Interface]
+        LocalDB[(Local DB - Dexie.js)]
+        Sync[Sync Manager]
+        Net[Network Detector]
+        
+        UI -->|1. User Action| LocalDB
+        LocalDB -->|2. Update UI| UI
+        Net -->|3. Detect Online| Sync
+        Sync -->|4. Read Pending| LocalDB
+    end
+    
+    subgraph Server [Backend Infrastructure]
+        API[Express API]
+        DB[(PostgreSQL)]
+        
+        API <-->|6. Persist| DB
+    end
+    
+    Sync <-->|5. Sync Data| API
+```
+
+### Key Features
+
+*   **Mobile-First Design**: Optimized for mobile devices using Capacitor for native Android and iOS builds.
+*   **Offline-First**: Uses `Dexie.js` (IndexedDB) to store data locally. All actions (Clock In, Create Ticket) are saved locally first (optimistic UI).
+*   **UUID Implementation**: Uses UUIDs for all primary keys to allow offline ID generation and conflict-free synchronization.
+
+### Synchronization Process
+
+1.  **Offline Action**: When a user performs an action (e.g., "Clock In"), the app generates a UUID and saves the event to the local database (`TimeEvent` table).
+2.  **Queueing**: If the device is offline, the action is queued.
+3.  **Network Detection**: The `NetworkDetector` monitors connection status.
+4.  **Auto-Sync**: When connectivity is restored, the `SyncManager` is triggered.
+    *   It replays any failed API mutations (POST/PUT/DELETE).
+    *   It pushes unsynced time events to the backend.
+5.  **Consistency**: Once acknowledged by the server, local records are marked as synced.
+
 ## Prerequisites
 
 *   Node.js (v18+ recommended)
