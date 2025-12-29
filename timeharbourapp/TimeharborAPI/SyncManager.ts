@@ -1,5 +1,5 @@
 import NetworkDetector from './NetworkDetector';
-import { db, type OfflineMutation } from '@/lib/db';
+import { db, type OfflineMutation } from './db';
 import { authenticatedFetch } from './auth';
 
 class SyncManager {

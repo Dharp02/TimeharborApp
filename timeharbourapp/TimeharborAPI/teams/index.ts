@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../../lib/db';
+import { db } from '../db';
 import { authenticatedFetch, getUser } from '../auth';
 import NetworkDetector from '../NetworkDetector';
 
@@ -66,12 +66,15 @@ const getTeams = (): Team[] => {
   }
 };
 
-const saveTeam = (team: Team): void => {
+const saveTeam = async (team: Team): Promise<void> => {
   if (!isBrowser) return;
   try {
     const teams = getTeams();
     teams.push(team);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(teams));
+    
+    // Update Dexie
+    await db.teams.put(team);
   } catch (error) {
     console.error('Error saving team to offline storage:', error);
   }
@@ -101,7 +104,7 @@ export const createNewTeam = async (name: string): Promise<Team> => {
     code
   };
   
-  saveTeam(newTeam);
+  await saveTeam(newTeam);
 
   const url = `${API_URL}/teams`;
   const body = {
@@ -176,7 +179,7 @@ export const joinTeamByCode = async (code: string): Promise<Team> => {
     code: teamData.code
   };
 
-  saveTeam(newTeam);
+  await saveTeam(newTeam);
   return newTeam;
 };
 
@@ -184,18 +187,49 @@ export const fetchMyTeams = async (): Promise<Team[]> => {
   const user = getUser();
   if (!user) throw new Error('User not authenticated');
 
-  const response = await authenticatedFetch(`${API_URL}/teams`);
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch teams');
-  }
+  try {
+    const response = await authenticatedFetch(`${API_URL}/teams`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch teams');
+    }
 
-  const teams: Team[] = await response.json();
-  
-  // Update local storage
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(teams));
-  
-  return teams;
+    const teams: Team[] = await response.json();
+    
+    // Update local storage
+    if (isBrowser) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(teams));
+    }
+
+    // Update Dexie
+    await db.transaction('rw', db.teams, async () => {
+      await db.teams.clear();
+      await db.teams.bulkAdd(teams);
+    });
+    
+    return teams;
+  } catch (error) {
+    console.warn('Failed to fetch teams from API, falling back to offline storage', error);
+    
+    // Try Dexie first
+    const cachedTeams = await db.teams.toArray();
+    if (cachedTeams.length > 0) {
+      return cachedTeams;
+    }
+
+    // Fallback to localStorage
+    if (isBrowser) {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const teams = JSON.parse(stored);
+        // Migrate to Dexie
+        await db.teams.bulkAdd(teams);
+        return teams;
+      }
+    }
+    
+    return [];
+  }
 };
 
 export const updateTeam = async (teamId: string, name: string): Promise<Team> => {
@@ -225,6 +259,9 @@ export const updateTeam = async (teamId: string, name: string): Promise<Team> =>
       const updatedTeams = teams.map(t => t.id === teamId ? { ...t, name: updatedTeam.name } : t);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTeams));
     }
+    
+    // Update Dexie
+    await db.teams.update(teamId, { name: updatedTeam.name });
   }
 
   return updatedTeam;
@@ -251,6 +288,9 @@ export const deleteTeam = async (teamId: string): Promise<void> => {
       const updatedTeams = teams.filter(t => t.id !== teamId);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTeams));
     }
+    
+    // Update Dexie
+    await db.teams.delete(teamId);
   }
 };
 

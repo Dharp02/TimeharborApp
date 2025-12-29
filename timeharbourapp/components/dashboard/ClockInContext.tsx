@@ -326,6 +326,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       sessionDuration, 
       sessionFormat,
       activeTicketId, 
+      activeTicketTitle,
       activeTicketTeamId,
       ticketStartTime,
       ticketDuration,

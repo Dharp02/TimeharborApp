@@ -1,44 +1,5 @@
-import Dexie, { type Table } from 'dexie';
 import { v4 as uuidv4 } from 'uuid';
-
-export type TimeEventType = 'CLOCK_IN' | 'CLOCK_OUT' | 'START_TICKET' | 'STOP_TICKET';
-
-export interface TimeEvent {
-  id: string;
-  userId: string;
-  type: TimeEventType;
-  timestamp: string; // ISO string
-  ticketId?: string | null;
-  teamId?: string | null;
-  ticketTitle?: string | null;
-  comment?: string | null;
-  synced: number; // 0 for false, 1 for true
-}
-
-export class TimeharborDB extends Dexie {
-  events!: Table<TimeEvent>;
-
-  constructor() {
-    super('TimeharborDB');
-    // Keep previous versions for migration history if needed, or just overwrite for dev
-    this.version(1).stores({
-      attendance: 'id, userId, clockIn, clockOut',
-      workLogs: 'id, userId, ticketId, attendanceId, startTime, endTime'
-    });
-    
-    this.version(2).stores({
-      attendance: null,
-      workLogs: 'id, userId, ticketId, startTime, endTime'
-    });
-
-    this.version(3).stores({
-      workLogs: null, // Drop old table
-      events: 'id, userId, type, timestamp, synced'
-    });
-  }
-}
-
-export const db = new TimeharborDB();
+import { db, type TimeEventType } from '../db';
 
 export class LocalTimeStore {
   
