@@ -7,6 +7,7 @@ export interface OfflineMutation {
   body: any;
   timestamp: number;
   retryCount: number;
+  tempId?: string; // ID of the temporary record created offline
 }
 
 export interface UserProfile {
@@ -75,6 +76,8 @@ export class TimeharborDB extends Dexie {
   events!: Table<TimeEvent>;
   teams!: Table<Team>;
   tickets!: Table<Ticket>;
+  dashboardStats!: Table<{ teamId: string; data: any; updatedAt: number }>;
+  dashboardActivity!: Table<{ id: string; teamId: string; data: any; updatedAt: number }>;
 
   constructor() {
     super('TimeharborDB');
@@ -104,6 +107,11 @@ export class TimeharborDB extends Dexie {
 
     this.version(5).stores({
       tickets: 'id, teamId'
+    });
+
+    this.version(6).stores({
+      dashboardStats: 'teamId', // teamId as key, or 'global' for all teams
+      dashboardActivity: 'id, teamId'
     });
   }
 }

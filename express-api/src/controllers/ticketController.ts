@@ -8,7 +8,7 @@ export const createTicket = async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   try {
     const { teamId } = authReq.params;
-    const { title, description, priority, link, assignedTo, status } = authReq.body;
+    const { id, title, description, priority, link, assignedTo, status } = authReq.body;
     const userId = authReq.user!.id;
 
     // Check if user is a member of the team
@@ -26,6 +26,7 @@ export const createTicket = async (req: Request, res: Response) => {
     }
 
     const ticket = await Ticket.create({
+      id,
       title,
       description,
       priority,

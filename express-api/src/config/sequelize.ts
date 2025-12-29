@@ -1,7 +1,12 @@
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+import path from 'path';
 
+// Try to load .env from current dir, or parent dir if not found
 dotenv.config();
+if (!process.env.DATABASE_URL) {
+  dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+}
 
 const env = process.env.NODE_ENV || 'development';
 const config = require('./database.js')[env];

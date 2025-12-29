@@ -47,13 +47,16 @@ export interface UpdateTicketData {
 }
 
 export const createTicket = async (teamId: string, data: CreateTicketData): Promise<Ticket> => {
+  // Generate ID client-side for offline-first consistency
+  const id = uuidv4();
+
   try {
     const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/tickets`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, id }),
     });
 
     if (!response.ok) {
@@ -70,9 +73,8 @@ export const createTicket = async (teamId: string, data: CreateTicketData): Prom
     const user = await getStoredUser();
 
     // Create temporary ticket for offline use
-    const tempId = uuidv4();
     const tempTicket: Ticket = {
-      id: tempId,
+      id, // Use the pre-generated ID
       title: data.title,
       description: data.description,
       status: data.status || 'Open',
@@ -90,9 +92,10 @@ export const createTicket = async (teamId: string, data: CreateTicketData): Prom
     await db.offlineMutations.add({
       url: `${API_URL}/teams/${teamId}/tickets`,
       method: 'POST',
-      body: data,
+      body: { ...data, id }, // Include ID in the mutation body
       timestamp: Date.now(),
-      retryCount: 0
+      retryCount: 0,
+      tempId: id
     });
 
     return tempTicket;
@@ -126,9 +129,9 @@ export const getTickets = async (teamId: string, options?: { sort?: string; stat
     
     // Basic client-side filtering
     if (options?.status) {
-      const status = options.status;
+      const status = options.status.toLowerCase();
       const tickets = await collection.toArray();
-      return tickets.filter(t => t.status === status);
+      return tickets.filter(t => t.status.toLowerCase() === status);
     }
 
     return collection.toArray();

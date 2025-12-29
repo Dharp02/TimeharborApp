@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { localTimeStore } from '@/TimeharborAPI/time/LocalTimeStore';
+import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { TimeService } from '@/TimeharborAPI/time/TimeService';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Network } from '@capacitor/network';
@@ -32,9 +33,6 @@ const ClockInContext = createContext<ClockInContextType | undefined>(undefined);
 
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  
-  // Sync Lock
-  const isSyncingRef = useRef(false);
   
   // Session State
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -80,45 +78,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Network listener for auto-sync
-    const setupNetworkListener = async () => {
-      const status = await Network.getStatus();
-      if (status.connected) {
-        await attemptSync();
-      }
-
-      Network.addListener('networkStatusChange', async (status) => {
-        if (status.connected) {
-          await attemptSync();
-        }
-      });
-    };
-    
-    setupNetworkListener();
-
-    return () => {
-      Network.removeAllListeners();
-    };
+    // Network listener removed - handled by SyncManager
   }, []);
 
-  const attemptSync = async () => {
-    // Prevent concurrent syncs
-    if (isSyncingRef.current) return;
 
-    try {
-      isSyncingRef.current = true;
-      const events = await localTimeStore.getPendingEvents();
-      if (events.length > 0) {
-        await TimeService.syncTimeData(events);
-        await localTimeStore.clearEvents(events.map(e => e.id));
-        console.log('Synced offline time data successfully');
-      }
-    } catch (error) {
-      console.error('Auto-sync failed:', error);
-    } finally {
-      isSyncingRef.current = false;
-    }
-  };
 
   // Session Timer Effect
   useEffect(() => {
@@ -219,7 +182,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       await localTimeStore.clockOut(user.id, null, teamId || null);
 
       // Attempt to sync immediately
-      await attemptSync();
+      await syncManager.syncNow();
 
     } else {
       // Clock In Session
@@ -231,7 +194,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       await localTimeStore.clockIn(user.id, teamId || null);
 
       // Attempt to sync immediately
-      await attemptSync();
+      await syncManager.syncNow();
     }
   };
 
@@ -301,7 +264,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Attempt to sync immediately
-    await attemptSync();
+    await syncManager.syncNow();
   };
 
   const getFormattedTotalTime = (ticketId: string) => {

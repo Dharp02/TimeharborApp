@@ -38,7 +38,7 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
 
   try {
     for (const event of events) {
-      const { type, timestamp, ticketId, teamId, ticketTitle, comment } = event;
+      const { id, type, timestamp, ticketId, teamId, ticketTitle, comment } = event;
       
       // Validate Ticket if present
       let finalTicketId = ticketId || null;
@@ -50,6 +50,7 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
       }
 
       await WorkLog.create({
+        id: id || undefined, // Use client-side ID if available
         userId,
         type,
         timestamp: new Date(timestamp),

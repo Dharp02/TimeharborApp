@@ -1,5 +1,10 @@
 import { User, Team, Member, Ticket, WorkLog, RefreshToken } from '../src/models';
 import sequelize from '../src/config/sequelize';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables from the root .env file
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const clearData = async () => {
   try {
@@ -23,8 +28,8 @@ const clearData = async () => {
     console.log('Clearing RefreshTokens...');
     await RefreshToken.destroy({ where: {}, truncate: true, cascade: true });
 
-    console.log('Clearing Users...');
-    await User.destroy({ where: {}, truncate: true, cascade: true });
+    // console.log('Clearing Users...');
+    // await User.destroy({ where: {}, truncate: true, cascade: true });
 
     console.log('✅ All data cleared successfully.');
   } catch (error) {
