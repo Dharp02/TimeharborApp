@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus } from 'lucide-react';
+import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus, Network } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useTeam, Team, Member } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { TeamActivityReport } from '@/components/dashboard/TeamActivityReport';
+import { OrgChartModal } from '@/components/teams/OrgChartModal';
 import { copyText } from '@/lib/utils';
 
 export default function TeamsPage() {
@@ -13,6 +14,7 @@ export default function TeamsPage() {
   const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams } = useTeam();
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isOrgChartModalOpen, setIsOrgChartModalOpen] = useState(false);
 
   useEffect(() => {
     refreshTeams();
@@ -175,6 +177,14 @@ export default function TeamsPage() {
           >
             <Users className="w-4 h-4" />
             <span className="hidden sm:inline">Join Team</span>
+          </button>
+          <button
+            onClick={() => setIsOrgChartModalOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-900/20 dark:hover:bg-green-900/40 rounded-lg transition-colors"
+            title="View Organization Chart"
+          >
+            <Network className="w-4 h-4" />
+            <span className="hidden sm:inline">Org Chart</span>
           </button>
           <button
             onClick={() => setIsCreateModalOpen(true)}
@@ -594,6 +604,13 @@ export default function TeamsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Organization Chart Modal */}
+      <OrgChartModal 
+        isOpen={isOrgChartModalOpen}
+        onClose={() => setIsOrgChartModalOpen(false)}
+        teamName={currentTeam?.name}
+      />
     </div>
   );
 }
