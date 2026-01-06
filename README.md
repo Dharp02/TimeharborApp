@@ -2,6 +2,8 @@
 
 TimeharborApp is a comprehensive time tracking and team management solution. It features a modern web frontend, mobile applications (Android & iOS), and a robust backend API.
 
+**Youtube Short** : https://youtube.com/shorts/MfPd4NsjLQQ?feature=share
+
 ## Project Structure
 
 The repository is organized into three main components:
