@@ -610,6 +610,7 @@ export default function TeamsPage() {
         isOpen={isOrgChartModalOpen}
         onClose={() => setIsOrgChartModalOpen(false)}
         teamName={currentTeam?.name}
+        members={currentTeam?.members || []}
       />
     </div>
   );
