@@ -12,7 +12,7 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     // Ensure the URL is set when in dev mode
     ...(isDev ? {
-      url: 'http://10.0.0.167:3000',
+      url: 'http://10.3.46.165:3000',
       cleartext: true
     } : {})
   },

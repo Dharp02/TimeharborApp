@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>YChart Test</title>
+    <link rel="stylesheet" href="/ychart-editor.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial;
+        }
+        #container {
+            width: 100%;
+            height: 800px;
+            border: 2px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>YChart Test</h1>
+    <div id="container"></div>
+    
+    <script src="/ychart-editor.js"></script>
+    <script>
+        console.log('YChartEditor available:', typeof window.YChartEditor);
+        
+        const yamlData = `---
+options:
+  compact: false
+  fit: true
+---
+- id: "1"
+  name: "CEO"
+  title: "Chief Executive Officer"
+  email: "ceo@example.com"
+  children:
+    - id: "2"
+      name: "CTO"
+      title: "Chief Technology Officer"
+      email: "cto@example.com"
+`;
+        
+        setTimeout(() => {
+            const container = document.getElementById('container');
+            console.log('Container:', container);
+            
+            try {
+                // Correct API usage: create editor with options, then call initView with container and yaml
+                const editor = new window.YChartEditor({
+                    nodeWidth: 250,
+                    nodeHeight: 120,
+                    editorTheme: 'dark',
+                    collapsible: true
+                });
+                console.log('Editor created:', editor);
+                
+                // Call initView to actually render the chart
+                editor.initView(container, yamlData);
+                console.log('initView called, chart should be rendering');
+                
+                setTimeout(() => {
+                    console.log('Container after 1s:', container);
+                    console.log('Container childElementCount:', container.childElementCount);
+                }, 1000);
+            } catch (error) {
+                console.error('Error creating editor:', error);
+            }
+        }, 500);
+    </script>
+</body>
+</html>
