@@ -21,9 +21,9 @@ const PORT = Number(process.env.PORT) || 3001;
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
+// CORS configuration - Allow all origins (for development)
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: true,
   credentials: true
 }));
 
