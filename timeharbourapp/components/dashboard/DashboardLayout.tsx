@@ -37,12 +37,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-12 flex justify-between items-center">
           <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">Timeharbor</h1>
           <button 
-            onClick={() => setIsTeamModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-200 dark:border-gray-700"
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            <span className="text-sm font-medium">{currentTeam?.name || 'Switch Team'}</span>
-          </button>
+              onClick={() => setIsTeamModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-200 dark:border-gray-700"
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              <span className="text-sm font-medium">{currentTeam?.name || 'Switch Team'}</span>
+            </button>
         </div>
 
         {/* Main Content */}

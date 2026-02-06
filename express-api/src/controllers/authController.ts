@@ -237,3 +237,36 @@ export const signout = asyncHandler(async (req: AuthRequest, res: Response) => {
 
   res.json({ message: 'Signed out successfully' });
 });
+
+// Register device for push notifications
+export const registerDevice = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    throw new AppError('User not authenticated', 401);
+  }
+
+  const { fcm_token, platform } = req.body;
+
+  if (!fcm_token || !platform) {
+    throw new AppError('FCM token and platform are required', 400);
+  }
+
+  if (platform !== 'ios' && platform !== 'android') {
+    throw new AppError('Platform must be either "ios" or "android"', 400);
+  }
+
+  // Update user's FCM token
+  await User.update(
+    {
+      fcm_token,
+      fcm_platform: platform,
+      fcm_updated_at: new Date()
+    },
+    {
+      where: { id: req.user.id }
+    }
+  );
+
+  logger.info(`Device registered for user ${req.user.email}: ${platform}`);
+
+  res.json({ message: 'Device registered successfully' });
+});

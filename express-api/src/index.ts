@@ -11,6 +11,7 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
 import { startCleanupJob } from './jobs/cleanupTokens';
+import { initializeFirebase } from './services/notificationService';
 
 dotenv.config();
 
@@ -67,6 +68,9 @@ const startServer = async () => {
   try {
     // Connect to database
     await connectDatabase();
+
+    // Initialize Firebase for push notifications
+    initializeFirebase();
 
     // Start token cleanup job
     startCleanupJob();

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "568006671174",
+    "project_id": "timeharbor-1e214",
+    "storage_bucket": "timeharbor-1e214.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:568006671174:android:f1b6666d84631ff2c78347",
+        "android_client_info": {
+          "package_name": "com.mieweb.timeharbor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQFDMaYIwt_az4vlue4K4q8OfYsInq2w0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

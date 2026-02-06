@@ -5,3 +5,4 @@ dist
 coverage
 .vscode
 logs
+firebase-service-account.json
