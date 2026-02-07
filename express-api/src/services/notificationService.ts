@@ -267,6 +267,7 @@ export const sendNotificationToUser = async (
       userId,
       userName: user?.full_name || 'Unknown',
       userEmail: user?.email || 'Unknown',
+      platform: user?.fcm_platform || 'unknown',
       notificationType: payload.data?.type || 'generic',
       title: payload.title
     });
@@ -276,77 +277,23 @@ export const sendNotificationToUser = async (
       return false;
     }
 
-    // Send notification
-    const message: admin.messaging.Message = {
-      token: user.fcm_token,
-      notification: {
-        title: payload.title,
-        body: payload.body,
-        ...(payload.imageUrl && { imageUrl: payload.imageUrl }),
-      },
-      data: payload.data || {},
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default',
-            badge: 1,
-          },
-        },
-      },
-      android: {
-        priority: 'high',
-        notification: {
-          sound: 'default',
-          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-        },
-      },
-    };
-
-    const response = await admin.messaging().send(message);
-    
-    console.log('[NOTIFICATION] ✅ Successfully sent:', {
+    // Use APNs for iOS devices if configured, otherwise fall back to FCM
+    if (user.fcm_platform === 'ios' && apnProvider) {
+      console.log('[NOTIFICATION] Routing to APNs for iOS device');
+      return await sendAPNsNotification(user, payload);
+    } else if (firebaseInitialized) {
+      console.log('[NOTIFICATION] Routing to FCM');
+      return await sendFCMNotification(user, payload);
+    } else {
+      console.warn('Neither APNs nor Firebase initialized. Skipping notification.');
+      return false;
+    }
+  } catch (error: any) {
+    console.error('[NOTIFICATION] ❌ Error in sendNotificationToUser:', {
       timestamp: new Date().toISOString(),
       userId,
-      userName: user.full_name || 'Unknown',
-      userEmail: user.email,
-      notificationType: payload.data?.type || 'generic',
-      title: payload.title,
-      messageId: response,
-      platform: user.fcm_platform || 'unknown'
+      error: error.message
     });
-    
-    return true;
-  } catch (error: any) {
-    const user = await User.findByPk(userId);
-    
-    // Handle invalid token errors
-    if (error.code === 'messaging/invalid-registration-token' || 
-        error.code === 'messaging/registration-token-not-registered' ||
-        error.code === 'messaging/invalid-argument') {
-      console.log('[NOTIFICATION] ⚠️  Invalid token - Clearing from database - Clearing from database:', {
-        timestamp: new Date().toISOString(),
-        userId,
-        userName: user?.full_name || 'Unknown',
-        userEmail: user?.email || 'Unknown',
-        reason: 'Invalid or unregistered FCM token',
-        action: 'Token cleared from database'
-      });
-      await User.update(
-        { fcm_token: undefined, fcm_platform: undefined, fcm_updated_at: undefined },
-        { where: { id: userId } }
-      );
-    } else {
-      console.error('[NOTIFICATION] ❌ Failed to send:', {
-        timestamp: new Date().toISOString(),
-        userId,
-        userName: user?.full_name || 'Unknown',
-        userEmail: user?.email || 'Unknown',
-        notificationType: payload.data?.type || 'generic',
-        title: payload.title,
-        error: error.message,
-        errorCode: error.code
-      });
-    }
     return false;
   }
 };
