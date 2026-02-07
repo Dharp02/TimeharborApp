@@ -44,3 +44,7 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# Sensitive configuration files
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist

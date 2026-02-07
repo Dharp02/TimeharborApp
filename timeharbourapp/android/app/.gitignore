@@ -1,2 +1,5 @@
 /build/*
 !/build/.npmkeep
+
+# Sensitive Google Services configuration
+google-services.json

@@ -104,6 +104,14 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
                 const team = await Team.findByPk(finalTeamId);
                 const user = await User.findByPk(userId);
                 
+                console.log('[CLOCK_IN] Processing notification:', {
+                  timestamp: new Date().toISOString(),
+                  userId,
+                  userName: user?.full_name || user?.email,
+                  teamId: finalTeamId,
+                  teamName: team?.name
+                });
+                
                 if (team && user) {
                   const leaders = await Member.findAll({
                     where: { teamId: finalTeamId, role: 'Leader' },
@@ -113,6 +121,14 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
                   const leaderIds = leaders
                     .map(leader => leader.userId)
                     .filter(leaderId => leaderId !== userId);
+
+                  console.log('[CLOCK_IN] Leaders found:', {
+                    totalLeaders: leaders.length,
+                    leaderIds: leaders.map(l => l.userId),
+                    filteredLeaderIds: leaderIds,
+                    userIdClockingIn: userId,
+                    note: leaderIds.length === 0 ? 'No leaders to notify (user is leader or no other leaders)' : `Will notify ${leaderIds.length} leader(s)`
+                  });
 
                   if (leaderIds.length > 0) {
                     await sendClockInNotification(
@@ -136,6 +152,14 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
                 const team = await Team.findByPk(finalTeamId);
                 const user = await User.findByPk(userId);
                 
+                console.log('[CLOCK_OUT] Processing notification:', {
+                  timestamp: new Date().toISOString(),
+                  userId,
+                  userName: user?.full_name || user?.email,
+                  teamId: finalTeamId,
+                  teamName: team?.name
+                });
+                
                 if (team && user) {
                   const leaders = await Member.findAll({
                     where: { teamId: finalTeamId, role: 'Leader' },
@@ -145,6 +169,14 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
                   const leaderIds = leaders
                     .map(leader => leader.userId)
                     .filter(leaderId => leaderId !== userId);
+
+                  console.log('[CLOCK_OUT] Leaders found:', {
+                    totalLeaders: leaders.length,
+                    leaderIds: leaders.map(l => l.userId),
+                    filteredLeaderIds: leaderIds,
+                    userIdClockingOut: userId,
+                    note: leaderIds.length === 0 ? 'No leaders to notify (user is leader or no other leaders)' : `Will notify ${leaderIds.length} leader(s)`
+                  });
 
                   if (leaderIds.length > 0) {
                     await sendClockOutNotification(

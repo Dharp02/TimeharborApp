@@ -1,10 +1,14 @@
 import admin from 'firebase-admin';
+import apn from 'apn';
 import User from '../models/User';
 import * as path from 'path';
 import * as fs from 'fs';
 
 // Initialize Firebase Admin SDK
 let firebaseInitialized = false;
+
+// Initialize APNs Provider for iOS
+let apnProvider: apn.Provider | null = null;
 
 export const initializeFirebase = () => {
   if (firebaseInitialized) return;
@@ -60,6 +64,46 @@ export const initializeFirebase = () => {
   }
 };
 
+// Initialize APNs Provider for iOS push notifications
+export const initializeAPNs = () => {
+  try {
+    const apnsKeyPath = process.env.APNS_KEY_PATH;
+    const apnsKeyId = process.env.APNS_KEY_ID;
+    const apnsTeamId = process.env.APNS_TEAM_ID;
+    const apnsBundleId = process.env.APNS_BUNDLE_ID || 'os.mieweb.timeharbor';
+    const apnsProduction = process.env.APNS_PRODUCTION === 'true';
+
+    if (!apnsKeyPath || !apnsKeyId || !apnsTeamId) {
+      console.warn('⚠️  APNs credentials not configured. iOS push notifications will use FCM fallback.');
+      console.warn('   Set APNS_KEY_PATH, APNS_KEY_ID, and APNS_TEAM_ID for direct APNs.');
+      return;
+    }
+
+    const absolutePath = path.isAbsolute(apnsKeyPath) 
+      ? apnsKeyPath 
+      : path.join(process.cwd(), apnsKeyPath);
+    
+    if (!fs.existsSync(absolutePath)) {
+      console.error(`❌ APNs key file not found: ${absolutePath}`);
+      return;
+    }
+
+    apnProvider = new apn.Provider({
+      token: {
+        key: absolutePath,
+        keyId: apnsKeyId,
+        teamId: apnsTeamId,
+      },
+      production: apnsProduction,
+    });
+
+    console.log(`✅ APNs Provider initialized (${apnsProduction ? 'Production' : 'Development'} mode)`);
+    console.log(`   Bundle ID: ${apnsBundleId}`);
+  } catch (error) {
+    console.error('❌ Failed to initialize APNs Provider:', error);
+  }
+};
+
 // Notification payload interface
 export interface NotificationPayload {
   title: string;
@@ -68,16 +112,152 @@ export interface NotificationPayload {
   imageUrl?: string;
 }
 
+// Send notification via APNs (for iOS)
+const sendAPNsNotification = async (
+  user: any,
+  payload: NotificationPayload
+): Promise<boolean> => {
+  try {
+    const notification = new apn.Notification();
+    notification.alert = {
+      title: payload.title,
+      body: payload.body,
+    };
+    notification.sound = 'default';
+    notification.badge = 1;
+    notification.topic = process.env.APNS_BUNDLE_ID || 'os.mieweb.timeharbor';
+    notification.payload = payload.data || {};
+
+    const result = await apnProvider!.send(notification, user.fcm_token);
+    
+    // Check for failures
+    if (result.failed && result.failed.length > 0) {
+      const failure = result.failed[0];
+      console.log('[NOTIFICATION] ⚠️  APNs send failed:', {
+        timestamp: new Date().toISOString(),
+        userId: user.id,
+        userName: user.full_name || 'Unknown',
+        userEmail: user.email,
+        reason: failure.response?.reason || 'Unknown',
+        statusCode: failure.status
+      });
+
+      // Clear invalid tokens
+      if (failure.response?.reason === 'BadDeviceToken' || 
+          failure.response?.reason === 'Unregistered' ||
+          failure.response?.reason === 'DeviceTokenNotForTopic') {
+        console.log('[NOTIFICATION] ⚠️  Invalid APNs token - Clearing from database');
+        await User.update(
+          { fcm_token: undefined, fcm_platform: undefined, fcm_updated_at: undefined },
+          { where: { id: user.id } }
+        );
+      }
+      return false;
+    }
+
+    console.log('[NOTIFICATION] ✅ Successfully sent via APNs:', {
+      timestamp: new Date().toISOString(),
+      userId: user.id,
+      userName: user.full_name || 'Unknown',
+      userEmail: user.email,
+      notificationType: payload.data?.type || 'generic',
+      title: payload.title,
+      sent: result.sent.length
+    });
+    
+    return true;
+  } catch (error: any) {
+    console.error('[NOTIFICATION] ❌ APNs error:', {
+      timestamp: new Date().toISOString(),
+      userId: user.id,
+      error: error.message
+    });
+    return false;
+  }
+};
+
+// Send notification via Firebase Cloud Messaging (for Android and iOS fallback)
+const sendFCMNotification = async (
+  user: any,
+  payload: NotificationPayload
+): Promise<boolean> => {
+  try {
+    const message: admin.messaging.Message = {
+      token: user.fcm_token,
+      notification: {
+        title: payload.title,
+        body: payload.body,
+        ...(payload.imageUrl && { imageUrl: payload.imageUrl }),
+      },
+      data: payload.data || {},
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+          },
+        },
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+        },
+      },
+    };
+
+    const response = await admin.messaging().send(message);
+    
+    console.log('[NOTIFICATION] ✅ Successfully sent via FCM:', {
+      timestamp: new Date().toISOString(),
+      userId: user.id,
+      userName: user.full_name || 'Unknown',
+      userEmail: user.email,
+      notificationType: payload.data?.type || 'generic',
+      title: payload.title,
+      messageId: response,
+      platform: user.fcm_platform || 'unknown'
+    });
+    
+    return true;
+  } catch (error: any) {
+    if (error.code === 'messaging/invalid-registration-token' || 
+        error.code === 'messaging/registration-token-not-registered' ||
+        error.code === 'messaging/invalid-argument') {
+      console.log('[NOTIFICATION] ⚠️  Invalid token - Clearing from database:', {
+        timestamp: new Date().toISOString(),
+        userId: user.id,
+        userName: user.full_name || 'Unknown',
+        userEmail: user.email || 'Unknown',
+        reason: 'Invalid or unregistered FCM token',
+        action: 'Token cleared from database'
+      });
+      await User.update(
+        { fcm_token: undefined, fcm_platform: undefined, fcm_updated_at: undefined },
+        { where: { id: user.id } }
+      );
+    } else {
+      console.error('[NOTIFICATION] ❌ Failed to send via FCM:', {
+        timestamp: new Date().toISOString(),
+        userId: user.id,
+        userName: user.full_name || 'Unknown',
+        userEmail: user.email || 'Unknown',
+        notificationType: payload.data?.type || 'generic',
+        title: payload.title,
+        error: error.message,
+        errorCode: error.code
+      });
+    }
+    return false;
+  }
+};
+
 // Send notification to a specific user
 export const sendNotificationToUser = async (
   userId: string,
   payload: NotificationPayload
 ): Promise<boolean> => {
-  if (!firebaseInitialized) {
-    console.warn('Firebase not initialized. Skipping notification.');
-    return false;
-  }
-
   try {
     // Get user's FCM token
     const user = await User.findByPk(userId);
@@ -141,8 +321,9 @@ export const sendNotificationToUser = async (
     
     // Handle invalid token errors
     if (error.code === 'messaging/invalid-registration-token' || 
-        error.code === 'messaging/registration-token-not-registered') {
-      console.log('[NOTIFICATION] ⚠️  Invalid token:', {
+        error.code === 'messaging/registration-token-not-registered' ||
+        error.code === 'messaging/invalid-argument') {
+      console.log('[NOTIFICATION] ⚠️  Invalid token - Clearing from database - Clearing from database:', {
         timestamp: new Date().toISOString(),
         userId,
         userName: user?.full_name || 'Unknown',
@@ -175,8 +356,8 @@ export const sendNotificationToUsers = async (
   userIds: string[],
   payload: NotificationPayload
 ): Promise<{ success: number; failed: number }> => {
-  if (!firebaseInitialized) {
-    console.warn('Firebase not initialized. Skipping notifications.');
+  if (!firebaseInitialized && !apnProvider) {
+    console.warn('Neither APNs nor Firebase initialized. Skipping notifications.');
     return { success: 0, failed: userIds.length };
   }
 

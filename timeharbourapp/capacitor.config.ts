@@ -7,7 +7,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const isDev = process.env.CAPACITOR_MODE === 'dev';
 
 const config: CapacitorConfig = {
-  appId: 'com.mieweb.timeharbor',
+  appId: 'os.mieweb.timeharbor', // todo: os.mieweb.timeharbor , 
   appName: 'TimeHarbor',
   webDir: 'out',
   server: {

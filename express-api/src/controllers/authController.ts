@@ -254,6 +254,14 @@ export const registerDevice = asyncHandler(async (req: AuthRequest, res: Respons
     throw new AppError('Platform must be either "ios" or "android"', 400);
   }
 
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('[DEVICE REGISTER] New device registration request');
+  console.log('[DEVICE REGISTER] User:', req.user.email);
+  console.log('[DEVICE REGISTER] User ID:', req.user.id);
+  console.log('[DEVICE REGISTER] Platform:', platform);
+  console.log('[DEVICE REGISTER] Token length:', fcm_token.length);
+  console.log('[DEVICE REGISTER] Token preview:', fcm_token.substring(0, 30) + '...');
+  
   // Update user's FCM token
   await User.update(
     {
@@ -266,6 +274,8 @@ export const registerDevice = asyncHandler(async (req: AuthRequest, res: Respons
     }
   );
 
+  console.log('[DEVICE REGISTER] ✅ Token saved to database');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   logger.info(`Device registered for user ${req.user.email}: ${platform}`);
 
   res.json({ message: 'Device registered successfully' });
