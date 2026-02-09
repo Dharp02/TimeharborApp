@@ -11,8 +11,8 @@
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "test:report": "playwright show-report",
-    "dev:android": "CAPACITOR_MODE=dev npx cap sync android && CAPACITOR_MODE=dev npx cap open android",
-    "dev:ios": "CAPACITOR_MODE=dev npx cap sync ios && CAPACITOR_MODE=dev npx cap open ios",
+    "dev:android": "npx cap sync android && npx cap open android",
+    "dev:ios": "npx cap sync ios && npx cap open ios",
     "prod:android": "npm run build && npx cap sync android && npx cap open android",
     "prod:ios": "npm run build && npx cap sync ios && npx cap open ios"
   },

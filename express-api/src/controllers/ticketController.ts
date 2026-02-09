@@ -3,7 +3,6 @@ import { Op } from 'sequelize';
 import { Ticket, Member, User, Team } from '../models';
 import { AuthRequest } from '../middleware/authMiddleware';
 import sequelize from '../config/sequelize';
-import { sendTicketAssignmentNotification } from '../services/notificationService';
 
 export const createTicket = async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
@@ -37,13 +36,6 @@ export const createTicket = async (req: Request, res: Response) => {
       assignedTo,
       status: status || 'Open'
     });
-
-    // Send push notification if ticket is assigned
-    if (assignedTo && assignedTo !== userId) {
-      sendTicketAssignmentNotification(assignedTo, title, id).catch(err => 
-        console.error('Failed to send ticket assignment notification:', err)
-      );
-    }
 
     const ticketWithDetails = await Ticket.findByPk(ticket.id, {
       include: [
@@ -161,13 +153,6 @@ export const updateTicket = async (req: Request, res: Response) => {
     if (status) ticket.status = status;
 
     await ticket.save();
-
-    // Send push notification if assignee changed
-    if (assignedTo && assignedTo !== oldAssignedTo && assignedTo !== userId) {
-      sendTicketAssignmentNotification(assignedTo, ticket.title, ticket.id).catch(err => 
-        console.error('Failed to send ticket assignment notification:', err)
-      );
-    }
 
     const updatedTicket = await Ticket.findByPk(ticket.id, {
       include: [

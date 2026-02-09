@@ -3,7 +3,6 @@ import { Team, Member } from '../models';
 import { AuthRequest } from '../middleware/authMiddleware';
 import logger from '../utils/logger';
 import User from '../models/User';
-import { sendTeamInvitationNotification, sendNewTeamMemberNotification } from '../services/notificationService';
 export const createTeam = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id, name, code, createdAt } = req.body;
@@ -93,26 +92,6 @@ export const joinTeam = async (req: AuthRequest, res: Response): Promise<void> =
     });
 
     logger.info(`User ${userId} joined team ${team.id}`);
-
-    // Send notification to team leaders
-    const leaders = await Member.findAll({
-      where: { teamId: team.id, role: 'Leader' },
-      include: [{ model: User, attributes: ['id', 'full_name'] }]
-    });
-
-    const joiningUser = await User.findByPk(userId);
-    if (joiningUser) {
-      leaders.forEach(leader => {
-        if (leader.userId !== userId) {
-          sendNewTeamMemberNotification(
-            leader.userId,
-            joiningUser.full_name || joiningUser.email,
-            team.name,
-            team.id
-          ).catch(err => console.error('Failed to send new member notification:', err));
-        }
-      });
-    }
 
     res.status(200).json(team);
   } catch (error) {
@@ -304,14 +283,6 @@ export const addMember = async (req: AuthRequest, res: Response): Promise<void> 
       teamId: id,
       role: 'Member'
     });
-
-    // Send notification to the added user
-    const team = await Team.findByPk(id);
-    if (team) {
-      sendTeamInvitationNotification(userToAdd.id, team.name, team.id).catch(err => 
-        console.error('Failed to send team invitation notification:', err)
-      );
-    }
 
     res.status(201).json({
       id: userToAdd.id,

@@ -1,20 +1,27 @@
 /// <reference types="@capacitor/push-notifications" />
 
 import type { CapacitorConfig } from '@capacitor/cli';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load environment variables from .env.local
+dotenv.config({ path: path.resolve(__dirname, '.env.local') });
 
 // Check if we are in dev mode based on the environment variable
-// Note: When running 'npx cap sync', this variable needs to be set
 const isDev = process.env.CAPACITOR_MODE === 'dev';
+const devServerUrl = process.env.CAPACITOR_DEV_SERVER_URL || 'http://localhost:3000';
+const appId = process.env.CAPACITOR_APP_ID || 'os.mieweb.timeharbor';
+const appName = process.env.CAPACITOR_APP_NAME || 'TimeHarbor';
 
 const config: CapacitorConfig = {
-  appId: 'os.mieweb.timeharbor', // todo: os.mieweb.timeharbor , 
-  appName: 'TimeHarbor',
+  appId,
+  appName,
   webDir: 'out',
   server: {
     androidScheme: 'https',
     // Ensure the URL is set when in dev mode
     ...(isDev ? {
-      url: 'http://10.0.0.8:3000',
+      url: devServerUrl,
       cleartext: true
     } : {})
   },
@@ -31,7 +38,7 @@ const config: CapacitorConfig = {
 // Log the configuration to verify if dev mode is detected
 console.log(`Capacitor Config - Mode: ${process.env.CAPACITOR_MODE}, isDev: ${isDev}`);
 if (isDev) {
-  console.log(`Server URL set to: http://10.0.0.39:3000`);
+  console.log(`Server URL set to: ${devServerUrl}`);
 }
 
 export default config;
