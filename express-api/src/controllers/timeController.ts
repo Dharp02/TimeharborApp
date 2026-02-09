@@ -1,9 +1,10 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
-import { WorkLog, Ticket, Team } from '../models';
+import { WorkLog, Ticket, Team, Member, User } from '../models';
 import sequelize from '../config/sequelize';
 import logger from '../utils/logger';
 import { Op } from 'sequelize';
+import { sendClockInNotification, sendClockOutNotification } from '../services/notificationService';
 
 export const syncTimeData = async (req: AuthRequest, res: Response) => {
   // ... existing syncTimeData implementation (kept for backward compatibility if needed, or we can replace it)
@@ -85,7 +86,7 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
             comment
           }, { transaction });
       } else {
-          await WorkLog.create({
+          const newLog = await WorkLog.create({
             id: id || undefined,
             userId,
             type,
@@ -95,6 +96,102 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
             ticketTitle,
             comment
           }, { transaction });
+
+          // Send notification to team leaders when someone clocks in
+          if (type.toLowerCase() === 'clock_in' && finalTeamId) {
+            setImmediate(async () => {
+              try {
+                const team = await Team.findByPk(finalTeamId);
+                const user = await User.findByPk(userId);
+                
+                console.log('[CLOCK_IN] Processing notification:', {
+                  timestamp: new Date().toISOString(),
+                  userId,
+                  userName: user?.full_name || user?.email,
+                  teamId: finalTeamId,
+                  teamName: team?.name
+                });
+                
+                if (team && user) {
+                  const leaders = await Member.findAll({
+                    where: { teamId: finalTeamId, role: 'Leader' },
+                    attributes: ['userId']
+                  });
+
+                  const leaderIds = leaders
+                    .map(leader => leader.userId)
+                    .filter(leaderId => leaderId !== userId);
+
+                  console.log('[CLOCK_IN] Leaders found:', {
+                    totalLeaders: leaders.length,
+                    leaderIds: leaders.map(l => l.userId),
+                    filteredLeaderIds: leaderIds,
+                    userIdClockingIn: userId,
+                    note: leaderIds.length === 0 ? 'No leaders to notify (user is leader or no other leaders)' : `Will notify ${leaderIds.length} leader(s)`
+                  });
+
+                  if (leaderIds.length > 0) {
+                    await sendClockInNotification(
+                      leaderIds,
+                      user.full_name || user.email,
+                      team.name,
+                      finalTeamId
+                    );
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to send clock-in notification:', error);
+              }
+            });
+          }
+
+          // Send notification to team leaders when someone clocks out
+          if (type.toLowerCase() === 'clock_out' && finalTeamId) {
+            setImmediate(async () => {
+              try {
+                const team = await Team.findByPk(finalTeamId);
+                const user = await User.findByPk(userId);
+                
+                console.log('[CLOCK_OUT] Processing notification:', {
+                  timestamp: new Date().toISOString(),
+                  userId,
+                  userName: user?.full_name || user?.email,
+                  teamId: finalTeamId,
+                  teamName: team?.name
+                });
+                
+                if (team && user) {
+                  const leaders = await Member.findAll({
+                    where: { teamId: finalTeamId, role: 'Leader' },
+                    attributes: ['userId']
+                  });
+
+                  const leaderIds = leaders
+                    .map(leader => leader.userId)
+                    .filter(leaderId => leaderId !== userId);
+
+                  console.log('[CLOCK_OUT] Leaders found:', {
+                    totalLeaders: leaders.length,
+                    leaderIds: leaders.map(l => l.userId),
+                    filteredLeaderIds: leaderIds,
+                    userIdClockingOut: userId,
+                    note: leaderIds.length === 0 ? 'No leaders to notify (user is leader or no other leaders)' : `Will notify ${leaderIds.length} leader(s)`
+                  });
+
+                  if (leaderIds.length > 0) {
+                    await sendClockOutNotification(
+                      leaderIds,
+                      user.full_name || user.email,
+                      team.name,
+                      finalTeamId
+                    );
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to send clock-out notification:', error);
+              }
+            });
+          }
       }
     }
 

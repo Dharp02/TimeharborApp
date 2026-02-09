@@ -11,8 +11,8 @@
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "test:report": "playwright show-report",
-    "dev:android": "CAPACITOR_MODE=dev npx cap sync android && CAPACITOR_MODE=dev npx cap open android",
-    "dev:ios": "CAPACITOR_MODE=dev npx cap sync ios && CAPACITOR_MODE=dev npx cap open ios",
+    "dev:android": "npx cap sync android && npx cap open android",
+    "dev:ios": "npx cap sync ios && npx cap open ios",
     "prod:android": "npm run build && npx cap sync android && npx cap open android",
     "prod:ios": "npm run build && npx cap sync ios && npx cap open ios"
   },
@@ -24,6 +24,7 @@
     "@capacitor/core": "^8.0.0",
     "@capacitor/ios": "^8.0.0",
     "@capacitor/network": "^8.0.0",
+    "@capacitor/push-notifications": "^8.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dexie": "^4.2.1",
@@ -38,6 +39,8 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
+    "@types/d3-selection": "^3.0.11",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

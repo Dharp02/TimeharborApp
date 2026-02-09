@@ -141,6 +141,7 @@ export const updateTicket = async (req: Request, res: Response) => {
     }
 
     // Update fields
+    const oldAssignedTo = ticket.assignedTo;
     if (isCreator) {
         if (title) ticket.title = title;
         if (description !== undefined) ticket.description = description;

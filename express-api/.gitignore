@@ -5,3 +5,9 @@ dist
 coverage
 .vscode
 logs
+firebase-service-account.json
+
+# APNs Authentication Keys
+AuthKey*.p8
+*.p8
+*.p12

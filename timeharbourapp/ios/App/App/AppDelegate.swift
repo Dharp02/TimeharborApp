@@ -46,4 +46,32 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        // Convert device token to string for logging
+        let tokenParts = deviceToken.map { data in String(format: "%02.2hhx", data) }
+        let token = tokenParts.joined()
+        print("🍎 [iOS AppDelegate] Device registered for push notifications")
+        print("📱 [iOS AppDelegate] APNs Device Token: \(token)")
+        print("📋 [iOS AppDelegate] Token length: \(token.count) characters")
+        print("✅ [iOS AppDelegate] Posting notification to Capacitor")
+        
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+        
+        print("✅ [iOS AppDelegate] Notification posted successfully")
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("❌ [iOS AppDelegate] Failed to register for push notifications")
+        print("❌ [iOS AppDelegate] Error: \(error.localizedDescription)")
+        print("❌ [iOS AppDelegate] Error domain: \((error as NSError).domain)")
+        print("❌ [iOS AppDelegate] Error code: \((error as NSError).code)")
+        print("⚠️  [iOS AppDelegate] Common causes:")
+        print("   - Running on iOS Simulator (APNs only works on real devices)")
+        print("   - Push Notifications capability not enabled")
+        print("   - Provisioning profile doesn't have push enabled")
+        print("   - No internet connection")
+        
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+
 }

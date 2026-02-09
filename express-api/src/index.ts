@@ -11,6 +11,7 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
 import { startCleanupJob } from './jobs/cleanupTokens';
+import { initializeFirebase, initializeAPNs } from './services/notificationService';
 
 dotenv.config();
 
@@ -20,9 +21,9 @@ const PORT = Number(process.env.PORT) || 3001;
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
+// CORS configuration - Allow all origins (for development)
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: true,
   credentials: true
 }));
 
@@ -68,11 +69,26 @@ const startServer = async () => {
     // Connect to database
     await connectDatabase();
 
+    // Initialize Firebase for push notifications (Android and iOS fallback)
+    initializeFirebase();
+    
+    // Initialize APNs for iOS push notifications (direct APNs)
+    initializeAPNs();
+
     // Start token cleanup job
     startCleanupJob();
 
     // Start server
     app.listen(PORT, '0.0.0.0', () => {
+      console.log('\n═══════════════════════════════════════════════════════════');
+      console.log('🚀 SERVER STARTED SUCCESSFULLY');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log(`📍 Port: ${PORT}`);
+      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔍 Log Level: ${process.env.LOG_LEVEL || 'info'}`);
+      console.log(`🌐 URL: http://localhost:${PORT}`);
+      console.log(`💾 Database: Connected`);
+      console.log('═══════════════════════════════════════════════════════════\n');
       logger.info(`🚀 Server is running on port ${PORT}`);
       logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
     });

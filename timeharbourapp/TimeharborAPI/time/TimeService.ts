@@ -1,20 +1,11 @@
+import { authenticatedFetch } from '../auth';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export const TimeService = {
   async syncTimeData(events: any[]) {
-    // Retrieve token from localStorage (matching the key used in auth/index.ts)
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
-    const response = await fetch(`${API_URL}/time/sync-events`, {
+    const response = await authenticatedFetch(`${API_URL}/time/sync-events`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
       body: JSON.stringify({ events })
     });
 

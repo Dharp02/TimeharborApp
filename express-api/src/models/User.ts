@@ -12,6 +12,9 @@ export interface UserAttributes {
   status: 'online' | 'offline';
   reset_token?: string;
   reset_token_expiry?: Date;
+  fcm_token?: string;
+  fcm_platform?: 'ios' | 'android';
+  fcm_updated_at?: Date;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -29,6 +32,9 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
   public status!: 'online' | 'offline';
   public reset_token?: string;
   public reset_token_expiry?: Date;
+  public fcm_token?: string;
+  public fcm_platform?: 'ios' | 'android';
+  public fcm_updated_at?: Date;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 
@@ -103,6 +109,18 @@ User.init(
       allowNull: true
     },
     reset_token_expiry: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    fcm_token: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    fcm_platform: {
+      type: DataTypes.ENUM('ios', 'android'),
+      allowNull: true
+    },
+    fcm_updated_at: {
       type: DataTypes.DATE,
       allowNull: true
     },

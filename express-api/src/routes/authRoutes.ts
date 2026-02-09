@@ -6,7 +6,8 @@ import {
   refreshAccessToken,
   forgotPassword,
   resetPassword,
-  signout
+  signout,
+  registerDevice
 } from '../controllers/authController';
 import { authenticateToken } from '../middleware/authMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
@@ -30,5 +31,6 @@ router.post('/reset-password', resetPasswordValidation, validateRequest, resetPa
 // Protected routes (require authentication)
 router.get('/me', authenticateToken, getMe);
 router.post('/signout', signout);
+router.post('/register-device', authenticateToken, registerDevice);
 
 export default router;

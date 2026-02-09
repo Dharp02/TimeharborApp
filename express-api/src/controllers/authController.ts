@@ -237,3 +237,46 @@ export const signout = asyncHandler(async (req: AuthRequest, res: Response) => {
 
   res.json({ message: 'Signed out successfully' });
 });
+
+// Register device for push notifications
+export const registerDevice = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    throw new AppError('User not authenticated', 401);
+  }
+
+  const { fcm_token, platform } = req.body;
+
+  if (!fcm_token || !platform) {
+    throw new AppError('FCM token and platform are required', 400);
+  }
+
+  if (platform !== 'ios' && platform !== 'android') {
+    throw new AppError('Platform must be either "ios" or "android"', 400);
+  }
+
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('[DEVICE REGISTER] New device registration request');
+  console.log('[DEVICE REGISTER] User:', req.user.email);
+  console.log('[DEVICE REGISTER] User ID:', req.user.id);
+  console.log('[DEVICE REGISTER] Platform:', platform);
+  console.log('[DEVICE REGISTER] Token length:', fcm_token.length);
+  console.log('[DEVICE REGISTER] Token preview:', fcm_token.substring(0, 30) + '...');
+  
+  // Update user's FCM token
+  await User.update(
+    {
+      fcm_token,
+      fcm_platform: platform,
+      fcm_updated_at: new Date()
+    },
+    {
+      where: { id: req.user.id }
+    }
+  );
+
+  console.log('[DEVICE REGISTER] ✅ Token saved to database');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  logger.info(`Device registered for user ${req.user.email}: ${platform}`);
+
+  res.json({ message: 'Device registered successfully' });
+});
