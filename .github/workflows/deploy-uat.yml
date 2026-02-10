@@ -18,11 +18,11 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.UAT_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p ${{ secrets.UAT_SSH_PORT }} ${{ secrets.UAT_SSH_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p 2011 ${{ secrets.UAT_SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Deploy to UAT Server
         run: |
-          ssh -p ${{ secrets.UAT_SSH_PORT }} \
+          ssh -p 2011 \
               -i ~/.ssh/deploy_key \
               -o StrictHostKeyChecking=no \
               ${{ secrets.UAT_SSH_USER }}@${{ secrets.UAT_SSH_HOST }} << 'EOF'
