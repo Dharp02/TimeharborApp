@@ -34,6 +34,9 @@ jobs:
             echo "🔄 Pulling latest code from main..."
             git pull origin main
             
+            echo "🛑 Stopping PM2 services..."
+            sudo pm2 stop ecosystem.config.js || true
+            
             echo "⚙️  Installing dependencies for express-api..."
             cd express-api
             sudo npm install
@@ -41,8 +44,14 @@ jobs:
             echo "🏗️  Building TypeScript backend..."
             sudo npm run build
             
-            echo "🗃️  Running database migrations..."
-            sudo npx sequelize-cli db:migrate
+            echo "🗃️  Checking for database migrations..."
+            PENDING_MIGRATIONS=$(sudo npx sequelize-cli db:migrate:status 2>&1 | grep -c "pending" || true)
+            if [ "$PENDING_MIGRATIONS" -gt 0 ]; then
+              echo "📊 Running $PENDING_MIGRATIONS pending migration(s)..."
+              sudo npx sequelize-cli db:migrate
+            else
+              echo "✅ No pending migrations, database is up to date"
+            fi
             cd ..
             
             echo "⚙️  Installing dependencies for timeharbor-proxy..."
@@ -58,11 +67,11 @@ jobs:
             sudo npm run build
             cd ..
             
-            echo "🔄 Restarting PM2 services..."
-            sudo pm2 restart ecosystem.config.js --update-env
+            echo "� Starting PM2 services..."
+            sudo pm2 start ecosystem.config.js --update-env
             
             echo "✅ Deployment completed successfully!"
-            pm2 status
+            sudo pm2 status
           EOF
 
       - name: Deployment Status
