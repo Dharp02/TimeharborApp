@@ -1,0 +1,74 @@
+name: Deploy to UAT
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.UAT_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.UAT_SSH_PORT }} ${{ secrets.UAT_SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to UAT Server
+        run: |
+          ssh -p ${{ secrets.UAT_SSH_PORT }} \
+              -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.UAT_SSH_USER }}@${{ secrets.UAT_SSH_HOST }} << 'EOF'
+            set -e
+            
+            echo "📦 Navigating to project directory..."
+            cd /home/pdharamkar/TimeharborApp
+            
+            echo "🔄 Pulling latest code from main..."
+            git pull origin main
+            
+            echo "⚙️  Installing dependencies for express-api..."
+            cd express-api
+            sudo npm install
+            
+            echo "🏗️  Building TypeScript backend..."
+            sudo npm run build
+            
+            echo "🗃️  Running database migrations..."
+            sudo npx sequelize-cli db:migrate
+            cd ..
+            
+            echo "⚙️  Installing dependencies for timeharbor-proxy..."
+            cd timeharbor-proxy
+            sudo npm install --production
+            cd ..
+            
+            echo "⚙️  Installing dependencies for timeharbourapp..."
+            cd timeharbourapp
+            sudo npm install
+            
+            echo "🏗️  Building Next.js frontend..."
+            sudo npm run build
+            cd ..
+            
+            echo "🔄 Restarting PM2 services..."
+            sudo pm2 restart ecosystem.config.js --update-env
+            
+            echo "✅ Deployment completed successfully!"
+            pm2 status
+          EOF
+
+      - name: Deployment Status
+        if: success()
+        run: echo "✅ Successfully deployed to UAT!"
+
+      - name: Deployment Failed
+        if: failure()
+        run: echo "❌ Deployment failed! Check the logs above."
