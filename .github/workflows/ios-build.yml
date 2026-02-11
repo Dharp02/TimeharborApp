@@ -74,7 +74,7 @@ jobs:
             -configuration Release \
             -archivePath $RUNNER_TEMP/TimeHarbor.xcarchive \
             CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="" \
+            PROVISIONING_PROFILE=$RUNNER_TEMP/build_pp.mobileprovision \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM=${{ secrets.IOS_TEAM_ID }} \
             archive
