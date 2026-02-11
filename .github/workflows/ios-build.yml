@@ -37,116 +37,33 @@ jobs:
         run: npx cap sync ios
 
       - name: Setup iOS certificates and provisioning profiles
-        working-directory: timeharbourapp/ios
         env:
           IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-        run: |
-          # Create variables
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          KEYCHAIN_PASSWORD="temporary_password"
-
-          # Decode certificate and provisioning profile
-          echo -n "$IOS_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          echo -n "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
-
-          # Create temporary keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-
-          # Import certificate to keychain
-          security import $CERTIFICATE_PATH -P "$IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
-
-          # Install provisioning profile
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+        run: .github/scripts/ios-setup-signing.sh
 
       - name: Build iOS App
-        working-directory: timeharbourapp/ios/App
-        run: |
-          # Extract the Profile UUID using grep/xmllint/string manipulation
-          # Or since we can't rely on tools being present, let use a simpler approach
-          # Just passing the correct PROVISIONING_PROFILE_SPECIFIER with the UUID is often required
-
-          # Let's try to get the UUID from the profile
-          PP_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin <<< $(security cms -D -i $RUNNER_TEMP/build_pp.mobileprovision))
-          echo "Using Provisioning Profile UUID: $PP_UUID"
-
-          xcodebuild -project App.xcodeproj \
-            -scheme App \
-            -configuration Release \
-            -archivePath $RUNNER_TEMP/TimeHarbor.xcarchive \
-            CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE=$PP_UUID \
-            PROVISIONING_PROFILE_SPECIFIER=$PP_UUID \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM=${{ secrets.IOS_TEAM_ID }} \
-            archive
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: .github/scripts/ios-build.sh
 
       - name: Export IPA
-        working-directory: timeharbourapp/ios/App
-        run: |
-          # Extract the Profile UUID again
-          PP_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin <<< $(security cms -D -i $RUNNER_TEMP/build_pp.mobileprovision))
-          echo "Using Provisioning Profile UUID for export: $PP_UUID"
-          
-          # Create export options plist
-          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store-connect</string>
-            <key>teamID</key>
-            <string>${{ secrets.IOS_TEAM_ID }}</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>os.mieweb.timeharbor</key>
-              <string>$PP_UUID</string>
-            </dict>
-            <key>uploadBitcode</key>
-            <false/>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: .github/scripts/ios-export.sh
 
-          xcodebuild -exportArchive \
-            -archivePath $RUNNER_TEMP/TimeHarbor.xcarchive \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
-            -exportPath $RUNNER_TEMP/export
+      - name: Install Fastlane
+        run: |
+          gem install fastlane -N
+          fastlane --version
 
       - name: Upload to TestFlight
-        working-directory: timeharbourapp
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
-        run: |
-          # Create the directory for App Store Connect keys
-          mkdir -p ~/.appstoreconnect/private_keys
-          
-          # Decode App Store Connect API key to the expected location
-          API_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8
-          echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode -o $API_KEY_PATH
-          chmod 600 $API_KEY_PATH
-
-          # Upload to TestFlight
-          xcrun altool --upload-app \
-            --type ios \
-            --file $RUNNER_TEMP/export/*.ipa \
-            --apiKey $APP_STORE_CONNECT_API_KEY_ID \
-            --apiIssuer $APP_STORE_CONNECT_ISSUER_ID
-            
-          # Clean up the API key
-          rm -f $API_KEY_PATH
+        run: .github/scripts/ios-upload.sh
 
       - name: Cleanup
         if: always()
