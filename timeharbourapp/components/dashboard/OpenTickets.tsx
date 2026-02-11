@@ -21,6 +21,7 @@ export default function OpenTickets() {
   const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreatingTicket, setIsCreatingTicket] = useState(false);
 
   useEffect(() => {
     if (currentTeam) {
@@ -84,8 +85,9 @@ export default function OpenTickets() {
   };
 
   const handleAddTicket = async () => {
-    if (!currentTeam) return;
+    if (!currentTeam || isCreatingTicket) return;
     
+    setIsCreatingTicket(true);
     try {
       await ticketsApi.createTicket(currentTeam.id, {
         title: newTicket.title,
@@ -99,6 +101,8 @@ export default function OpenTickets() {
       loadTickets();
     } catch (error) {
       console.error('Failed to create ticket:', error);
+    } finally {
+      setIsCreatingTicket(false);
     }
   };
 
@@ -302,9 +306,10 @@ export default function OpenTickets() {
           <div className="flex flex-col gap-3 mt-6">
             <button
               onClick={handleAddTicket}
-              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+              disabled={isCreatingTicket}
+              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Ticket
+              {isCreatingTicket ? 'Creating...' : 'Create Ticket'}
             </button>
             <button
               onClick={() => setIsAddTicketModalOpen(false)}

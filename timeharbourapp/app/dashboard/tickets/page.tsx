@@ -26,6 +26,10 @@ export default function TicketsPage() {
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
   const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', priority: 'Medium', reference: '' });
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
@@ -124,8 +128,9 @@ export default function TicketsPage() {
   };
 
   const handleAddTicket = async () => {
-    if (!currentTeam) return;
+    if (!currentTeam || isSaving) return;
 
+    setIsSaving(true);
     try {
       if (isEditing && editingTicketId) {
         // Update existing ticket
@@ -157,6 +162,8 @@ export default function TicketsPage() {
     } catch (error: any) {
       console.error('Failed to save ticket:', error);
       alert(error.message || 'Failed to save ticket');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -181,7 +188,8 @@ export default function TicketsPage() {
   };
 
   const handleAssignTicket = async (memberId: string, memberName: string) => {
-    if (selectedTicketForAction && currentTeam) {
+    if (selectedTicketForAction && currentTeam && !isAssigning) {
+      setIsAssigning(true);
       try {
         await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
           assignedTo: memberId
@@ -193,12 +201,15 @@ export default function TicketsPage() {
       } catch (error: any) {
         console.error('Failed to assign ticket:', error);
         alert(error.message || 'Failed to assign ticket');
+      } finally {
+        setIsAssigning(false);
       }
     }
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    if (selectedTicketForAction && currentTeam) {
+    if (selectedTicketForAction && currentTeam && !isChangingStatus) {
+      setIsChangingStatus(true);
       try {
         await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
           status: newStatus as any
@@ -210,12 +221,15 @@ export default function TicketsPage() {
       } catch (error: any) {
         console.error('Failed to update status:', error);
         alert(error.message || 'Failed to update status');
+      } finally {
+        setIsChangingStatus(false);
       }
     }
   };
 
   const handleDeleteTicket = async () => {
-    if (selectedTicketForAction && currentTeam) {
+    if (selectedTicketForAction && currentTeam && !isDeleting) {
+      setIsDeleting(true);
       try {
         await ticketsApi.deleteTicket(currentTeam.id, selectedTicketForAction.id);
         setIsDeleteModalOpen(false);
@@ -225,6 +239,8 @@ export default function TicketsPage() {
       } catch (error: any) {
         console.error('Failed to delete ticket:', error);
         alert(error.message || 'Failed to delete ticket');
+      } finally {
+        setIsDeleting(false);
       }
     }
   };
@@ -614,13 +630,22 @@ export default function TicketsPage() {
           <div className="flex flex-col gap-3 mt-6">
             <button
               onClick={handleAddTicket}
-              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+              disabled={isSaving}
+              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isEditing ? "Update Ticket" : "Create Ticket"}
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {isEditing ? "Updating..." : "Creating..."}
+                </>
+              ) : (
+                isEditing ? "Update Ticket" : "Create Ticket"
+              )}
             </button>
             <button
               onClick={() => setIsAddTicketModalOpen(false)}
               className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              disabled={isSaving}
             >
               Cancel
             </button>
@@ -643,7 +668,8 @@ export default function TicketsPage() {
               <button
                 key={member.id}
                 onClick={() => handleAssignTicket(member.id, member.name)}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
+                disabled={isAssigning}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300">
@@ -665,6 +691,7 @@ export default function TicketsPage() {
             <button
               onClick={() => setIsAssignModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              disabled={isAssigning}
             >
               Cancel
             </button>
@@ -688,7 +715,8 @@ export default function TicketsPage() {
               <button
                 key={status}
                 onClick={() => handleStatusChange(status)}
-                className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
+                disabled={isChangingStatus}
+                className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                   selectedTicketForAction && allTickets.find(t => t.id === selectedTicketForAction.id)?.status === status
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                     : 'border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
@@ -713,6 +741,7 @@ export default function TicketsPage() {
             <button
               onClick={() => setIsStatusModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              disabled={isChangingStatus}
             >
               Cancel
             </button>
@@ -854,14 +883,23 @@ export default function TicketsPage() {
             <button
               onClick={() => setIsDeleteModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              disabled={isDeleting}
             >
               Cancel
             </button>
             <button
               onClick={handleDeleteTicket}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              disabled={isDeleting}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Delete Ticket
+              {isDeleting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Ticket'
+              )}
             </button>
           </div>
         </div>

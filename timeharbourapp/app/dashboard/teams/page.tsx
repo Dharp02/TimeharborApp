@@ -33,6 +33,10 @@ export default function TeamsPage() {
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [addMemberError, setAddMemberError] = useState<string | null>(null);
   const [isAddingMember, setIsAddingMember] = useState(false);
+  const [isRemovingMember, setIsRemovingMember] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [createdTeamCode, setCreatedTeamCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [headerCopied, setHeaderCopied] = useState(false);
@@ -56,8 +60,16 @@ export default function TeamsPage() {
   };
 
   const handleCreateTeam = async () => {
-    const code = await createTeam(newTeamName);
-    setCreatedTeamCode(code);
+    if (isCreating) return;
+    setIsCreating(true);
+    try {
+      const code = await createTeam(newTeamName);
+      setCreatedTeamCode(code);
+    } catch (error) {
+      console.error('Failed to create team:', error);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const closeCreateModal = () => {
@@ -73,12 +85,19 @@ export default function TeamsPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleEditTeam = () => {
-    if (selectedTeamForAction && editTeamName.trim()) {
-      updateTeamName(selectedTeamForAction.id, editTeamName);
-      setIsEditModalOpen(false);
-      setSelectedTeamForAction(null);
-      setEditTeamName('');
+  const handleEditTeam = async () => {
+    if (selectedTeamForAction && editTeamName.trim() && !isEditing) {
+      setIsEditing(true);
+      try {
+        await updateTeamName(selectedTeamForAction.id, editTeamName);
+        setIsEditModalOpen(false);
+        setSelectedTeamForAction(null);
+        setEditTeamName('');
+      } catch (error) {
+        console.error('Failed to update team name:', error);
+      } finally {
+        setIsEditing(false);
+      }
     }
   };
 
@@ -87,11 +106,18 @@ export default function TeamsPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteTeam = () => {
-    if (selectedTeamForAction) {
-      deleteTeam(selectedTeamForAction.id);
-      setIsDeleteModalOpen(false);
-      setSelectedTeamForAction(null);
+  const handleDeleteTeam = async () => {
+    if (selectedTeamForAction && !isDeleting) {
+      setIsDeleting(true);
+      try {
+        await deleteTeam(selectedTeamForAction.id);
+        setIsDeleteModalOpen(false);
+        setSelectedTeamForAction(null);
+      } catch (error) {
+        console.error('Failed to delete team:', error);
+      } finally {
+        setIsDeleting(false);
+      }
     }
   };
 
@@ -117,13 +143,16 @@ export default function TeamsPage() {
   };
 
   const handleRemoveMember = async () => {
-    if (currentTeam && memberToRemove) {
+    if (currentTeam && memberToRemove && !isRemovingMember) {
+      setIsRemovingMember(true);
       try {
         await removeMember(currentTeam.id, memberToRemove.id);
         setIsRemoveMemberModalOpen(false);
         setMemberToRemove(null);
       } catch (error) {
         console.error('Failed to remove member:', error);
+      } finally {
+        setIsRemovingMember(false);
       }
     }
   };
@@ -408,15 +437,23 @@ export default function TeamsPage() {
                 <button
                   onClick={closeCreateModal}
                   className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  disabled={isCreating}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreateTeam}
-                  disabled={!newTeamName.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!newTeamName.trim() || isCreating}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Create Team
+                  {isCreating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Team'
+                  )}
                 </button>
               </div>
             </>
@@ -481,15 +518,23 @@ export default function TeamsPage() {
             <button
               onClick={() => setIsEditModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              disabled={isEditing}
             >
               Cancel
             </button>
             <button
               onClick={handleEditTeam}
-              disabled={!editTeamName.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!editTeamName.trim() || isEditing}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Save Changes
+              {isEditing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
             </button>
           </div>
         </div>
@@ -510,14 +555,23 @@ export default function TeamsPage() {
             <button
               onClick={() => setIsDeleteModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              disabled={isDeleting}
             >
               Cancel
             </button>
             <button
               onClick={handleDeleteTeam}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              disabled={isDeleting}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Delete Team
+              {isDeleting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Team'
+              )}
             </button>
           </div>
         </div>
@@ -596,14 +650,23 @@ export default function TeamsPage() {
             <button
               onClick={() => setIsRemoveMemberModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              disabled={isRemovingMember}
             >
               Cancel
             </button>
             <button
               onClick={handleRemoveMember}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              disabled={isRemovingMember}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Remove Member
+              {isRemovingMember ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                'Remove Member'
+              )}
             </button>
           </div>
         </div>
