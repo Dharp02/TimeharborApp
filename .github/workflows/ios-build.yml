@@ -130,17 +130,23 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
         run: |
-          # Decode App Store Connect API key
-          API_KEY_PATH=$RUNNER_TEMP/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8
+          # Create the directory for App Store Connect keys
+          mkdir -p ~/.appstoreconnect/private_keys
+          
+          # Decode App Store Connect API key to the expected location
+          API_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8
           echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode -o $API_KEY_PATH
+          chmod 600 $API_KEY_PATH
 
           # Upload to TestFlight
           xcrun altool --upload-app \
             --type ios \
             --file $RUNNER_TEMP/export/*.ipa \
             --apiKey $APP_STORE_CONNECT_API_KEY_ID \
-            --apiIssuer $APP_STORE_CONNECT_ISSUER_ID \
-            --apiKeyPath $API_KEY_PATH
+            --apiIssuer $APP_STORE_CONNECT_ISSUER_ID
+            
+          # Clean up the API key
+          rm -f $API_KEY_PATH
 
       - name: Cleanup
         if: always()
