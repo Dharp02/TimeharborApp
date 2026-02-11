@@ -15,16 +15,26 @@ echo "API Key created at: $API_KEY_PATH"
 echo "Looking for IPA at: $RUNNER_TEMP/export/"
 ls -la $RUNNER_TEMP/export/
 
-# Upload to TestFlight using Fastlane with explicit API key parameters
+# Create API key JSON file for Fastlane
+API_KEY_JSON=/tmp/api_key.json
+cat > $API_KEY_JSON <<EOF
+{
+  "key_id": "$APP_STORE_CONNECT_API_KEY_ID",
+  "issuer_id": "$APP_STORE_CONNECT_ISSUER_ID",
+  "filepath": "$API_KEY_PATH"
+}
+EOF
+
+echo "API Key JSON created"
+
+# Upload to TestFlight using Fastlane with API key JSON
 fastlane pilot upload \
   --ipa $(ls $RUNNER_TEMP/export/*.ipa) \
-  --api_key_path $API_KEY_PATH \
-  --api_key_issuer_id $APP_STORE_CONNECT_ISSUER_ID \
-  --api_key_id $APP_STORE_CONNECT_API_KEY_ID \
+  --api_key "$(cat $API_KEY_JSON)" \
   --skip_waiting_for_build_processing \
   --verbose
 
-# Clean up the API key
-rm -f $API_KEY_PATH
+# Clean up
+rm -f $API_KEY_PATH $API_KEY_JSON
 
 echo "✅ Upload complete"
