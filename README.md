@@ -2,10 +2,7 @@
 
 TimeharborApp is a comprehensive time tracking and team management solution. It features a modern web frontend, mobile applications (Android & iOS), and a robust backend API.
 
-**Youtube Shorts** : 
-https://youtube.com/shorts/MfPd4NsjLQQ?feature=share
-
-https://www.youtube.com/shorts/VcYbBFdhbbE
+**Youtube Short** : https://youtube.com/shorts/MfPd4NsjLQQ?feature=share
 
 **Proxmox link** : https://timeharborapp.opensource.mieweb.org
 
@@ -428,4 +425,6 @@ tail -f express-api/logs/error.log
 4. Run tests
 5. Submit a pull request
 
+## License
 
+[Add your license information here]

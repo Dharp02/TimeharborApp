@@ -7,6 +7,7 @@ on:
 
 jobs:
   deploy:
+    name: Deploy to UAT Server
     runs-on: ubuntu-latest
     
     steps:
@@ -67,7 +68,7 @@ jobs:
             sudo npm run build
             cd ..
             
-            echo "� Starting PM2 services..."
+            echo " Starting PM2 services..."
             sudo pm2 start ecosystem.config.js --update-env
             
             echo "✅ Deployment completed successfully!"
