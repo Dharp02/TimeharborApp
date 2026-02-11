@@ -69,12 +69,21 @@ jobs:
       - name: Build iOS App
         working-directory: timeharbourapp/ios/App
         run: |
+          # Extract the Profile UUID using grep/xmllint/string manipulation
+          # Or since we can't rely on tools being present, let use a simpler approach
+          # Just passing the correct PROVISIONING_PROFILE_SPECIFIER with the UUID is often required
+
+          # Let's try to get the UUID from the profile
+          PP_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin <<< $(security cms -D -i $RUNNER_TEMP/build_pp.mobileprovision))
+          echo "Using Provisioning Profile UUID: $PP_UUID"
+
           xcodebuild -project App.xcodeproj \
             -scheme App \
             -configuration Release \
             -archivePath $RUNNER_TEMP/TimeHarbor.xcarchive \
             CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE=$RUNNER_TEMP/build_pp.mobileprovision \
+            PROVISIONING_PROFILE=$PP_UUID \
+            PROVISIONING_PROFILE_SPECIFIER=$PP_UUID \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM=${{ secrets.IOS_TEAM_ID }} \
             archive
