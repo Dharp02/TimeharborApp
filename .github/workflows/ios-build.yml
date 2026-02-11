@@ -73,6 +73,10 @@ jobs:
             -scheme App \
             -configuration Release \
             -archivePath $RUNNER_TEMP/TimeHarbor.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM=${{ secrets.IOS_TEAM_ID }} \
             archive
 
       - name: Export IPA
