@@ -11,11 +11,18 @@ API_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_
 echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode -o $API_KEY_PATH
 chmod 600 $API_KEY_PATH
 
-# Upload to TestFlight using Fastlane
+echo "API Key created at: $API_KEY_PATH"
+echo "Looking for IPA at: $RUNNER_TEMP/export/"
+ls -la $RUNNER_TEMP/export/
+
+# Upload to TestFlight using Fastlane with explicit API key parameters
 fastlane pilot upload \
-  --ipa $RUNNER_TEMP/export/*.ipa \
+  --ipa $(ls $RUNNER_TEMP/export/*.ipa) \
   --api_key_path $API_KEY_PATH \
-  --skip_waiting_for_build_processing
+  --api_key_issuer_id $APP_STORE_CONNECT_ISSUER_ID \
+  --api_key_id $APP_STORE_CONNECT_API_KEY_ID \
+  --skip_waiting_for_build_processing \
+  --verbose
 
 # Clean up the API key
 rm -f $API_KEY_PATH
