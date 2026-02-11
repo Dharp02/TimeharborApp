@@ -15,17 +15,20 @@ echo "API Key created at: $API_KEY_PATH"
 echo "Looking for IPA at: $RUNNER_TEMP/export/"
 ls -la $RUNNER_TEMP/export/
 
-# Create API key JSON file for Fastlane
+# Read the p8 file content (preserving newlines)
+P8_CONTENT=$(cat $API_KEY_PATH)
+
+# Create API key JSON with actual key content (not filepath)
 API_KEY_JSON=/tmp/api_key.json
 cat > $API_KEY_JSON <<EOF
 {
   "key_id": "$APP_STORE_CONNECT_API_KEY_ID",
   "issuer_id": "$APP_STORE_CONNECT_ISSUER_ID",
-  "filepath": "$API_KEY_PATH"
+  "key": "$P8_CONTENT"
 }
 EOF
 
-echo "API Key JSON created"
+echo "API Key JSON created with embedded key content"
 
 # Upload to TestFlight using Fastlane with API key JSON
 fastlane pilot upload \
