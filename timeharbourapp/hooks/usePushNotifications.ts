@@ -172,7 +172,15 @@ export function usePushNotifications() {
         console.log('🚀 [NOTIFICATION TAP] Final target URL:', targetUrl);
         
         // Store navigation intent for the app to handle
-        localStorage.setItem('pendingNavigation', targetUrl);
+        try {
+          // Prevent race conditions by checking if we're already handling this navigation
+          const currentPending = localStorage.getItem('pendingNavigation');
+          if (currentPending !== targetUrl) {
+             localStorage.setItem('pendingNavigation', targetUrl);
+          }
+        } catch (e) {
+          console.error('Error handling navigation storage:', e);
+        }
         
         // Try to navigate
         if (typeof window !== 'undefined') {

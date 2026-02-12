@@ -1,37 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, ChevronDown, Clock, User, Briefcase, Calendar, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import * as API from '@/TimeharborAPI/dashboard';
-
-// Helper function to enhance ticket data with defaults for missing fields
-const enhanceTicketData = (rawTicket: any) => {
-  const dateStr = rawTicket.lastWorkedOn;
-  let formattedDate = 'Recently';
-  
-  if (dateStr) {
-    try {
-      formattedDate = new Date(dateStr).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-      });
-    } catch (e) {
-      formattedDate = dateStr;
-    }
-  }
-
-  return {
-    ...rawTicket,
-    status: rawTicket.status || 'In Progress',
-    timeSpent: formattedDate,
-    references: rawTicket.references || []
-  };
-};
+import { enhanceTicketData } from '@/lib/utils';
 
 export default function MemberPageClient() {
   const params = useParams();
@@ -43,6 +17,19 @@ export default function MemberPageClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsTicketsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownRef]);
 
   useEffect(() => {
     const fetchMemberActivity = async () => {
@@ -166,7 +153,7 @@ export default function MemberPageClient() {
         </div>
 
         {/* Recent Tickets - Condensed with Dropdown */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center relative transition-colors">
+        <div ref={dropdownRef} className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center relative transition-colors">
            <button 
              onClick={() => setIsTicketsOpen(!isTicketsOpen)}
              className="w-full text-left"
@@ -192,7 +179,7 @@ export default function MemberPageClient() {
 
            {/* Dropdown Menu */}
            {isTicketsOpen && recentTickets.length > 0 && (
-             <div className="absolute top-full left-0 mt-4 w-[350px] md:w-[450px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
+             <div className="absolute top-full left-0 mt-4 w-[320px] md:w-[450px] max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
                <div className="bg-gray-50/50 dark:bg-gray-900/50 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Active Tasks</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded-full">{recentTickets.length} items</span>

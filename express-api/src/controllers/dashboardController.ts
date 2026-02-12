@@ -313,6 +313,16 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
         res.status(403).json({ message: 'You must be a member of the team to view activity' });
         return;
       }
+
+      // Security Check: Only Leaders or the member themselves can view detailed activity
+      if (membership.role !== 'Leader' && userId !== memberId) {
+        res.status(403).json({ message: 'Insufficient permissions to view member activity' });
+        return;
+      }
+    } else if (userId !== memberId) {
+      // If no teamId provided, valid only if viewing own profile
+      res.status(403).json({ message: 'Unauthorized to view this profile' }); 
+      return;
     }
 
     // Get member profile
@@ -354,21 +364,35 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
       });
     };
 
-    // Helper to calculate duration from events
-    const calculateDuration = (events: any[]) => {
-      if (events.length === 0) return 0;
-
-      // Get events before the period to determine initial state
-      const firstEvent = events[0];
-      const periodStart = new Date(firstEvent.timestamp);
+    // Helper to get initial state before period
+    const getInitialState = async (userId: string, beforeTime: Date, teamId?: string) => {
+      const whereClause: any = {
+        userId,
+        timestamp: { [Op.lt]: beforeTime }
+      };
+      if (teamId) whereClause.teamId = teamId;
       
+      const lastEvent = await WorkLog.findOne({
+        where: whereClause,
+        order: [['timestamp', 'DESC']],
+      });
+      
+      if (!lastEvent) return false;
+      return ['CLOCK_IN', 'START_TICKET', 'STOP_TICKET'].includes(lastEvent.type) && lastEvent.type !== 'CLOCK_OUT';
+    };
+
+    // Helper to calculate duration from events
+    const calculateDuration = (events: any[], startTime: Date, initialState: boolean) => {
       let totalMs = 0;
-      let currentTime = periodStart.getTime();
-      let isClockedIn = false;
+      let currentTime = startTime.getTime();
+      let isClockedIn = initialState;
 
       for (const event of events) {
         const eventTime = new Date(event.timestamp).getTime();
         
+        // Safety check to ensure we don't calculate negative time if query returns older events
+        if (eventTime < currentTime) continue;
+
         if (isClockedIn) {
           totalMs += (eventTime - currentTime);
         }
@@ -404,11 +428,13 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
 
     // Get today's entries
     const todayEntries = await getTimeEntriesForPeriod(memberId, startOfToday, teamId as string);
-    const todayDuration = calculateDuration(todayEntries);
+    const todayInitialState = await getInitialState(memberId, startOfToday, teamId as string);
+    const todayDuration = calculateDuration(todayEntries, startOfToday, todayInitialState);
     
     // Get this week's entries
     const weekEntries = await getTimeEntriesForPeriod(memberId, startOfWeek, teamId as string);
-    const weekDuration = calculateDuration(weekEntries);
+    const weekInitialState = await getInitialState(memberId, startOfWeek, teamId as string);
+    const weekDuration = calculateDuration(weekEntries, startOfWeek, weekInitialState);
 
     // Format durations
     const formatDuration = (ms: number): string => {
