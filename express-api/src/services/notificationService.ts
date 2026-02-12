@@ -348,13 +348,15 @@ export const sendClockInNotification = async (
   leaderIds: string[],
   memberName: string,
   teamName: string,
-  teamId: string
+  teamId: string,
+  memberId: string
 ) => {
   console.log('[NOTIFICATION] Clock-in event trigger:', {
     timestamp: new Date().toISOString(),
     teamId,
     teamName,
     memberName,
+    memberId,
     recipientLeaderIds: leaderIds,
     leaderCount: leaderIds.length
   });
@@ -365,6 +367,7 @@ export const sendClockInNotification = async (
     data: {
       type: 'clock_in',
       teamId,
+      memberId,
     },
   });
 };
@@ -374,13 +377,15 @@ export const sendClockOutNotification = async (
   leaderIds: string[],
   memberName: string,
   teamName: string,
-  teamId: string
+  teamId: string,
+  memberId: string
 ) => {
   console.log('[NOTIFICATION] Clock-out event trigger:', {
     timestamp: new Date().toISOString(),
     teamId,
     teamName,
     memberName,
+    memberId,
     recipientLeaderIds: leaderIds,
     leaderCount: leaderIds.length
   });
@@ -391,6 +396,7 @@ export const sendClockOutNotification = async (
     data: {
       type: 'clock_out',
       teamId,
+      memberId,
     },
   });
 };

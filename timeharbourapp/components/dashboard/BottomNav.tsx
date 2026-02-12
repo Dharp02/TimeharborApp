@@ -11,30 +11,45 @@ export default function BottomNav() {
   const { isSessionActive, sessionDuration, sessionFormat, toggleSession } = useClockIn();
   const { refreshTeams, currentTeam } = useTeam();
 
-  const isActive = (path: string) => pathname === path;
+  const isActive = (path: string) => {
+    if (path === '/dashboard') return pathname === '/dashboard';
+    return pathname?.startsWith(path);
+  };
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 pb-safe md:hidden">
       <div className="flex items-center justify-around h-16 px-2">
         <Link
           href="/dashboard"
-          className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
-            isActive('/dashboard') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
-          }`}
+          className="flex flex-col items-center justify-center w-full h-full"
         >
-          <Home className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Home</span>
+          <div className={`p-1.5 rounded-xl transition-all duration-200 ${
+            isActive('/dashboard') 
+              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
+              : 'text-gray-500 dark:text-gray-400'
+          }`}>
+            <Home className="w-5 h-5" />
+          </div>
+          <span className={`text-[10px] font-medium mt-1 ${
+            isActive('/dashboard') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+          }`}>Home</span>
         </Link>
-
+        
         <Link
           href="/dashboard/teams"
           onClick={() => refreshTeams()}
-          className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
-            isActive('/dashboard/teams') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
-          }`}
+          className="flex flex-col items-center justify-center w-full h-full"
         >
-          <Users className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Teams</span>
+          <div className={`p-1.5 rounded-xl transition-all duration-200 ${
+            isActive('/dashboard/teams') 
+              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
+              : 'text-gray-500 dark:text-gray-400'
+          }`}>
+            <Users className="w-5 h-5" />
+          </div>
+          <span className={`text-[10px] font-medium mt-1 ${
+            isActive('/dashboard/teams') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+          }`}>Teams</span>
         </Link>
 
         <div className="relative -top-5">
@@ -64,22 +79,34 @@ export default function BottomNav() {
 
         <Link
           href="/dashboard/tickets"
-          className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
-            isActive('/dashboard/tickets') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
-          }`}
+          className="flex flex-col items-center justify-center w-full h-full"
         >
-          <Ticket className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Ticket</span>
+          <div className={`p-1.5 rounded-xl transition-all duration-200 ${
+            isActive('/dashboard/tickets') 
+              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
+              : 'text-gray-500 dark:text-gray-400'
+          }`}>
+            <Ticket className="w-5 h-5" />
+          </div>
+          <span className={`text-[10px] font-medium mt-1 ${
+            isActive('/dashboard/tickets') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+          }`}>Ticket</span>
         </Link>
 
         <Link
           href="/dashboard/settings"
-          className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
-            isActive('/dashboard/settings') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
-          }`}
+          className="flex flex-col items-center justify-center w-full h-full"
         >
-          <Menu className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Menu</span>
+          <div className={`p-1.5 rounded-xl transition-all duration-200 ${
+            isActive('/dashboard/settings') 
+              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
+              : 'text-gray-500 dark:text-gray-400'
+          }`}>
+            <Menu className="w-5 h-5" />
+          </div>
+          <span className={`text-[10px] font-medium mt-1 ${
+            isActive('/dashboard/settings') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+          }`}>Menu</span>
         </Link>
       </div>
     </div>

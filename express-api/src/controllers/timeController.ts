@@ -135,7 +135,8 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
                       leaderIds,
                       user.full_name || user.email,
                       team.name,
-                      finalTeamId
+                      finalTeamId,
+                      userId
                     );
                   }
                 }
@@ -183,7 +184,8 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
                       leaderIds,
                       user.full_name || user.email,
                       team.name,
-                      finalTeamId
+                      finalTeamId,
+                      userId
                     );
                   }
                 }

@@ -69,8 +69,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (loading) return;
 
-    const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password' || pathname === '/';
-    const isDashboardPage = pathname?.startsWith('/dashboard');
+    // Normalize pathname by removing trailing slash if present (except for root)
+    const normalizedPath = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
+    
+    const isAuthPage = ['/login', '/signup', '/forgot-password', '/'].includes(normalizedPath);
+    const isDashboardPage = normalizedPath.startsWith('/dashboard');
 
     if (user && isAuthPage) {
       router.replace('/dashboard');

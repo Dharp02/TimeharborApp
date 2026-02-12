@@ -140,27 +140,46 @@ export function usePushNotifications() {
 
       // Listener: User tapped on a notification
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-        console.log('👆 Push notification tapped:', notification);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('👆 [NOTIFICATION TAP] User tapped notification');
+        console.log('📋 [NOTIFICATION TAP] Full notification:', JSON.stringify(notification, null, 2));
+        console.log('📋 [NOTIFICATION TAP] Data:', JSON.stringify(notification.notification.data, null, 2));
         
         const data = notification.notification.data;
+        console.log('🔍 [NOTIFICATION TAP] Type:', data?.type);
+        console.log('🔍 [NOTIFICATION TAP] Member ID:', data?.memberId);
+        console.log('🔍 [NOTIFICATION TAP] Team ID:', data?.teamId);
+        
+        let targetUrl = '/dashboard'; // default
         
         // Handle navigation based on notification type
         if (data?.type === 'ticket_assigned' && data?.ticketId) {
-          // Navigate to ticket detail
-          window.location.href = `/dashboard/tickets/${data.ticketId}`;
+          targetUrl = `/dashboard/tickets/${data.ticketId}`;
+          console.log('🎯 [NOTIFICATION TAP] Navigating to ticket:', targetUrl);
         } else if (data?.type === 'team_invitation' && data?.teamId) {
-          // Navigate to team detail
-          window.location.href = `/dashboard/teams/${data.teamId}`;
+          targetUrl = `/dashboard/teams/${data.teamId}`;
+          console.log('🎯 [NOTIFICATION TAP] Navigating to team:', targetUrl);
         } else if (data?.type === 'new_team_member' && data?.teamId) {
-          // Navigate to team detail
-          window.location.href = `/dashboard/teams/${data.teamId}`;
-        } else if (data?.type === 'clock_in' && data?.teamId) {
-          // Navigate to activity page to see team member activity
-          window.location.href = `/dashboard/activity`;
+          targetUrl = `/dashboard/teams/${data.teamId}`;
+          console.log('🎯 [NOTIFICATION TAP] Navigating to team (new member):', targetUrl);
+        } else if ((data?.type === 'clock_in' || data?.type === 'clock_out') && data?.memberId && data?.teamId) {
+          targetUrl = `/dashboard/member/${data.memberId}?teamId=${data.teamId}`;
+          console.log('🎯 [NOTIFICATION TAP] Navigating to member page:', targetUrl);
         } else {
-          // Default: navigate to dashboard
-          window.location.href = '/dashboard';
+          console.log('⚠️  [NOTIFICATION TAP] No specific route, using default dashboard');
         }
+        
+        console.log('🚀 [NOTIFICATION TAP] Final target URL:', targetUrl);
+        
+        // Store navigation intent for the app to handle
+        localStorage.setItem('pendingNavigation', targetUrl);
+        
+        // Try to navigate
+        if (typeof window !== 'undefined') {
+          window.location.href = targetUrl;
+        }
+        
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       });
 
       console.log('👂 [LISTENERS] All listeners registered');

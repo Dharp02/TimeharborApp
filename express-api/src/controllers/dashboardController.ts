@@ -2,7 +2,7 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
 import { AuthRequest } from '../middleware/authMiddleware';
-import { Ticket, Member, Team, WorkLog } from '../models';
+import { Ticket, Member, Team, WorkLog, User } from '../models';
 import sequelize from '../config/sequelize';
 
 export const getDashboardStats = async (req: AuthRequest, res: Response) => {
@@ -284,5 +284,200 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error fetching recent activity:', error);
     res.status(500).json({ message: 'Error fetching recent activity' });
+  }
+};
+
+export const getMemberActivity = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { memberId } = req.params;
+    const { teamId } = req.query;
+
+    if (!userId) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (!memberId) {
+      res.status(400).json({ message: 'Member ID is required' });
+      return;
+    }
+
+    // Verify the requesting user is a member of the team if teamId is provided
+    if (teamId) {
+      const membership = await Member.findOne({
+        where: { userId, teamId: teamId as string }
+      });
+
+      if (!membership) {
+        res.status(403).json({ message: 'You must be a member of the team to view activity' });
+        return;
+      }
+    }
+
+    // Get member profile
+    const member = await User.findByPk(memberId);
+    if (!member) {
+      res.status(404).json({ message: 'Member not found' });
+      return;
+    }
+
+    // Get member role in team if teamId provided
+    let memberRole = 'Member';
+    if (teamId) {
+      const membership = await Member.findOne({
+        where: { userId: memberId, teamId: teamId as string }
+      });
+      if (membership) {
+        memberRole = membership.role;
+      }
+    }
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+
+    // Helper to get time entries for a period
+    const getTimeEntriesForPeriod = async (userId: string, startTime: Date, teamId?: string) => {
+      const whereClause: any = {
+        userId,
+        timestamp: { [Op.gte]: startTime }
+      };
+      if (teamId) {
+        whereClause.teamId = teamId;
+      }
+
+      return await WorkLog.findAll({
+        where: whereClause,
+        order: [['timestamp', 'ASC']]
+      });
+    };
+
+    // Helper to calculate duration from events
+    const calculateDuration = (events: any[]) => {
+      if (events.length === 0) return 0;
+
+      // Get events before the period to determine initial state
+      const firstEvent = events[0];
+      const periodStart = new Date(firstEvent.timestamp);
+      
+      let totalMs = 0;
+      let currentTime = periodStart.getTime();
+      let isClockedIn = false;
+
+      for (const event of events) {
+        const eventTime = new Date(event.timestamp).getTime();
+        
+        if (isClockedIn) {
+          totalMs += (eventTime - currentTime);
+        }
+
+        currentTime = eventTime;
+
+        switch (event.type) {
+          case 'CLOCK_IN':
+            isClockedIn = true;
+            break;
+          case 'CLOCK_OUT':
+            isClockedIn = false;
+            break;
+          case 'START_TICKET':
+            isClockedIn = true;
+            break;
+          case 'STOP_TICKET':
+            isClockedIn = true;
+            break;
+        }
+      }
+
+      // If still clocked in, add time until now
+      if (isClockedIn) {
+        const nowMs = new Date().getTime();
+        if (nowMs > currentTime) {
+          totalMs += (nowMs - currentTime);
+        }
+      }
+
+      return totalMs;
+    };
+
+    // Get today's entries
+    const todayEntries = await getTimeEntriesForPeriod(memberId, startOfToday, teamId as string);
+    const todayDuration = calculateDuration(todayEntries);
+    
+    // Get this week's entries
+    const weekEntries = await getTimeEntriesForPeriod(memberId, startOfWeek, teamId as string);
+    const weekDuration = calculateDuration(weekEntries);
+
+    // Format durations
+    const formatDuration = (ms: number): string => {
+      const hours = Math.floor(ms / (1000 * 60 * 60));
+      const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+      return `${hours}h ${minutes}m`;
+    };
+
+    // Get recent tickets worked on
+    // Fetch last 50 to ensure coverage for unique tickets
+    const recentEvents = await WorkLog.findAll({
+      where: {
+        userId: memberId,
+        type: { [Op.in]: ['START_TICKET', 'STOP_TICKET'] },
+        ticketTitle: { [Op.ne]: null },
+        ...(teamId && { teamId: teamId as string })
+      },
+      attributes: ['ticketId', 'ticketTitle', 'timestamp'],
+      order: [['timestamp', 'DESC']],
+      limit: 50,
+      raw: true
+    });
+
+    // Get unique tickets with their details
+    const uniqueTickets = Array.from(
+      new Map(recentEvents.map((t: any) => [t.ticketId, t])).values()
+    ).slice(0, 5);
+
+    // Get clock-in/clock-out times for today
+    const todayClockEvents = todayEntries.filter((e: any) => 
+      e.type === 'CLOCK_IN' || e.type === 'CLOCK_OUT'
+    );
+
+    const clockTimes = todayClockEvents.map((event: any) => ({
+      type: event.type,
+      timestamp: event.timestamp,
+      time: new Date(event.timestamp).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      })
+    }));
+
+    res.json({
+      member: {
+        id: member.id,
+        name: member.full_name || member.email,
+        email: member.email,
+        role: memberRole,
+        status: member.status || 'offline'
+      },
+      timeTracking: {
+        today: {
+          duration: formatDuration(todayDuration),
+          clockEvents: clockTimes
+        },
+        week: {
+          duration: formatDuration(weekDuration)
+        }
+      },
+      recentTickets: uniqueTickets.map((ticket: any) => ({
+        id: ticket.ticketId,
+        title: ticket.ticketTitle,
+        lastWorkedOn: ticket.timestamp
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error fetching member activity:', error);
+    res.status(500).json({ message: 'Error fetching member activity' });
   }
 };

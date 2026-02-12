@@ -194,3 +194,60 @@ export const getActivity = async (teamId?: string, limit?: number | 'all'): Prom
     return activities;
   }
 };
+
+export interface MemberProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+}
+
+export interface ClockEvent {
+  type: 'CLOCK_IN' | 'CLOCK_OUT';
+  timestamp: string;
+  time: string;
+}
+
+export interface MemberActivityData {
+  member: MemberProfile;
+  timeTracking: {
+    today: {
+      duration: string;
+      clockEvents: ClockEvent[];
+    };
+    week: {
+      duration: string;
+    };
+  };
+  recentTickets: Array<{
+    id: string;
+    title: string;
+    lastWorkedOn: string;
+  }>;
+}
+
+export const getMemberActivity = async (memberId: string, teamId?: string): Promise<MemberActivityData> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+  if (!token) throw new Error('No access token found');
+
+  try {
+    const queryParams = teamId ? `?teamId=${teamId}` : '';
+    const response = await fetch(`${API_URL}/dashboard/member/${memberId}${queryParams}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch member activity');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching member activity:', error);
+    throw error;
+  }
+};

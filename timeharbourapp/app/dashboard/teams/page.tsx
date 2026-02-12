@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useTeam, Team, Member } from '@/components/dashboard/TeamContext';
@@ -267,33 +268,64 @@ export default function TeamsPage() {
                       )}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {currentTeam.members.map((member) => (
-                        <div 
-                          key={member.id}
-                          className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
-                        >
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
-                            {member.name.charAt(0)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-white truncate">
-                              {member.name}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                              {member.email}
-                            </p>
-                          </div>
-                          {currentTeam.role === 'Leader' && member.id !== user?.id && (
-                            <button
-                              onClick={() => openRemoveMemberModal(member)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="Remove Member"
+                      {currentTeam.members.map((member) => {
+                        const isLeader = currentTeam.role === 'Leader';
+                        // If not a leader, render a plain div instead of a Link
+                        if (!isLeader) {
+                          return (
+                            <div 
+                              key={member.id}
+                              className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
                             >
-                              <UserMinus className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
+                                {member.name.charAt(0)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 dark:text-white truncate">
+                                  {member.name}
+                                </p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                  {member.email}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <Link 
+                            href={`/dashboard/member/${member.id}?teamId=${currentTeam.id}`}
+                            key={member.id}
+                            className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
+                              {member.name.charAt(0)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 dark:text-white truncate">
+                                {member.name}
+                              </p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                {member.email}
+                              </p>
+                            </div>
+                            {/* Remove button logic handled within Link block */}
+                            {currentTeam.role === 'Leader' && member.id !== user?.id && (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  openRemoveMemberModal(member);
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Remove Member"
+                              >
+                                <UserMinus className="w-4 h-4" />
+                              </button>
+                            )}
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

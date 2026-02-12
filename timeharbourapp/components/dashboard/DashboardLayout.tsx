@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from './Header';
 import BottomNav from './BottomNav';
 import TeamSelectionModal from './TeamSelectionModal';
@@ -12,12 +13,28 @@ import { useTeam } from './TeamContext';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { currentTeam, isLoading } = useTeam();
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && !currentTeam) {
       setIsTeamModalOpen(true);
     }
   }, [currentTeam, isLoading]);
+
+  // Handle pending navigation from push notifications
+  useEffect(() => {
+    const pendingNav = localStorage.getItem('pendingNavigation');
+    if (pendingNav) {
+      console.log('🔔 [DASHBOARD] Found pending navigation:', pendingNav);
+      localStorage.removeItem('pendingNavigation');
+      
+      // Small delay to ensure app is ready
+      setTimeout(() => {
+        console.log('🚀 [DASHBOARD] Navigating to:', pendingNav);
+        router.push(pendingNav);
+      }, 500);
+    }
+  }, [router]);
 
   return (
     <ClockInProvider>
