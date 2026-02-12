@@ -6,12 +6,29 @@ import Link from 'next/link';
 import { ChevronLeft, Clock, User, Briefcase, Calendar, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import * as API from '@/TimeharborAPI/dashboard';
 import { enhanceTicketData } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
-export default function MemberPageClient() {
+interface MemberPageProps {
+  memberId?: string;
+  showClockEvents?: boolean; // @deprecated
+  mode?: 'view'; // 'profile' mode removed, use dashboard/settings/profile/page.tsx instead
+  showBackButton?: boolean;
+}
+
+export default function MemberPageClient({ 
+  memberId: propMemberId, 
+  showClockEvents = true, 
+  showBackButton = true 
+}: MemberPageProps = {}) {
   const params = useParams();
   const searchParams = useSearchParams();
-  const memberId = params.memberId as string;
-  const teamId = searchParams.get('teamId') || undefined;
+  const router = useRouter();
+  const memberId = propMemberId || (params?.memberId as string);
+  const teamId = searchParams?.get('teamId') || undefined;
+
+  // Always show tickets in view mode
+  const shouldShowTickets = true;
+  const shouldShowClockEvents = showClockEvents;
 
   const [memberData, setMemberData] = useState<API.MemberActivityData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,17 +100,19 @@ export default function MemberPageClient() {
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       {/* Back Button - keeping style minimal to fit header area */}
-      <Link
-        href="/dashboard/teams"
-        className="inline-flex items-center gap-2 text-blue-500 hover:text-blue-400 mb-2"
-        aria-label="Go back to teams page"
-      >
-        <ChevronLeft className="w-5 h-5" />
-        <span>Back to Teams</span>
-      </Link>
+      {showBackButton && (
+        <Link
+          href="/dashboard/teams"
+          className="inline-flex items-center gap-2 text-blue-500 hover:text-blue-400 mb-2"
+          aria-label="Go back to teams page"
+        >
+          <ChevronLeft className="w-5 h-5" />
+          <span>Back to Teams</span>
+        </Link>
+      )}
 
       {/* Top Section: Profile Header Only */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors">
+      <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors">
         <div className="flex items-center gap-5">
           <div className="w-20 h-20 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0 text-2xl text-white font-medium">
             <User className="w-10 h-10" />
@@ -102,9 +121,6 @@ export default function MemberPageClient() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{member.name}</h1>
             <p className="text-gray-500 dark:text-gray-400 mb-3">{member.email}</p>
             <div className="flex gap-3">
-              <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 text-sm font-medium border border-gray-200 dark:border-gray-700">
-                {member.role}
-              </span>
               <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 text-sm font-medium border border-gray-200 dark:border-gray-700 flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${member.status === 'online' ? 'bg-green-500' : 'bg-slate-500'}`} />
                 {member.status === 'online' ? 'Online' : 'Offline'}
@@ -117,15 +133,15 @@ export default function MemberPageClient() {
       {/* Stats Row: Today, Week, Pulses */}
       <div className="grid grid-cols-3 gap-2 md:gap-4">
         {/* Today's Time */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-           <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-              <div className="p-1.5 md:p-2 bg-blue-500/10 rounded-lg text-blue-500 w-fit mx-auto md:mx-0">
-                 <Clock className="w-4 h-4 md:w-5 md:h-5" />
-              </div>
-              <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Today</span>
-           </div>
-           <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{timeTracking.today.duration}</span>
-        </div>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
+             <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
+                <div className="p-1.5 md:p-2 bg-blue-500/10 rounded-lg text-blue-500 w-fit mx-auto md:mx-0">
+                   <Clock className="w-4 h-4 md:w-5 md:h-5" />
+                </div>
+                <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Today</span>
+             </div>
+             <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{timeTracking.today.duration}</span>
+          </div>
 
         {/* Week's Time */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
@@ -153,8 +169,9 @@ export default function MemberPageClient() {
       </div>
 
       {/* Main Content: Recent Tickets & Clock Events */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 ${shouldShowClockEvents ? 'lg:grid-cols-2' : ''} gap-6`}>
         {/* Left Column: Recent Tickets */}
+        {shouldShowTickets && (
         <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors h-fit">
            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -221,8 +238,10 @@ export default function MemberPageClient() {
              )}
            </div>
         </div>
+        )}
 
         {/* Right Column: Clock Events Timeline */}
+        {shouldShowClockEvents && (
         <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors h-fit">
           <div className="flex justify-between items-center mb-6">
              <div className="flex items-center gap-3">
@@ -259,6 +278,7 @@ export default function MemberPageClient() {
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

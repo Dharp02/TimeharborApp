@@ -270,8 +270,13 @@ export default function TeamsPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                       {currentTeam.members.map((member) => {
                         const isLeader = currentTeam.role === 'Leader';
-                        // If not a leader, render a plain div instead of a Link
-                        if (!isLeader) {
+                        // Check if this member is the current user
+                        // We compare by email since user.id is not directly available in member object here (member.id is user ID but verifying)
+                        // Actually member.id is the userId.
+                        const isSelf = user?.id === member.id;
+
+                        // If not a leader, OR if it's the leader viewing themselves, render a plain div
+                        if (!isLeader || isSelf) {
                           return (
                             <div 
                               key={member.id}
@@ -288,6 +293,18 @@ export default function TeamsPage() {
                                   {member.email}
                                 </p>
                               </div>
+                              {isLeader && !isSelf && (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault(); // Prevent bubbling if it were in a link
+                                    openRemoveMemberModal(member);
+                                  }}
+                                  className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                  title="Remove Member"
+                                >
+                                  <UserMinus className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           );
                         }
