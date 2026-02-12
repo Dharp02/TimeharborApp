@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, ChevronDown, Clock, User, Briefcase, Calendar, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { ChevronLeft, Clock, User, Briefcase, Calendar, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import * as API from '@/TimeharborAPI/dashboard';
 import { enhanceTicketData } from '@/lib/utils';
 
@@ -16,20 +16,6 @@ export default function MemberPageClient() {
   const [memberData, setMemberData] = useState<API.MemberActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isTicketsOpen, setIsTicketsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsTicketsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [dropdownRef]);
 
   useEffect(() => {
     const fetchMemberActivity = async () => {
@@ -85,8 +71,8 @@ export default function MemberPageClient() {
 
   const { member, timeTracking, recentTickets } = memberData;
 
-  // Static pulse count for demo
-  const pulseCount = 12;
+  // Pulse count temporary disabled (set to 0)
+  const pulseCount = 0;
 
   // Styles for timeline
   const timelineItemClass = "relative pl-6 py-3 border-l-2 border-slate-700 last:border-0";
@@ -128,155 +114,150 @@ export default function MemberPageClient() {
         </div>
       </div>
 
-      {/* Stats Row: Today, Week, Recent Tickets, Pulses */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Row: Today, Week, Pulses */}
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
         {/* Today's Time */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-           <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
-                 <Clock className="w-5 h-5" />
+        <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
+           <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
+              <div className="p-1.5 md:p-2 bg-blue-500/10 rounded-lg text-blue-500 w-fit mx-auto md:mx-0">
+                 <Clock className="w-4 h-4 md:w-5 md:h-5" />
               </div>
-              <span className="text-gray-500 dark:text-gray-400 text-sm">Today</span>
+              <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Today</span>
            </div>
-           <span className="text-gray-900 dark:text-white font-bold text-xl md:text-2xl">{timeTracking.today.duration}</span>
+           <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{timeTracking.today.duration}</span>
         </div>
 
         {/* Week's Time */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-           <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-violet-500/10 rounded-lg text-violet-500">
-                 <Calendar className="w-5 h-5" />
+        <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
+           <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
+              <div className="p-1.5 md:p-2 bg-violet-500/10 rounded-lg text-violet-500 w-fit mx-auto md:mx-0">
+                 <Calendar className="w-4 h-4 md:w-5 md:h-5" />
               </div>
-              <span className="text-gray-500 dark:text-gray-400 text-sm">Week</span>
+              <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Week</span>
            </div>
-           <span className="text-gray-900 dark:text-white font-bold text-xl md:text-2xl">{timeTracking.week.duration}</span>
-        </div>
-
-        {/* Recent Tickets - Condensed with Dropdown */}
-        <div ref={dropdownRef} className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center relative transition-colors">
-           <button 
-             onClick={() => setIsTicketsOpen(!isTicketsOpen)}
-             className="w-full text-left"
-           >
-             <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
-                       <Briefcase className="w-5 h-5" />
-                    </div>
-                    <span className="text-gray-500 dark:text-gray-400 text-sm">Recent Tickets</span>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isTicketsOpen ? 'rotate-180' : ''}`} />
-             </div>
-             
-             {recentTickets.length > 0 ? (
-                <div className="text-gray-900 dark:text-white font-bold text-lg hover:text-blue-500 truncate block w-full">
-                   {recentTickets[0].title}
-                </div>
-             ) : (
-                <p className="text-gray-400 dark:text-gray-500 font-bold">No active tickets</p>
-             )}
-           </button>
-
-           {/* Dropdown Menu */}
-           {isTicketsOpen && recentTickets.length > 0 && (
-             <div className="absolute top-full left-0 mt-4 w-[320px] md:w-[450px] max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl z-50 overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
-               <div className="bg-gray-50/50 dark:bg-gray-900/50 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Active Tasks</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded-full">{recentTickets.length} items</span>
-               </div>
-               <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                 {recentTickets.map((rawTicket, index) => {
-                   const ticket = enhanceTicketData(rawTicket);
-                   return (
-                   <div 
-                     key={ticket.id || index}
-                     className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 border-b border-gray-200/50 dark:border-gray-700/50 last:border-0 transition-colors group"
-                   >
-                     <div className="flex justify-between items-start mb-2">
-                        <Link href={`/dashboard/tickets/${ticket.id}`} className="font-medium text-gray-900 dark:text-white hover:text-blue-500 text-base line-clamp-1 flex-1 mr-3">
-                           {ticket.title}
-                        </Link>
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
-                           {ticket.status || 'In Progress'}
-                        </span>
-                     </div>
-                     
-                     <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-3">
-                        <div className="flex items-center gap-1.5">
-                           <Clock className="w-3.5 h-3.5" />
-                           <span>{ticket.timeSpent}</span>
-                        </div>
-                     </div>
-
-                     {/* References Section */}
-                     {ticket.references && ticket.references.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                           {ticket.references.map((ref: any, i: number) => (
-                              <a 
-                                 key={i} 
-                                 href={ref.url}
-                                 onClick={(e) => e.stopPropagation()}
-                                 className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-900 text-xs text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
-                              >
-                                 {ref.type === 'github' ? <ExternalLink className="w-3 h-3" /> : <LinkIcon className="w-3 h-3" />}
-                                 {ref.label}
-                              </a>
-                           ))}
-                        </div>
-                     )}
-                   </div>
-                 )})}
-               </div>
-               <div className="bg-gray-50/30 dark:bg-gray-900/30 px-4 py-2 border-t border-gray-200 dark:border-gray-700 text-center">
-                  <Link href={`/dashboard/tickets`} className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-                     View all tickets
-                  </Link>
-               </div>
-             </div>
-           )}
+           <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{timeTracking.week.duration}</span>
         </div>
 
         {/* Pulses */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-           <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
-                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
+           <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
+              <div className="p-1.5 md:p-2 bg-emerald-500/10 rounded-lg text-emerald-500 w-fit mx-auto md:mx-0">
+                 <svg className="w-4 h-4 md:w-5 md:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                  </svg>
               </div>
-              <span className="text-gray-500 dark:text-gray-400 text-sm">Pulses</span>
+              <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Pulses</span>
            </div>
-           <p className="text-gray-900 dark:text-white font-bold text-xl md:text-2xl">{pulseCount} <span className="text-sm font-normal text-gray-400 dark:text-gray-500">today</span></p>
+           <p className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{pulseCount}</p>
         </div>
       </div>
 
-      {/* Bottom Section: Clock Events Timeline */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors">
-        <div className="flex justify-between items-center mb-6">
-           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Clock Events</h2>
-           <span className="text-gray-500 dark:text-gray-400 text-sm">Today</span>
-        </div>
-
-        <div className="space-y-1 pl-2">
-          {timeTracking.today.clockEvents.length > 0 ? (
-            timeTracking.today.clockEvents.map((event, index) => (
-              <div key={index} className="relative pl-8 pb-8 border-l border-gray-200 dark:border-gray-700 last:border-0 last:pb-0">
-                <div className={getDotClass(event.type)} />
-                <div className="bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center group hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                   <div className="flex items-center gap-3">
-                      <span className={`font-medium ${event.type === 'CLOCK_IN' ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>
-                         {event.type === 'CLOCK_IN' ? 'Clocked In' : 'Clocked Out'}
+      {/* Main Content: Recent Tickets & Clock Events */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column: Recent Tickets */}
+        <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors h-fit">
+           <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                 <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                    <Briefcase className="w-5 h-5" />
+                 </div>
+                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Recent Tickets</h2>
+              </div>
+              {recentTickets.length > 0 && (
+                <Link href="/dashboard/tickets" className="text-sm text-blue-500 hover:text-blue-400">
+                  View All
+                </Link>
+              )}
+           </div>
+           
+           <div className="space-y-3">
+             {recentTickets.length > 0 ? (
+               recentTickets.map((rawTicket, index) => {
+                 const ticket = enhanceTicketData(rawTicket);
+                 return (
+                 <div 
+                   key={ticket.id || index}
+                   className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors group"
+                 >
+                   <div className="flex justify-between items-start mb-2">
+                      <Link href={`/dashboard/tickets/${ticket.id}`} className="font-medium text-gray-900 dark:text-white hover:text-blue-500 text-base line-clamp-1 flex-1 mr-3">
+                         {ticket.title}
+                      </Link>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                         {ticket.status || 'In Progress'}
                       </span>
                    </div>
-                   <div className="flex items-center gap-4">
-                      <span className="text-gray-500 dark:text-gray-400 font-mono">{event.time}</span>
+                   
+                   <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-3">
+                      <div className="flex items-center gap-1.5">
+                         <Clock className="w-3.5 h-3.5" />
+                         <span>{ticket.timeSpent}</span>
+                      </div>
                    </div>
+
+                   {/* References Section */}
+                   {ticket.references && ticket.references.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                         {ticket.references.map((ref: any, i: number) => (
+                            <a 
+                               key={i} 
+                               href={ref.url}
+                               onClick={(e) => e.stopPropagation()}
+                               className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-white dark:bg-gray-800 text-xs text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-600 shadow-sm"
+                            >
+                               {ref.type === 'github' ? <ExternalLink className="w-3 h-3" /> : <LinkIcon className="w-3 h-3" />}
+                               {ref.label}
+                            </a>
+                         ))}
+                      </div>
+                   )}
+                 </div>
+               )})
+             ) : (
+                <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+                  <Briefcase className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                  <p>No recent activity found</p>
                 </div>
-              </div>
-            ))
-          ) : (
-             <p className="text-gray-400 dark:text-gray-500 text-center py-6">No clock events recorded today</p>
-          )}
+             )}
+           </div>
+        </div>
+
+        {/* Right Column: Clock Events Timeline */}
+        <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors h-fit">
+          <div className="flex justify-between items-center mb-6">
+             <div className="flex items-center gap-3">
+                 <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
+                    <Clock className="w-5 h-5" />
+                 </div>
+                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Clock Events</h2>
+             </div>
+             <span className="text-gray-500 dark:text-gray-400 text-sm">Today</span>
+          </div>
+
+          <div className="space-y-1 pl-2">
+            {timeTracking.today.clockEvents.length > 0 ? (
+              timeTracking.today.clockEvents.map((event, index) => (
+                <div key={index} className="relative pl-8 pb-8 border-l border-gray-200 dark:border-gray-700 last:border-0 last:pb-0">
+                  <div className={getDotClass(event.type)} />
+                  <div className="bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center group hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                     <div className="flex items-center gap-3">
+                        <span className={`font-medium ${event.type === 'CLOCK_IN' ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                           {event.type === 'CLOCK_IN' ? 'Clocked In' : 'Clocked Out'}
+                        </span>
+                     </div>
+                     <div className="flex items-center gap-4">
+                        <span className="text-gray-500 dark:text-gray-400 font-mono">{event.time}</span>
+                     </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+               <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+                  <div className="w-2.5 h-2.5 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" />
+                  <p>No clock events recorded today</p>
+               </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
