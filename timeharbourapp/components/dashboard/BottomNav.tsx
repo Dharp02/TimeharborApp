@@ -18,7 +18,7 @@ export default function BottomNav() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 pb-safe md:hidden">
-      <div className="flex items-center justify-around h-16 px-2">
+      <div className="flex items-center justify-around h-20 px-2">
         <Link
           href="/dashboard"
           className="flex flex-col items-center justify-center w-full h-full"
@@ -28,7 +28,7 @@ export default function BottomNav() {
               ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
-            <Home className="w-5 h-5" />
+            <Home className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
             isActive('/dashboard') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
@@ -45,7 +45,7 @@ export default function BottomNav() {
               ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
-            <Users className="w-5 h-5" />
+            <Users className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
             isActive('/dashboard/teams') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
@@ -57,8 +57,8 @@ export default function BottomNav() {
             onClick={() => toggleSession(currentTeam?.id)}
             className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-white dark:ring-gray-800 ${
               isSessionActive 
-                ? 'bg-red-500 hover:bg-red-600 animate-pulse w-16 h-16' 
-                : 'bg-blue-600 hover:bg-blue-700 w-14 h-14'
+                ? 'bg-red-500 hover:bg-red-600 animate-pulse w-17 h-17' 
+                : 'bg-blue-600 hover:bg-blue-700 w-16 h-16'
             }`}
           >
             {isSessionActive ? (
@@ -86,7 +86,7 @@ export default function BottomNav() {
               ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
-            <Ticket className="w-5 h-5" />
+            <Ticket className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
             isActive('/dashboard/tickets') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
@@ -102,7 +102,7 @@ export default function BottomNav() {
               ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
-            <Menu className="w-5 h-5" />
+            <Menu className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
             isActive('/dashboard/settings') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'

@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Remove 'export' to support dynamic routes for member pages
-  // Capacitor will work with the standard build output
+  // Enable static export for Capacitor
+  output: 'export',
   images: {
     unoptimized: true,
   },

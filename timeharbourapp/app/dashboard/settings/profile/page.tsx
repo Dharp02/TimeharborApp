@@ -45,8 +45,8 @@ export default function ProfilePage() {
   const pulseCount = 0; // Hardcoded as per request
 
   return (
-    <div className="px-0 py-4 space-y-4 md:p-4 md:space-y-6">
-      <div className="flex items-center gap-4 md:hidden px-4">
+    <div className="-mt-6 px-0 pb-4 pt-0 space-y-2 md:mt-0 md:p-4 md:space-y-6">
+      <div className="flex items-center gap-4 md:hidden px-4 pt-2 pb-2">
         <Link href="/dashboard/settings" className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
           <ArrowLeft className="w-6 h-6 text-gray-900 dark:text-white" />
         </Link>

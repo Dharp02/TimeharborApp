@@ -51,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
 
         {/* Mobile Header */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-12 flex justify-between items-center">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-16 flex justify-between items-center">
           <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">Timeharbor</h1>
           <button 
               onClick={() => setIsTeamModalOpen(true)}

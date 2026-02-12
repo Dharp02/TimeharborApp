@@ -163,7 +163,7 @@ export function usePushNotifications() {
           targetUrl = `/dashboard/teams/${data.teamId}`;
           console.log('🎯 [NOTIFICATION TAP] Navigating to team (new member):', targetUrl);
         } else if ((data?.type === 'clock_in' || data?.type === 'clock_out') && data?.memberId && data?.teamId) {
-          targetUrl = `/dashboard/member/${data.memberId}?teamId=${data.teamId}`;
+          targetUrl = `/dashboard/member?id=${data.memberId}&teamId=${data.teamId}`;
           console.log('🎯 [NOTIFICATION TAP] Navigating to member page:', targetUrl);
         } else {
           console.log('⚠️  [NOTIFICATION TAP] No specific route, using default dashboard');
