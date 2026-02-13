@@ -150,69 +150,44 @@ export default function TeamsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="py-4 md:p-6 space-y-6">
+      <div className="flex justify-between items-center px-4 md:px-0">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Teams</h1>
+
         <div className="flex items-center gap-4">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Teams</h1>
-          {currentTeam && (
-            <div className="flex items-center gap-2 px-2 md:px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <span className="text-xs md:text-sm font-mono text-gray-600 dark:text-gray-300">
-                Code: {currentTeam.code}
-              </span>
-              <button
-                onClick={copyHeaderCode}
-                className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                title="Copy Team Code"
-              >
-                {headerCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsJoinModalOpen(true)}
+              className="flex items-center gap-2 p-2 md:px-4 md:py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors font-medium"
+              title="Join a Team"
+            >
+              <Users className="w-5 h-5" />
+              <span className="hidden md:inline">Join Team</span>
+            </button>
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-2 p-2 md:px-4 md:py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors font-medium"
+              title="Create a Team"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="hidden md:inline">Create Team</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:gap-4">
-        <button 
-          onClick={() => setIsJoinModalOpen(true)}
-          className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 p-4 md:p-6 rounded-xl border-2 border-blue-100 dark:border-blue-900 hover:border-blue-500 dark:hover:border-blue-500 bg-blue-50 dark:bg-blue-900/20 transition-all group"
-        >
-          <div className="p-2 md:p-3 bg-blue-100 dark:bg-blue-800 rounded-full group-hover:bg-blue-200 dark:group-hover:bg-blue-700 transition-colors">
-            <Users className="w-5 h-5 md:w-6 md:h-6 text-blue-600 dark:text-blue-300" />
-          </div>
-          <div className="text-center md:text-left">
-            <h3 className="text-sm md:text-base font-semibold text-gray-900 dark:text-white">Join a Team</h3>
-            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 hidden md:block">Find your team and start collaborating</p>
-            <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 md:hidden">Find & join</p>
-          </div>
-        </button>
-
-        <button 
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 p-4 md:p-6 rounded-xl border-2 border-purple-100 dark:border-purple-900 hover:border-purple-500 dark:hover:border-purple-500 bg-purple-50 dark:bg-purple-900/20 transition-all group"
-        >
-          <div className="p-2 md:p-3 bg-purple-100 dark:bg-purple-800 rounded-full group-hover:bg-purple-200 dark:group-hover:bg-purple-700 transition-colors">
-            <Plus className="w-5 h-5 md:w-6 md:h-6 text-purple-600 dark:text-purple-300" />
-          </div>
-          <div className="text-center md:text-left">
-            <h3 className="text-sm md:text-base font-semibold text-gray-900 dark:text-white">Create a Team</h3>
-            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 hidden md:block">Set up a new workspace for your team</p>
-            <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 md:hidden">New workspace</p>
-          </div>
-        </button>
-      </div>
-
       <div className="mt-6 md:mt-8">
-        <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3 md:mb-4">Your Team</h2>
+        <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3 md:mb-4 px-4 md:px-0">Your Team</h2>
         
         {!currentTeam ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400 mx-4 md:mx-0">
             <p>Please select or join a team to view members.</p>
           </div>
         ) : (
           <div className="space-y-6">
               <div 
                 key={currentTeam.id} 
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border-2 border-blue-500 dark:border-blue-500 transition-all"
+                className="bg-white dark:bg-gray-800 md:rounded-xl shadow-sm border-y-2 border-x-0 md:border-2 border-blue-500 dark:border-blue-500 transition-all"
               >
                 <div className="p-4 md:p-6">
                   <div className="flex justify-between items-start mb-4 md:mb-6">
@@ -221,35 +196,46 @@ export default function TeamsPage() {
                         <h3 className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white truncate">
                           {currentTeam.name}
                         </h3>
-                        {currentTeam.role === 'Leader' && (
-                          <span className="px-2 py-0.5 text-xs md:text-sm font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
-                            Leader
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-2 px-2 md:px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                          <span className="text-xs md:text-sm font-mono text-gray-600 dark:text-gray-300">
+                            Code: {currentTeam.code}
                           </span>
-                        )}
+                          <button
+                            onClick={copyHeaderCode}
+                            className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            title="Copy Team Code"
+                          >
+                            {headerCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
                       </div>
                       <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1 md:mt-2 break-words">
                         {currentTeam.members.length} members
                       </p>
                     </div>
                     
-                    {currentTeam.role === 'Leader' && (
-                      <div className="flex items-center gap-1 md:gap-2 shrink-0">
-                        <button
-                          onClick={() => openEditModal(currentTeam)}
-                          className="p-1.5 md:p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="Edit Team"
-                        >
-                          <Edit2 className="w-4 h-4 md:w-5 md:h-5" />
-                        </button>
-                        <button
-                          onClick={() => openDeleteModal(currentTeam)}
-                          className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Delete Team"
-                        >
-                          <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {currentTeam.role === 'Leader' && (
+                        <>
+                          <button
+                            onClick={() => openEditModal(currentTeam)}
+                            className="p-1.5 md:p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            title="Edit Team"
+                          >
+                            <Edit2 className="w-4 h-4 md:w-5 md:h-5" />
+                          </button>
+                          <button
+                            onClick={() => openDeleteModal(currentTeam)}
+                            className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Delete Team"
+                          >
+                            <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="border-t border-gray-100 dark:border-gray-700 pt-4 md:pt-6">
@@ -268,7 +254,13 @@ export default function TeamsPage() {
                       )}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {currentTeam.members.map((member) => {
+                      {[...currentTeam.members]
+                        .sort((a, b) => {
+                          if (a.role === 'Leader' && b.role !== 'Leader') return -1;
+                          if (a.role !== 'Leader' && b.role === 'Leader') return 1;
+                            return 0;
+                        })
+                        .map((member) => {
                         const isLeader = currentTeam.role === 'Leader';
                         // Check if this member is the current user
                         // We compare by email since user.id is not directly available in member object here (member.id is user ID but verifying)
@@ -286,9 +278,16 @@ export default function TeamsPage() {
                                 {member.name.charAt(0)}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900 dark:text-white truncate">
-                                  {member.name}
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium text-gray-900 dark:text-white truncate">
+                                    {member.name}
+                                  </p>
+                                  {member.role === 'Leader' && (
+                                    <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                      Leader
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                                   {member.email}
                                 </p>
@@ -319,9 +318,16 @@ export default function TeamsPage() {
                               {member.name.charAt(0)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 dark:text-white truncate">
-                                {member.name}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-gray-900 dark:text-white truncate">
+                                  {member.name}
+                                </p>
+                                {member.role === 'Leader' && (
+                                  <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                    Leader
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                                 {member.email}
                               </p>
@@ -353,7 +359,7 @@ export default function TeamsPage() {
 
       {/* Team Activity Report */}
       {currentTeam && (
-        <div className="mt-8">
+        <div className="mt-8 px-4 md:px-0">
           <TeamActivityReport />
         </div>
       )}
