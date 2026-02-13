@@ -4,19 +4,38 @@ import { useState } from 'react';
 import { Send } from 'lucide-react';
 import { ActivitySession } from '../types';
 import { ExpandableText } from './ExpandableText';
+import * as API from '@/TimeharborAPI/dashboard';
 
 export function ClockEventItem({ event, isClockIn }: { event: ActivitySession['events'][0], isClockIn: boolean }) {
     const [replyText, setReplyText] = useState('');
+    const [sending, setSending] = useState(false);
 
     // Mock existing replies (would come from event.original.replies or similar)
-    const [replies, setReplies] = useState<string[]>([]);
+    const [replies, setReplies] = useState<any[]>(event.original?.replies || []);
 
-    const handleSendReply = () => {
-        if (!replyText.trim()) return;
-        // In a real implementations, this would call an API
-        console.log('Sending reply to clock out:', event.id, replyText);
-        setReplies([...replies, replyText]);
-        setReplyText('');
+    const handleSendReply = async () => {
+        if (!replyText.trim() || sending) return;
+        
+        try {
+            setSending(true);
+            // Use event.id as workLogId (assuming event.id maps to workLog.id)
+            const newReply = await API.addWorkLogReply(event.id, replyText);
+            
+            // Format for display
+            const displayReply = {
+                id: newReply.id,
+                content: newReply.content,
+                userName: newReply.user?.full_name // We might not have user info if API doesn't return joined user, but controller does.
+            };
+            
+            setReplies([...replies, displayReply]);
+            setReplyText('');
+        } catch (error) {
+            console.error('Failed to send reply:', error);
+            alert('Failed to send reply. Please try again.');
+        } finally {
+            setSending(false);
+        }
     };
 
     return (
@@ -37,9 +56,12 @@ export function ClockEventItem({ event, isClockIn }: { event: ActivitySession['e
             {replies.length > 0 && (
                 <div className="mt-2 pl-4 space-y-1">
                     {replies.map((reply, idx) => (
-                        <div key={idx} className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 p-2 md:p-1.5 rounded border border-gray-100 dark:border-gray-700 flex gap-1.5">
+                        <div key={reply.id || idx} className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 p-2 md:p-1.5 rounded border border-gray-100 dark:border-gray-700 flex gap-1.5">
                             <div className="w-0.5 self-stretch bg-blue-400 rounded-full" /> 
-                            <span>{reply}</span>
+                            <div className="flex flex-col">
+                                {reply.user && <span className="font-semibold text-[10px] text-gray-500">{reply.user.full_name}</span>}
+                                <span>{typeof reply === 'string' ? reply : reply.content}</span>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -55,15 +77,20 @@ export function ClockEventItem({ event, isClockIn }: { event: ActivitySession['e
                             onChange={(e) => setReplyText(e.target.value)}
                             placeholder="Add a note..."
                             className="w-full pl-3 pr-8 py-2 text-base md:text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-gray-400"
-                            onKeyDown={(e) => e.key === 'Enter' && handleSendReply()}
+                            onKeyDown={(e) => e.key === 'Enter' && !sending && handleSendReply()}
+                            disabled={sending}
                         />
                     </div>
                     <button
                         onClick={handleSendReply}
-                        disabled={!replyText.trim()}
+                        disabled={!replyText.trim() || sending}
                         className="p-2 md:p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 text-blue-600 dark:text-blue-400 rounded-md transition-colors"
                     >
-                        <Send className="w-4 h-4 md:w-3.5 md:h-3.5" />
+                        {sending ? (
+                            <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <Send className="w-4 h-4 md:w-3.5 md:h-3.5" />
+                        )}
                     </button>
                 </div>
             )}

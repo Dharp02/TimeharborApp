@@ -4,15 +4,29 @@ import { useState } from 'react';
 import { Briefcase, ExternalLink, Link as LinkIcon, MessageSquare, Send } from 'lucide-react';
 import { SessionEvent } from '../types';
 import { ExpandableText } from './ExpandableText';
+import * as API from '@/TimeharborAPI/dashboard';
 
 export function TicketItem({ event }: { event: SessionEvent }) {
   const [comment, setComment] = useState('');
+  const [replies, setReplies] = useState<any[]>(event.original?.replies || []);
+  const [sending, setSending] = useState(false);
 
-  const handleSend = () => {
-    if (!comment.trim()) return;
-    console.log('Sending comment for event', event.id, comment);
-    // Here you would typically call an API to save the comment
-    setComment('');
+  const handleSend = async () => {
+    if (!comment.trim() || sending) return;
+    
+    try {
+        setSending(true);
+        const newReply = await API.addWorkLogReply(event.id, comment);
+        
+        // Add to local state
+        setReplies([...replies, newReply]);
+        setComment('');
+    } catch (error) {
+        console.error('Failed to send reply:', error);
+        alert('Failed to send reply. Please try again.');
+    } finally {
+        setSending(false);
+    }
   };
 
   return (
@@ -54,12 +68,25 @@ export function TicketItem({ event }: { event: SessionEvent }) {
             )}
             
             {/* Comment Display */}
-            {event.original?.comment && (
-                <div className="bg-white dark:bg-gray-800 p-2.5 rounded-md mb-3 text-sm text-gray-700 dark:text-gray-300 border border-gray-100 dark:border-gray-700 shadow-sm">
-                    <div className="flex gap-2">
-                       <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                       <span>{event.original.comment}</span>
-                    </div>
+            {(event.original?.comment || replies.length > 0) && (
+                <div className="bg-white dark:bg-gray-800 p-2.5 rounded-md mb-3 text-sm text-gray-700 dark:text-gray-300 border border-gray-100 dark:border-gray-700 shadow-sm space-y-2">
+                    {event.original?.comment && (
+                        <div className="flex gap-2">
+                            <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                            <span>{event.original.comment}</span>
+                        </div>
+                    )}
+                    
+                    {/* Replies */}
+                    {replies.map((reply, i) => (
+                        <div key={reply.id || i} className="flex gap-2 pl-2 border-l-2 border-gray-200 dark:border-gray-700 ml-1">
+                            {/* <div className="w-1 h-1 bg-gray-400 rounded-full mt-2" /> */}
+                            <div className="flex flex-col text-xs md:text-sm">
+                                {reply.user && <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{reply.user.full_name}</span>}
+                                <span className={reply.user ? '' : 'italic'}>{reply.content || reply}</span>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
             
@@ -70,19 +97,25 @@ export function TicketItem({ event }: { event: SessionEvent }) {
                   type="text"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Add a note..."
+                  placeholder="Reply..."
                   className="w-full pl-3 pr-8 py-2 text-base md:text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-gray-400"
+                  onKeyDown={(e) => e.key === 'Enter' && !sending && handleSend()}
+                  disabled={sending}
                   />
                </div>
                <button
                   onClick={handleSend}
-                  disabled={!comment.trim()}
+                  disabled={!comment.trim() || sending}
                   className="p-2 md:p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 text-blue-600 dark:text-blue-400 rounded-md transition-colors"
-               >
-                  <Send className="w-4 h-4 md:w-3.5 md:h-3.5" />
+                >
+                  {sending ? (
+                      <div className="w-4 h-4 md:w-3.5 md:h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                      <Send className="w-4 h-4 md:w-3.5 md:h-3.5" />
+                  )}
                </button>
             </div>
          </div>
-    </div>
-  );
+      </div>
+    );
 }

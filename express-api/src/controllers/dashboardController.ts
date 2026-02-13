@@ -2,8 +2,9 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
 import { AuthRequest } from '../middleware/authMiddleware';
-import { Ticket, Member, Team, WorkLog, User } from '../models';
+import { Ticket, Member, Team, WorkLog, User, WorkLogReply } from '../models';
 import sequelize from '../config/sequelize';
+import { sendNotificationToUser } from '../services/notificationService';
 
 export const getDashboardStats = async (req: AuthRequest, res: Response) => {
   try {
@@ -510,6 +511,24 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
         relatedTickets.forEach(t => relatedTicketsMap.set(t.id, t));
     }
 
+    // Fetch related replies
+    const workLogIds = sessionLogs.map(log => log.id);
+    const relatedReplies = await WorkLogReply.findAll({
+        where: { workLogId: workLogIds },
+        include: [{ 
+            model: User, 
+            as: 'user',
+            attributes: ['id', 'full_name', 'email']
+        }],
+        order: [['createdAt', 'ASC']]
+    });
+    
+    const repliesMap = new Map();
+    relatedReplies.forEach(r => {
+        if (!repliesMap.has(r.workLogId)) repliesMap.set(r.workLogId, []);
+        repliesMap.get(r.workLogId).push(r.get({plain: true})); 
+    });
+
     // Group logs into sessions (Newest First)
     const sessions: any[] = [];
     let currentSession: any = null;
@@ -520,6 +539,9 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
         const plainLog = log.get({ plain: true }) as any;
         if (plainLog.ticketId && relatedTicketsMap.has(plainLog.ticketId)) {
             plainLog.ticket = relatedTicketsMap.get(plainLog.ticketId)?.get({ plain: true });
+        }
+        if (repliesMap.has(plainLog.id)) {
+            plainLog.replies = repliesMap.get(plainLog.id);
         }
         return plainLog;
     }).reverse();
@@ -750,5 +772,78 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error fetching member activity:', error);
     res.status(500).json({ message: 'Error fetching member activity' });
+  }
+};
+
+// Add a reply to a work log
+export const addReply = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { message, workLogId, recipientId } = req.body;
+
+    if (!userId) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    if (!message || !workLogId) {
+      res.status(400).json({ message: 'Message and WorkLog ID are required' });
+      return;
+    }
+
+    // Check if work log exists
+    const workLog = await WorkLog.findByPk(workLogId, {
+      include: [{ model: User, as: 'user' }]
+    });
+
+    if (!workLog) {
+      res.status(404).json({ message: 'Work log not found' });
+      return;
+    }
+
+    // Create the reply
+    const reply = await WorkLogReply.create({
+      userId,
+      workLogId,
+      content: message
+    });
+
+    // Send notification if commenting on someone else's log
+    if (workLog.userId !== userId) {
+      const sender = await User.findByPk(userId);
+      const senderName = sender?.full_name || 'Team Leader';
+      
+      const notificationTitle = `New Reply from ${senderName}`;
+      const notificationBody = message;
+      
+      try {
+        await sendNotificationToUser(workLog.userId, {
+          title: notificationTitle,
+          body: notificationBody,
+          data: {
+            type: 'reply',
+            workLogId: workLog.id,
+            replyId: reply.id,
+            senderId: userId
+          }
+        });
+      } catch (notifError) {
+        console.error('Failed to send push notification:', notifError);
+      }
+    }
+
+    // Return the created reply with user info
+    const replyWithUser = await WorkLogReply.findByPk(reply.id, {
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'full_name', 'email']
+      }]
+    });
+
+    res.status(201).json(replyWithUser);
+  } catch (error) {
+    console.error('Error adding reply:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

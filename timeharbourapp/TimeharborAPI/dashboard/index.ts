@@ -273,3 +273,41 @@ export const getMemberActivity = async (memberId: string, teamId?: string, curso
     throw error;
   }
 };
+
+export interface WorkLogReply {
+  id: string;
+  content: string;
+  userId: string;
+  user?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+  createdAt: string;
+}
+
+export const addWorkLogReply = async (workLogId: string, message: string): Promise<WorkLogReply> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+  if (!token) throw new Error('No access token found');
+
+  try {
+    const response = await fetch(`${API_URL}/dashboard/activity/reply`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ workLogId, message }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to send reply');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error sending reply:', error);
+    throw error;
+  }
+};
