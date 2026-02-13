@@ -378,6 +378,34 @@ export const getUser = async () => {
   }
 };
 
+export const updateProfile = async (data: { full_name?: string; email?: string }) => {
+  try {
+    const response = await authenticatedFetch(`${API_URL}/auth/me`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      return { user: null, error: { message: responseData.error || 'Failed to update profile' } };
+    }
+
+    // Update local storage/db with new user data
+    if (responseData.user) {
+        await setUser(responseData.user);
+    }
+
+    return { user: responseData.user, error: null };
+  } catch (err: any) {
+    console.error('Update profile error:', err);
+    return { user: null, error: { message: err.message || 'Network error' } };
+  }
+};
+
 export const forgotPassword = async (email: string) => {
   try {
     const response = await fetch(`${API_URL}/auth/forgot-password`, {

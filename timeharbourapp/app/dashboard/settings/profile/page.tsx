@@ -4,6 +4,8 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { ArrowLeft, User, FileText, Image as ImageIcon, Edit, Share2 } from 'lucide-react';
 import Link from 'next/link';
 import * as API from '@/TimeharborAPI/dashboard';
+import { auth } from '@/TimeharborAPI';
+import { Modal } from '@/components/ui/Modal';
 import { useEffect, useState } from 'react';
 
 export default function ProfilePage() {
@@ -13,25 +15,63 @@ export default function ProfilePage() {
   const [memberData, setMemberData] = useState<API.MemberActivityData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Function to fetch member activity
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        // We use the same API as the member dashboard
-        const data = await API.getMemberActivity(user.id);
-        setMemberData(data);
-      } catch (err) {
-        console.error('Error fetching profile data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Edit Profile State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Function to fetch member activity
+  const fetchData = async () => {
+    if (!user?.id) return;
+    try {
+      setLoading(true);
+      // We use the same API as the member dashboard
+      const data = await API.getMemberActivity(user.id);
+      setMemberData(data);
+    } catch (err) {
+      console.error('Error fetching profile data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, [user?.id]);
+
+  const handleEditClick = () => {
+    if (memberData?.member) {
+      setEditName(memberData.member.name);
+      setEditEmail(memberData.member.email || '');
+      setSaveError(null);
+      setIsEditModalOpen(true);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const { error } = await auth.updateProfile({
+        full_name: editName,
+        email: editEmail
+      });
+
+      if (error) {
+        setSaveError(error.message);
+      } else {
+        setIsEditModalOpen(false);
+        // Refresh data to show updates
+        fetchData();
+      }
+    } catch (err) {
+      setSaveError('An unexpected error occurred');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (loading || !memberData) {
     return (
@@ -78,7 +118,7 @@ export default function ProfilePage() {
           {/* Profile Actions - Row 1 */}
           <div className="flex gap-3 md:gap-4">
             <button 
-              onClick={() => {}} 
+              onClick={handleEditClick} 
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-2xl transition-colors shadow-lg shadow-blue-500/20"
             >
               <Edit className="w-4 h-4" />
@@ -132,6 +172,72 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Profile"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Full Name
+            </label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Your name"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Email Address
+            </label>
+            <input
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="your.email@example.com"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Changing email may require re-verification.
+            </p>
+          </div>
+
+          {saveError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-lg">
+              {saveError}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              onClick={() => setIsEditModalOpen(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              disabled={isSaving}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveProfile}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
