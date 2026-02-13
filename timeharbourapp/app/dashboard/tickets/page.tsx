@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User, ArrowRightLeft, Check, Edit2, ExternalLink, AlignLeft } from 'lucide-react';
+import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User, ArrowRightLeft, Check, Edit2, ExternalLink, AlignLeft, X } from 'lucide-react';
 import { useClockIn } from '@/components/dashboard/ClockInContext';
 import { useTeam } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -611,19 +611,40 @@ export default function TicketsPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 mt-6">
-            <button
-              onClick={handleAddTicket}
-              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
-            >
-              {isEditing ? "Update Ticket" : "Create Ticket"}
-            </button>
-            <button
-              onClick={() => setIsAddTicketModalOpen(false)}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              Cancel
-            </button>
+          <div className="mt-6">
+            {/* Desktop Actions */}
+            <div className="hidden md:flex flex-col gap-3">
+              <button
+                onClick={handleAddTicket}
+                className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+              >
+                {isEditing ? "Update Ticket" : "Create Ticket"}
+              </button>
+              <button
+                onClick={() => setIsAddTicketModalOpen(false)}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Mobile Actions - Icon based */}
+            <div className="flex -mx-4 -mb-4 border-t border-gray-100 dark:border-gray-700 md:hidden">
+              <button
+                onClick={() => setIsAddTicketModalOpen(false)}
+                className="flex-1 p-4 flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 active:bg-gray-50 dark:active:bg-gray-750"
+              >
+                <X className="w-5 h-5" />
+                <span className="font-medium">Cancel</span>
+              </button>
+              <button
+                onClick={handleAddTicket}
+                className="flex-1 p-4 flex items-center justify-center gap-2 text-green-600 dark:text-green-400 active:bg-green-50 dark:active:bg-green-900/10"
+              >
+                <Check className="w-5 h-5" />
+                <span className="font-medium">{isEditing ? "Update" : "Create"}</span>
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
