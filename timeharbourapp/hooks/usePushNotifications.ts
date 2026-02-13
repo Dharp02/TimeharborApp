@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { onAuthStateChange } from '@/TimeharborAPI/auth';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export function usePushNotifications() {
   const initialized = useRef(false);
   const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const { addNotification } = useNotifications();
 
   useEffect(() => {
     // Only run on native platforms
@@ -134,8 +136,12 @@ export function usePushNotifications() {
       // Listener: Notification received when app is in foreground
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('📬 Push notification received (foreground):', notification);
-        // You can show a custom UI here or handle the notification
-        // For now, we'll just log it
+        // Add to notification context history
+        addNotification({
+          title: notification.title || 'New Notification',
+          message: notification.body || '',
+          data: notification.data
+        });
       });
 
       // Listener: User tapped on a notification

@@ -1,11 +1,13 @@
 'use client';
 
-import { Bell } from 'lucide-react';
+import { Bell, Check, Trash2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 export default function NotificationBell({ isMobile = false }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+  const { notifications, unreadCount, markAllAsRead, markAsRead, clearAll } = useNotifications();
 
   // Close notifications when clicking outside
   useEffect(() => {
@@ -21,14 +23,18 @@ export default function NotificationBell({ isMobile = false }) {
     };
   }, []);
 
-  // Placeholder notifications
-  const notifications = [
-    { id: 1, title: 'Session ended', message: 'Your session was automatically ended after 8 hours.', time: '2 hours ago', unread: true },
-    { id: 2, title: 'New team member', message: 'Sarah joined the Design Team.', time: '5 hours ago', unread: false },
-    { id: 3, title: 'Ticket assigned', message: 'You were assigned to ticket #TH-102.', time: 'Yesterday', unread: false },
-  ];
-
-  const unreadCount = notifications.filter(n => n.unread).length;
+  const formatTimeAgo = (timestamp: number) => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(timestamp).toLocaleDateString();
+  };
 
   return (
     <div className="relative" ref={notificationRef}>
@@ -68,6 +74,7 @@ export default function NotificationBell({ isMobile = false }) {
               notifications.map((notification) => (
                 <div 
                   key={notification.id} 
+                  onClick={() => markAsRead(notification.id)}
                   className={`p-4 border-b border-gray-50 dark:border-gray-750 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer ${
                     notification.unread ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
                   }`}
@@ -77,7 +84,7 @@ export default function NotificationBell({ isMobile = false }) {
                       {notification.title}
                     </h4>
                     <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap ml-2">
-                      {notification.time}
+                      {formatTimeAgo(notification.timestamp)}
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
@@ -91,9 +98,18 @@ export default function NotificationBell({ isMobile = false }) {
               </div>
             )}
           </div>
-          <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-            <button className="w-full py-1.5 text-xs font-medium text-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
-              Mark all as read
+          <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex gap-2">
+            <button 
+              onClick={markAllAsRead}
+              className="flex-1 py-1.5 text-xs font-medium text-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors flex items-center justify-center gap-1"
+            >
+              <Check className="w-3 h-3" /> Mark all read
+            </button>
+            <button 
+              onClick={clearAll}
+              className="flex-1 py-1.5 text-xs font-medium text-center text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center justify-center gap-1"
+            >
+              <Trash2 className="w-3 h-3" /> Clear
             </button>
           </div>
         </div>
