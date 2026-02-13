@@ -10,7 +10,7 @@ import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 
 export default function OpenTickets() {
-  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
+  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,6 +21,7 @@ export default function OpenTickets() {
   const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showClockInWarning, setShowClockInWarning] = useState(false);
 
   useEffect(() => {
     if (currentTeam) {
@@ -46,7 +47,10 @@ export default function OpenTickets() {
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
     
-    if (!isSessionActive) return;
+    if (!isSessionActive) {
+      setShowClockInWarning(true);
+      return;
+    }
 
     // If stopping the current ticket
     if (activeTicketId === ticketId) {
@@ -104,7 +108,35 @@ export default function OpenTickets() {
 
   return (
     <>
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
+    <Modal
+      isOpen={showClockInWarning}
+      onClose={() => setShowClockInWarning(false)}
+      title="Clock In Required"
+    >
+      <div className="space-y-4">
+        <p className="text-gray-600 dark:text-gray-300">
+          You must be clocked in to start a ticket timer. Would you like to clock in now?
+        </p>
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={() => setShowClockInWarning(false)}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              toggleSession(currentTeam?.id);
+              setShowClockInWarning(false);
+            }}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Clock In
+          </button>
+        </div>
+      </div>
+    </Modal>
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6 relative">
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Open Tickets</h2>
         <div className="flex items-center gap-2">
@@ -159,10 +191,9 @@ export default function OpenTickets() {
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                 <button 
                   onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-                  disabled={!isSessionActive}
                   className={`p-2 rounded-full transition-colors ${
                     !isSessionActive 
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
                       : activeTicketId === ticket.id
                         ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40'
                         : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40'

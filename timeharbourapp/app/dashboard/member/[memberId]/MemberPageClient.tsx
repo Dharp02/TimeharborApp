@@ -7,6 +7,7 @@ import { ChevronLeft, Clock, User, Briefcase, Calendar, ExternalLink, Link as Li
 import * as API from '@/TimeharborAPI/dashboard';
 import { enhanceTicketData } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import TimeRangeFilter, { TimeRange } from '@/components/TimeRangeFilter';
 
 interface MemberPageProps {
   memberId?: string;
@@ -33,6 +34,7 @@ export default function MemberPageClient({
   const [memberData, setMemberData] = useState<API.MemberActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState<TimeRange>('today');
 
   useEffect(() => {
     const fetchMemberActivity = async () => {
@@ -90,6 +92,38 @@ export default function MemberPageClient({
 
   // Pulse count temporary disabled (set to 0)
   const pulseCount = 0;
+
+  // Filter clock events based on selected time range
+  const getFilteredClockEvents = () => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfWeek.getDate() - 7);
+    const startOfMonth = new Date(startOfToday);
+    startOfMonth.setDate(startOfMonth.getDate() - 30);
+
+    // For now, we're using today's events as the base
+    // In a real implementation, you'd fetch data for the specific range
+    const allEvents = timeTracking.today.clockEvents;
+    
+    // Since we only have today's data, we'll return it for today and empty for others
+    // This should be updated when the API supports fetching historical data
+    switch (timeRange) {
+      case 'today':
+        return allEvents;
+      case 'yesterday':
+      case 'week':
+      case 'month':
+        // TODO: Fetch actual historical data from API
+        return allEvents; // Placeholder - showing today's data for now
+      default:
+        return allEvents;
+    }
+  };
+
+  const filteredClockEvents = getFilteredClockEvents();
 
   // Styles for timeline
   const timelineItemClass = "relative pl-6 py-3 border-l-2 border-slate-700 last:border-0";
@@ -243,19 +277,19 @@ export default function MemberPageClient({
         {/* Right Column: Clock Events Timeline */}
         {shouldShowClockEvents && (
         <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors h-fit">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
              <div className="flex items-center gap-3">
                  <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
                     <Clock className="w-5 h-5" />
                  </div>
-                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Clock Events</h2>
+                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Activity Feed</h2>
              </div>
-             <span className="text-gray-500 dark:text-gray-400 text-sm">Today</span>
+             <TimeRangeFilter selected={timeRange} onChange={setTimeRange} />
           </div>
 
           <div className="space-y-1 pl-2">
-            {timeTracking.today.clockEvents.length > 0 ? (
-              timeTracking.today.clockEvents.map((event, index) => (
+            {filteredClockEvents.length > 0 ? (
+              filteredClockEvents.map((event, index) => (
                 <div key={index} className="relative pl-8 pb-8 border-l border-gray-200 dark:border-gray-700 last:border-0 last:pb-0">
                   <div className={getDotClass(event.type)} />
                   <div className="bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center group hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
@@ -273,7 +307,7 @@ export default function MemberPageClient({
             ) : (
                <div className="text-center py-8 text-gray-400 dark:text-gray-500">
                   <div className="w-2.5 h-2.5 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" />
-                  <p>No clock events recorded today</p>
+                  <p>No clock events recorded for this period</p>
                </div>
             )}
           </div>

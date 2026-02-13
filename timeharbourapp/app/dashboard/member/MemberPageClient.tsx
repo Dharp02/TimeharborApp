@@ -8,6 +8,7 @@ import * as API from '@/TimeharborAPI/dashboard';
 import { useRouter } from 'next/navigation';
 import { ActivitySession } from './types';
 import { SessionCard } from './components/SessionCard';
+import TimeRangeFilter, { TimeRange } from '@/components/TimeRangeFilter';
 
 interface MemberPageProps {
   memberId?: string;
@@ -40,6 +41,37 @@ function MemberPageContent({
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [timeRange, setTimeRange] = useState<TimeRange>('today');
+
+  const filteredSessions = sessions.filter(session => {
+    const sessionDate = new Date(session.startTime);
+    const now = new Date();
+    // Normalize dates to start of day for comparison
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    switch (timeRange) {
+      case 'today':
+        return sessionDate >= startOfToday;
+      case 'yesterday': {
+        const startOfYesterday = new Date(startOfToday);
+        startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+        const endOfYesterday = new Date(startOfToday);
+        return sessionDate >= startOfYesterday && sessionDate < endOfYesterday;
+      }
+      case 'week': {
+        const startOfWeek = new Date(startOfToday);
+        startOfWeek.setDate(startOfWeek.getDate() - 7);
+        return sessionDate >= startOfWeek;
+      }
+      case 'month': {
+        const startOfMonth = new Date(startOfToday);
+        startOfMonth.setDate(startOfMonth.getDate() - 30);
+        return sessionDate >= startOfMonth;
+      }
+      default:
+        return true;
+    }
+  });
 
   const mapSessionFromApi = (s: any): ActivitySession => ({
         id: s.id,
@@ -247,15 +279,16 @@ function MemberPageContent({
 
       {/* Main Content: Unified Activity Timeline */}
       <div className="space-y-4">
-         <div className="flex items-center justify-between mb-2 px-2">
+         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-2 px-2">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                Activity Feed
             </h2>
+            <TimeRangeFilter selected={timeRange} onChange={setTimeRange} />
          </div>
 
          <div className="space-y-4">
-           {sessions.length > 0 ? (
-             sessions.map((session) => (
+           {filteredSessions.length > 0 ? (
+             filteredSessions.map((session) => (
                <SessionCard key={session.id} session={session} />
              ))
            ) : (
