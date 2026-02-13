@@ -35,6 +35,8 @@ export default function MemberPageClient({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('today');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
 
   useEffect(() => {
     const fetchMemberActivity = async () => {
@@ -116,6 +118,7 @@ export default function MemberPageClient({
       case 'yesterday':
       case 'week':
       case 'month':
+      case 'custom':
         // TODO: Fetch actual historical data from API
         return allEvents; // Placeholder - showing today's data for now
       default:
@@ -284,7 +287,16 @@ export default function MemberPageClient({
                  </div>
                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Activity Feed</h2>
              </div>
-             <TimeRangeFilter selected={timeRange} onChange={setTimeRange} />
+             <TimeRangeFilter 
+               selected={timeRange} 
+               onChange={setTimeRange} 
+               startDate={customStartDate}
+               endDate={customEndDate}
+               onDateChange={(s, e) => {
+                 setCustomStartDate(s);
+                 setCustomEndDate(e);
+               }}
+             />
           </div>
 
           <div className="space-y-1 pl-2">

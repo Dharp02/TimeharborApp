@@ -43,6 +43,8 @@ function MemberPageContent({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>('today');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
   const [teamMembers, setTeamMembers] = useState<TeamAPI.Member[]>([]);
 
   const filteredSessions = sessions.filter(session => {
@@ -70,10 +72,44 @@ function MemberPageContent({
         startOfMonth.setDate(startOfMonth.getDate() - 30);
         return sessionDate >= startOfMonth;
       }
+      case 'custom': {
+        if (!customStartDate) return true;
+        
+        // Parse "YYYY-MM-DD" as local date
+        const [sYear, sMonth, sDay] = customStartDate.split('-').map(Number);
+        const startDate = new Date(sYear, sMonth - 1, sDay);
+        
+        if (sessionDate < startDate) return false;
+
+        if (customEndDate) {
+            const [eYear, eMonth, eDay] = customEndDate.split('-').map(Number);
+            const endDate = new Date(eYear, eMonth - 1, eDay);
+            // Add 1 day to include the end date fully (up to 23:59:59)
+            endDate.setDate(endDate.getDate() + 1); 
+            if (sessionDate >= endDate) return false;
+        }
+        return true;
+      }
       default:
         return true;
     }
   });
+
+  const calculateTotalDuration = (sessionsToSum: ActivitySession[]) => {
+    let totalMs = 0;
+    const now = Date.now();
+    
+    sessionsToSum.forEach(session => {
+        const start = new Date(session.startTime).getTime();
+        const end = session.endTime ? new Date(session.endTime).getTime() : now;
+        totalMs += (end - start);
+    });
+    
+    const hours = Math.floor(totalMs / 3600000);
+    const minutes = Math.floor((totalMs % 3600000) / 60000);
+    
+    return `${hours}h ${minutes}m`;
+  };
 
   const mapSessionFromApi = (s: any): ActivitySession => ({
         id: s.id,
@@ -149,7 +185,7 @@ function MemberPageContent({
   }, [teamId, memberId]);
 
   const handleShowMore = async () => {
-      if (!nextCursor || loadingMore) return;
+      if (!nextCursor || loadingMore || !memberId) return;
       
       setLoadingMore(true);
       try {
@@ -333,28 +369,41 @@ function MemberPageContent({
       </div>
 
       {/* Stats Row: Today, Week (Compact) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 mb-2">
+      <div className={`grid ${timeRange === 'custom' ? 'grid-cols-3' : 'grid-cols-2'} gap-2 md:gap-4 mb-2`}>
         {/* Today's Time */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-3 transition-colors">
-             <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500 flex-shrink-0">
-                <Clock className="w-5 h-5" />
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-2 md:p-3 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-2 md:gap-3 transition-colors">
+             <div className="p-1.5 md:p-2 bg-blue-500/10 rounded-lg text-blue-500 flex-shrink-0">
+                <Clock className="w-4 h-4 md:w-5 md:h-5" />
              </div>
-             <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Today</p>
-                <p className="text-gray-900 dark:text-white font-bold text-lg leading-tight">{timeTracking.today.duration}</p>
+             <div className="min-w-0">
+                <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 font-medium truncate">Today</p>
+                <p className="text-gray-900 dark:text-white font-bold text-sm md:text-lg leading-tight truncate">{timeTracking.today.duration}</p>
              </div>
           </div>
 
         {/* Week's Time */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-3 transition-colors">
-             <div className="p-2 bg-violet-500/10 rounded-lg text-violet-500 flex-shrink-0">
-                <Calendar className="w-5 h-5" />
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-2 md:p-3 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-2 md:gap-3 transition-colors">
+             <div className="p-1.5 md:p-2 bg-violet-500/10 rounded-lg text-violet-500 flex-shrink-0">
+                <Calendar className="w-4 h-4 md:w-5 md:h-5" />
              </div>
-             <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Week</p>
-                <p className="text-gray-900 dark:text-white font-bold text-lg leading-tight">{timeTracking.week.duration}</p>
+             <div className="min-w-0">
+                <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 font-medium truncate">Week</p>
+                <p className="text-gray-900 dark:text-white font-bold text-sm md:text-lg leading-tight truncate">{timeTracking.week.duration}</p>
              </div>
           </div>
+
+        {/* Custom Range Time */}
+        {timeRange === 'custom' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-2 md:p-3 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-2 md:gap-3 transition-colors animate-in fade-in zoom-in-95 duration-200">
+             <div className="p-1.5 md:p-2 bg-emerald-500/10 rounded-lg text-emerald-500 flex-shrink-0">
+                <Calendar className="w-4 h-4 md:w-5 md:h-5" />
+             </div>
+             <div className="min-w-0">
+                <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 font-medium truncate">Range</p>
+                <p className="text-gray-900 dark:text-white font-bold text-sm md:text-lg leading-tight truncate">{calculateTotalDuration(filteredSessions)}</p>
+             </div>
+          </div>
+        )}
       </div>
 
       {/* Main Content: Unified Activity Timeline */}
@@ -363,7 +412,16 @@ function MemberPageContent({
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                Activity Feed
             </h2>
-            <TimeRangeFilter selected={timeRange} onChange={setTimeRange} />
+            <TimeRangeFilter 
+              selected={timeRange} 
+              onChange={setTimeRange} 
+              startDate={customStartDate}
+              endDate={customEndDate}
+              onDateChange={(start, end) => {
+                setCustomStartDate(start);
+                setCustomEndDate(end);
+              }}
+            />
          </div>
 
          <div className="space-y-4">
