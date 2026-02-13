@@ -97,42 +97,57 @@ const isTokenExpired = (): boolean => {
   return Date.now() >= (parseInt(expiresAt) - 30000);
 };
 
+let refreshPromise: Promise<{ data: Session | null; error: AuthError | null }> | null = null;
+
 // Refresh token function
 export const refreshAccessToken = async (): Promise<{ data: Session | null; error: AuthError | null }> => {
-  const refreshToken = getRefreshToken();
-  
-  if (!refreshToken) {
-    return { data: null, error: { message: 'No refresh token available' } };
+  if (refreshPromise) {
+    return refreshPromise;
   }
 
-  try {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      // Only clear tokens if the server explicitly rejected the refresh token (401/403)
-      if (response.status === 401 || response.status === 403) {
-        await clearTokens();
-        notifyListeners('TOKEN_EXPIRED', null);
-      }
-      return { data: null, error: { message: data.error || 'Token refresh failed' } };
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    
+    if (!refreshToken) {
+      return { data: null, error: { message: 'No refresh token available' } };
     }
 
-    // Update tokens
-    setTokens(data.session);
-    
-    return { data: data.session, error: null };
-  } catch (err) {
-    console.error('Token refresh error:', err);
-    // Do NOT clear tokens on network error - allow offline mode
-    return { data: null, error: { message: 'Network error' } };
+    try {
+      const response = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Only clear tokens if the server explicitly rejected the refresh token (401/403)
+        if (response.status === 401 || response.status === 403) {
+          await clearTokens();
+          notifyListeners('TOKEN_EXPIRED', null);
+        }
+        return { data: null, error: { message: data.error || 'Token refresh failed' } };
+      }
+
+      // Update tokens
+      setTokens(data.session);
+      
+      return { data: data.session, error: null };
+    } catch (err) {
+      console.error('Token refresh error:', err);
+      // Do NOT clear tokens on network error - allow offline mode
+      return { data: null, error: { message: 'Network error' } };
+    }
+  })();
+
+  try {
+    const result = await refreshPromise;
+    return result;
+  } finally {
+    refreshPromise = null;
   }
 };
 

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { createNewTeam, joinTeamByCode, fetchMyTeams, updateTeam as apiUpdateTeam, deleteTeam as apiDeleteTeam, addMemberToTeam, removeMemberFromTeam } from '@/TimeharborAPI/teams';
-
 
 export type Member = {
   id: string;
@@ -38,12 +38,43 @@ interface TeamContextType {
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
 
 export function TeamProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [teams, setTeams] = useState<Team[]>([]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadTeams = async () => {
     try {
+      // Optimistic load from local storage first for instant UI
+      // Use 'timeharbor_teams' directly as it is used in TimeharborAPI/teams/index.ts
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem('timeharbor_teams');
+        if (cached) {
+          try {
+            const parsedTeams = JSON.parse(cached);
+            if (Array.isArray(parsedTeams) && parsedTeams.length > 0) {
+              setTeams(parsedTeams);
+              // Also try to set current team if not set
+              if (!currentTeam) {
+                 const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
+                 if (savedTeamId) {
+                   const team = parsedTeams.find(t => t.id === savedTeamId);
+                   if (team) setCurrentTeam(team);
+                 } else {
+                   setCurrentTeam(parsedTeams[0]);
+                 }
+              }
+              // Data is visible, so we can stop loading spinner even if network sync is pending
+              // But we keep loading true if we want to show a background sync indicator
+              // For UX, "isLoading" usually means "blocking load", so we can set it false.
+              setIsLoading(false);
+            }
+          } catch (e) {
+            console.warn('Failed to parse cached teams', e);
+          }
+        }
+      }
+
       const myTeams = await fetchMyTeams();
       setTeams(myTeams);
       
@@ -68,8 +99,16 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    loadTeams();
-  }, []);
+    if (user) {
+      loadTeams();
+    } else {
+      // If no user (logged out), clear teams but only if we had them
+      if (teams.length > 0) {
+        setTeams([]);
+        setCurrentTeam(null);
+      }
+    }
+  }, [user]);
 
   const selectTeam = (teamId: string) => {
     const team = teams.find(t => t.id === teamId);
