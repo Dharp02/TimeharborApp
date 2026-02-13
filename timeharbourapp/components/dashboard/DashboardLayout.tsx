@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from './Header';
 import BottomNav from './BottomNav';
 import TeamSelectionModal from './TeamSelectionModal';
@@ -8,16 +9,33 @@ import { ClockInProvider } from './ClockInContext';
 import DesktopFooter from './DesktopFooter';
 import { Users, ArrowRightLeft } from 'lucide-react';
 import { useTeam } from './TeamContext';
+import NotificationBell from './NotificationBell';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { currentTeam, isLoading } = useTeam();
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && !currentTeam) {
       setIsTeamModalOpen(true);
     }
   }, [currentTeam, isLoading]);
+
+  // Handle pending navigation from push notifications
+  useEffect(() => {
+    const pendingNav = localStorage.getItem('pendingNavigation');
+    if (pendingNav) {
+      console.log('🔔 [DASHBOARD] Found pending navigation:', pendingNav);
+      localStorage.removeItem('pendingNavigation');
+      
+      // Small delay to ensure app is ready
+      setTimeout(() => {
+        console.log('🚀 [DASHBOARD] Navigating to:', pendingNav);
+        router.push(pendingNav);
+      }, 500);
+    }
+  }, [router]);
 
   return (
     <ClockInProvider>
@@ -34,15 +52,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
 
         {/* Mobile Header */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-12 flex justify-between items-center">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-16 flex justify-between items-center">
           <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">Timeharbor</h1>
-          <button 
-              onClick={() => setIsTeamModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-200 dark:border-gray-700"
-            >
-              <ArrowRightLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">{currentTeam?.name || 'Switch Team'}</span>
+          <div className="flex items-center gap-3">
+            <NotificationBell isMobile={true} />
+            <button 
+                onClick={() => setIsTeamModalOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-200 dark:border-gray-700"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                <span className="text-sm font-medium">{currentTeam?.name || 'Switch Team'}</span>
             </button>
+          </div>
         </div>
 
         {/* Main Content */}

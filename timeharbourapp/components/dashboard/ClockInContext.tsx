@@ -6,6 +6,7 @@ import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { TimeService } from '@/TimeharborAPI/time/TimeService';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Network } from '@capacitor/network';
+import { Modal } from '@/components/ui/Modal';
 
 type ClockInContextType = {
   // Global Session
@@ -39,6 +40,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [sessionDuration, setSessionDuration] = useState('00:00');
   const [sessionFormat, setSessionFormat] = useState('mm:ss');
+
+  // Ticket Stop Modal State
+  const [isStopTicketModalOpen, setIsStopTicketModalOpen] = useState(false);
+  const [stopTicketComment, setStopTicketComment] = useState('');
+  const [pendingSessionStopTeamId, setPendingSessionStopTeamId] = useState<string | undefined>(undefined);
 
   // Ticket State
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
@@ -149,41 +155,23 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (isSessionActive) {
+      // Check if ticket is running
+      if (activeTicketId) {
+        setPendingSessionStopTeamId(teamId);
+        setIsStopTicketModalOpen(true);
+        return;
+      }
+
       // Clock Out Session
       setIsSessionActive(false);
       setSessionStartTime(null);
       localStorage.removeItem('sessionStartTime');
       
-      // Also stop any active ticket and save its duration
-      if (activeTicketId && ticketStartTime) {
-        const now = Date.now();
-        const sessionDuration = now - ticketStartTime;
-        const currentTotal = ticketDurations[activeTicketId] || 0;
-        const newTotal = currentTotal + sessionDuration;
-        
-        const updatedDurations = { ...ticketDurations, [activeTicketId]: newTotal };
-        setTicketDurations(updatedDurations);
-        localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
-
-        // Stop the ticket first
-        await localTimeStore.stopTicket(user.id, activeTicketId, 'Session ended', activeTicketTeamId);
-
-        setActiveTicketId(null);
-        setActiveTicketTitle(null);
-        setActiveTicketTeamId(null);
-        setTicketStartTime(null);
-        localStorage.removeItem('activeTicketId');
-        localStorage.removeItem('activeTicketTitle');
-        localStorage.removeItem('activeTicketTeamId');
-        localStorage.removeItem('ticketStartTime');
-      }
-
       // Then clock out
       await localTimeStore.clockOut(user.id, null, teamId || null);
 
       // Attempt to sync immediately
       await syncManager.syncNow();
-
     } else {
       // Clock In Session
       const now = Date.now();
@@ -197,6 +185,57 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       await syncManager.syncNow();
     }
   };
+
+  const confirmStopTicketAndSession = async () => {
+    if (!user?.id) return;
+
+    // First stop the ticket
+    if (activeTicketId && ticketStartTime) {
+      const now = Date.now();
+      const sessionDuration = now - ticketStartTime;
+      const currentTotal = ticketDurations[activeTicketId] || 0;
+      const newTotal = currentTotal + sessionDuration;
+      
+      const updatedDurations = { ...ticketDurations, [activeTicketId]: newTotal };
+      setTicketDurations(updatedDurations);
+      localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
+
+      // Stop the ticket
+      await localTimeStore.stopTicket(user.id, activeTicketId, stopTicketComment || 'Session ended', activeTicketTeamId);
+
+      setActiveTicketId(null);
+      setActiveTicketTitle(null);
+      setActiveTicketTeamId(null);
+      setTicketStartTime(null);
+      localStorage.removeItem('activeTicketId');
+      localStorage.removeItem('activeTicketTitle');
+      localStorage.removeItem('activeTicketTeamId');
+      localStorage.removeItem('ticketStartTime');
+    }
+
+    // Then clock out session
+    setIsSessionActive(false);
+    setSessionStartTime(null);
+    localStorage.removeItem('sessionStartTime');
+
+    await localTimeStore.clockOut(user.id, null, pendingSessionStopTeamId || null);
+
+    // Attempt to sync immediately
+    await syncManager.syncNow();
+    
+    // Reset Modal
+    setIsStopTicketModalOpen(false);
+    setStopTicketComment('');
+    setPendingSessionStopTeamId(undefined);
+  };
+
+  const cancelStopTicketAndSession = () => {
+    setIsStopTicketModalOpen(false);
+    setStopTicketComment('');
+    setPendingSessionStopTeamId(undefined);
+  };
+
+
 
   const toggleTicketTimer = async (ticketId: string, ticketTitle: string, teamId?: string, comment?: string) => {
     if (!isSessionActive) return; // Cannot start ticket timer if session is not active
@@ -300,6 +339,38 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       getFormattedTotalTime
     }}>
       {children}
+      <Modal
+        isOpen={isStopTicketModalOpen}
+        onClose={cancelStopTicketAndSession}
+        title={`Stop working on "${activeTicketTitle || 'Ticket'}"?`}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            You are clocking out but the ticket timer is still running. Please add a comment to stop the ticket and clock out.
+          </p>
+          <textarea
+            value={stopTicketComment}
+            onChange={(e) => setStopTicketComment(e.target.value)}
+            placeholder="What did you work on?"
+            className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            autoFocus
+          />
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={cancelStopTicketAndSession}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmStopTicketAndSession}
+              className="px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors bg-blue-600 hover:bg-blue-700"
+            >
+              Stop & Clock Out
+            </button>
+          </div>
+        </div>
+      </Modal>
     </ClockInContext.Provider>
   );
 }

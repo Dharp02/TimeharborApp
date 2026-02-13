@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { 
   signup, 
   signin, 
-  getMe, 
+  getMe,
+  updateProfile,
   refreshAccessToken,
   forgotPassword,
   resetPassword,
@@ -30,6 +31,7 @@ router.post('/reset-password', resetPasswordValidation, validateRequest, resetPa
 
 // Protected routes (require authentication)
 router.get('/me', authenticateToken, getMe);
+router.put('/me', authenticateToken, updateProfile);
 router.post('/signout', signout);
 router.post('/register-device', authenticateToken, registerDevice);
 

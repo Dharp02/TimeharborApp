@@ -52,3 +52,29 @@ export async function copyText(text: string) {
     }
   }
 }
+
+export const enhanceTicketData = (rawTicket: any) => {
+  const dateStr = rawTicket.lastWorkedOn;
+  let formattedDate = 'Recently';
+  
+  if (dateStr) {
+    try {
+      formattedDate = new Date(dateStr).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+      });
+    } catch (e) {
+      formattedDate = dateStr;
+    }
+  }
+
+  return {
+    ...rawTicket,
+    status: rawTicket.status || 'In Progress',
+    timeSpent: formattedDate,
+    references: rawTicket.references || []
+  };
+};

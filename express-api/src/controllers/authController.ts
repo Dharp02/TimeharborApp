@@ -119,6 +119,47 @@ export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
   res.json({ user: user.toJSON() });
 });
 
+// Update user profile
+export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    throw new AppError('User not authenticated', 401);
+  }
+
+  const { full_name, email } = req.body;
+
+  const user = await User.findByPk(req.user.id);
+  
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  // Update fields
+  if (full_name) user.full_name = full_name;
+  
+  // If email is changing, we should verify it doesn't exist
+  if (email && email !== user.email) {
+      const existingUser = await User.findOne({ where: { email } });
+      if (existingUser) {
+        throw new AppError('Email already in use', 409);
+      }
+      user.email = email;
+      user.email_verified = false; // Require verification again
+  }
+
+  await user.save();
+
+  res.json({ 
+    user: {
+      id: user.id,
+      email: user.email,
+      full_name: user.full_name,
+      email_verified: user.email_verified,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    } 
+  });
+});
+
 // Refresh access token
 export const refreshAccessToken = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { refresh_token } = req.body;

@@ -194,3 +194,120 @@ export const getActivity = async (teamId?: string, limit?: number | 'all'): Prom
     return activities;
   }
 };
+
+export interface MemberProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  github?: string;
+  linkedin?: string;
+}
+
+export interface ClockEvent {
+  type: 'CLOCK_IN' | 'CLOCK_OUT';
+  timestamp: string;
+  time: string;
+}
+
+export interface MemberActivityData {
+  member: MemberProfile;
+  timeTracking: {
+    today: {
+      duration: string;
+      clockEvents: ClockEvent[];
+    };
+    week: {
+      duration: string;
+    };
+  };
+  recentTickets: Array<{
+    id: string;
+    title: string;
+    lastWorkedOn: string;
+  }>;
+  sessions?: Array<{
+    id: string;
+    startTime: string;
+    endTime?: string | null;
+    status: 'active' | 'completed' | 'adhoc';
+    events: Array<{
+      id: string;
+      type: string;
+      title: string;
+      timestamp: string;
+      original: any;
+      timeFormatted: string;
+    }>;
+  }>;
+}
+
+export const getMemberActivity = async (memberId: string, teamId?: string, cursor?: string, limit: number = 5): Promise<MemberActivityData> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+  if (!token) throw new Error('No access token found');
+
+  try {
+    const params = new URLSearchParams();
+    if (teamId) params.append('teamId', teamId);
+    if (cursor) params.append('cursor', cursor);
+    if (limit) params.append('limit', limit.toString());
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+
+    const response = await fetch(`${API_URL}/dashboard/member/${memberId}${queryString}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch member activity');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching member activity:', error);
+    throw error;
+  }
+};
+
+export interface WorkLogReply {
+  id: string;
+  content: string;
+  userId: string;
+  user?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+  createdAt: string;
+}
+
+export const addWorkLogReply = async (workLogId: string, message: string): Promise<WorkLogReply> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+  if (!token) throw new Error('No access token found');
+
+  try {
+    const response = await fetch(`${API_URL}/dashboard/activity/reply`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ workLogId, message }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to send reply');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error sending reply:', error);
+    throw error;
+  }
+};

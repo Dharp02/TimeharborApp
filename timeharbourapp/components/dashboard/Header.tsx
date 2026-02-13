@@ -4,6 +4,7 @@ import { Home, Users, Ticket, Settings, LogOut, ArrowRightLeft } from 'lucide-re
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
+import NotificationBell from './NotificationBell';
 
 interface HeaderProps {
   onTeamSwitch: () => void;
@@ -13,7 +14,7 @@ interface HeaderProps {
 export default function Header({ onTeamSwitch, currentTeamName }: HeaderProps) {
   const pathname = usePathname();
   const isActive = (path: string) => pathname === path;
-
+  
   const handleSignOut = async () => {
     try {
       await auth.signOut();
@@ -28,7 +29,7 @@ export default function Header({ onTeamSwitch, currentTeamName }: HeaderProps) {
     { name: 'Tickets', href: '/dashboard/tickets', icon: Ticket },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
-
+  
   return (
     <header className="hidden md:flex items-center justify-between px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 fixed top-0 left-0 right-0 z-40 h-20">
       <div className="flex items-center gap-12">
@@ -57,6 +58,9 @@ export default function Header({ onTeamSwitch, currentTeamName }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Notification Icon */}
+        <NotificationBell isMobile={false} />
+
         <button
           onClick={onTeamSwitch}
           className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors text-sm font-medium border border-gray-200 dark:border-gray-700"

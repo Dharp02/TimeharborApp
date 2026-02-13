@@ -41,8 +41,9 @@ export default function SettingsPage() {
   return (
     <>
       {/* Mobile View */}
-      <div className="md:hidden p-4 space-y-6">
+      <div className="md:hidden -mt-2 p-4 space-y-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Menu</h1>
+
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
           <Link 
