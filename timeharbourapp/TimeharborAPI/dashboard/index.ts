@@ -225,16 +225,36 @@ export interface MemberActivityData {
     title: string;
     lastWorkedOn: string;
   }>;
+  sessions?: Array<{
+    id: string;
+    startTime: string;
+    endTime?: string | null;
+    status: 'active' | 'completed' | 'adhoc';
+    events: Array<{
+      id: string;
+      type: string;
+      title: string;
+      timestamp: string;
+      original: any;
+      timeFormatted: string;
+    }>;
+  }>;
 }
 
-export const getMemberActivity = async (memberId: string, teamId?: string): Promise<MemberActivityData> => {
+export const getMemberActivity = async (memberId: string, teamId?: string, cursor?: string, limit: number = 5): Promise<MemberActivityData> => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
   if (!token) throw new Error('No access token found');
 
   try {
-    const queryParams = teamId ? `?teamId=${teamId}` : '';
-    const response = await fetch(`${API_URL}/dashboard/member/${memberId}${queryParams}`, {
+    const params = new URLSearchParams();
+    if (teamId) params.append('teamId', teamId);
+    if (cursor) params.append('cursor', cursor);
+    if (limit) params.append('limit', limit.toString());
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+
+    const response = await fetch(`${API_URL}/dashboard/member/${memberId}${queryString}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',

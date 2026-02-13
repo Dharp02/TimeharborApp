@@ -3,10 +3,11 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Clock, User, Briefcase, Calendar, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { ChevronLeft, Clock, User, Calendar, Loader2 } from 'lucide-react';
 import * as API from '@/TimeharborAPI/dashboard';
-import { enhanceTicketData } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { ActivitySession } from './types';
+import { SessionCard } from './components/SessionCard';
 
 interface MemberPageProps {
   memberId?: string;
@@ -34,19 +35,50 @@ function MemberPageContent({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination State
+  const [sessions, setSessions] = useState<ActivitySession[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const mapSessionFromApi = (s: any): ActivitySession => ({
+        id: s.id,
+        startTime: new Date(s.startTime),
+        endTime: s.endTime ? new Date(s.endTime) : undefined,
+        status: s.status,
+        events: s.events
+            .filter((e: any) => {
+                if (!shouldShowClockEvents && e.type === 'CLOCK') return false;
+                return true;
+            })
+            .map((e: any) => ({
+                ...e,
+                timestamp: new Date(e.timestamp),
+                original: e.original || {},
+                timeFormatted: e.timeFormatted || new Date(e.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+            }))
+  });
+
   useEffect(() => {
-    if (!memberId) {
-      // If we don't have an ID yet (maybe directly navigation to /member without params), we can't load data
-      // We might want to handle this gracefully, e.g. show nothing or redirect back
-      return;
-    }
+    if (!memberId) return;
 
     const fetchMemberActivity = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await API.getMemberActivity(memberId, teamId);
+        const data = await API.getMemberActivity(memberId, teamId, undefined, 5);
         setMemberData(data);
+        
+        if (data.sessions) {
+            const mappedSessions = data.sessions.map(mapSessionFromApi);
+            setSessions(mappedSessions);
+            if (data.sessions.length >= 5) {
+                setHasMore(true);
+                setNextCursor(data.sessions[data.sessions.length - 1].startTime);
+            } else {
+                setHasMore(false);
+            }
+        }
       } catch (err) {
         console.error('Error fetching member activity:', err);
         setError('Failed to load member activity');
@@ -57,6 +89,32 @@ function MemberPageContent({
 
     fetchMemberActivity();
   }, [memberId, teamId]);
+
+  const handleShowMore = async () => {
+      if (!nextCursor || loadingMore) return;
+      
+      setLoadingMore(true);
+      try {
+           const data = await API.getMemberActivity(memberId, teamId, nextCursor, 5);
+           if (data.sessions && data.sessions.length > 0) {
+               const newSessions = data.sessions.map(mapSessionFromApi);
+               setSessions(prev => [...prev, ...newSessions]);
+               
+               if (data.sessions.length >= 5) {
+                   setHasMore(true);
+                   setNextCursor(data.sessions[data.sessions.length - 1].startTime);
+               } else {
+                   setHasMore(false);
+               }
+           } else {
+               setHasMore(false);
+           }
+      } catch (err) {
+          console.error("Error loading more sessions", err);
+      } finally {
+          setLoadingMore(false);
+      }
+  };
 
   if (!memberId) {
      return (
@@ -111,19 +169,10 @@ function MemberPageContent({
 
   const { member, timeTracking, recentTickets } = memberData;
 
-  // Sort clock events to show latest first
-  const sortedClockEvents = [...timeTracking.today.clockEvents].sort((a, b) => {
-    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-  });
+
 
   // Pulse count temporary disabled (set to 0)
   const pulseCount = 0;
-
-  // Styles for timeline
-  const timelineItemClass = "relative pl-6 py-3 border-l-2 border-slate-700 last:border-0";
-  const getDotClass = (type: string) => `absolute -left-[5px] top-4 w-2.5 h-2.5 rounded-full ring-4 ring-slate-900 ${
-    type === 'CLOCK_IN' ? 'bg-emerald-500' : 'bg-orange-500'
-  }`;
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
@@ -196,117 +245,41 @@ function MemberPageContent({
         </div>
       </div>
 
-      {/* Main Content: Recent Tickets & Clock Events */}
-      <div className={`grid grid-cols-1 ${shouldShowClockEvents ? 'lg:grid-cols-2' : ''} gap-6`}>
-        {/* Left Column: Recent Tickets */}
-        {shouldShowTickets && (
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors h-fit">
-           <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                 <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
-                    <Briefcase className="w-5 h-5" />
+      {/* Main Content: Unified Activity Timeline */}
+      <div className="space-y-4">
+         <div className="flex items-center justify-between mb-2 px-2">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+               Activity Feed
+            </h2>
+         </div>
+
+         <div className="space-y-4">
+           {sessions.length > 0 ? (
+             sessions.map((session) => (
+               <SessionCard key={session.id} session={session} />
+             ))
+           ) : (
+              <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700">
+                 <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center text-gray-400">
+                    <Clock className="w-6 h-6" />
                  </div>
-                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Recent Tickets</h2>
+                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No activity yet</h3>
+                 <p className="text-gray-500 dark:text-gray-400">Activity will appear here when working</p>
               </div>
-              {recentTickets.length > 0 && (
-                <Link href="/dashboard/tickets" className="text-sm text-blue-500 hover:text-blue-400">
-                  View All
-                </Link>
-              )}
-           </div>
-           
-           <div className="space-y-3">
-             {recentTickets.length > 0 ? (
-               recentTickets.map((rawTicket, index) => {
-                 const ticket = enhanceTicketData(rawTicket);
-                 return (
-                 <div 
-                   key={ticket.id || index}
-                   className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors group"
-                 >
-                   <div className="flex justify-between items-start mb-2">
-                      <Link href={`/dashboard/tickets/${ticket.id}`} className="font-medium text-gray-900 dark:text-white hover:text-blue-500 text-base line-clamp-1 flex-1 mr-3">
-                         {ticket.title}
-                      </Link>
-                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
-                         {ticket.status || 'In Progress'}
-                      </span>
-                   </div>
-                   
-                   <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-3">
-                      <div className="flex items-center gap-1.5">
-                         <Clock className="w-3.5 h-3.5" />
-                         <span>{ticket.timeSpent}</span>
-                      </div>
-                   </div>
+           )}
+         </div>
 
-                   {/* References Section */}
-                   {ticket.references && ticket.references.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                         {ticket.references.map((ref: any, i: number) => (
-                            <a 
-                               key={i} 
-                               href={ref.url}
-                               onClick={(e) => e.stopPropagation()}
-                               className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-white dark:bg-gray-800 text-xs text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-600 shadow-sm"
-                            >
-                               {ref.type === 'github' ? <ExternalLink className="w-3 h-3" /> : <LinkIcon className="w-3 h-3" />}
-                               {ref.label}
-                            </a>
-                         ))}
-                      </div>
-                   )}
-                 </div>
-               )})
-             ) : (
-                <div className="text-center py-8 text-gray-400 dark:text-gray-500">
-                  <Briefcase className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                  <p>No recent activity found</p>
-                </div>
-             )}
-           </div>
-        </div>
-        )}
-
-        {/* Right Column: Clock Events Timeline */}
-        {shouldShowClockEvents && (
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors h-fit">
-          <div className="flex justify-between items-center mb-6">
-             <div className="flex items-center gap-3">
-                 <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-500">
-                    <Clock className="w-5 h-5" />
-                 </div>
-                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Clock Events</h2>
-             </div>
-             <span className="text-gray-500 dark:text-gray-400 text-sm">Today</span>
-          </div>
-
-          <div className="space-y-1 pl-2">
-            {sortedClockEvents.length > 0 ? (
-              sortedClockEvents.map((event, index) => (
-                <div key={index} className="relative pl-8 pb-8 border-l border-gray-200 dark:border-gray-700 last:border-0 last:pb-0">
-                  <div className={getDotClass(event.type)} />
-                  <div className="bg-gray-50/50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center group hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
-                     <div className="flex items-center gap-3">
-                        <span className={`font-medium ${event.type === 'CLOCK_IN' ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}`}>
-                           {event.type === 'CLOCK_IN' ? 'Clocked In' : 'Clocked Out'}
-                        </span>
-                     </div>
-                     <div className="flex items-center gap-4">
-                        <span className="text-gray-500 dark:text-gray-400 font-mono">{event.time}</span>
-                     </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-               <div className="text-center py-8 text-gray-400 dark:text-gray-500">
-                  <div className="w-2.5 h-2.5 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" />
-                  <p>No clock events recorded today</p>
-               </div>
-            )}
-          </div>
-        </div>
-        )}
+         {hasMore && (
+            <div className="flex justify-center pt-4 pb-8">
+                <button
+                    onClick={handleShowMore}
+                    disabled={loadingMore}
+                    className="px-6 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-2 shadow-sm"
+                >
+                    {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Show More'}
+                </button>
+            </div>
+         )}
       </div>
     </div>
   );

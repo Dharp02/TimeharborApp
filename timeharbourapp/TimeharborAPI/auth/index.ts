@@ -288,6 +288,15 @@ export const getUser = async () => {
   if (!isBrowser) {
     return { user: null, error: null };
   }
+
+  // Check if we have tokens. If not, don't attempt to fetch user.
+  // This prevents 401 errors on the login page or for unauthenticated users.
+  const token = getAccessToken();
+  const refreshToken = getRefreshToken();
+  
+  if (!token && !refreshToken) {
+    return { user: null, error: null };
+  }
   
   // Try to return stored user immediately for better UX
   const storedUser = await getStoredUser();

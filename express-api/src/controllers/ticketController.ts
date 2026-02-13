@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
-import { Op } from 'sequelize';
+import { Op, ValidationError } from 'sequelize';
 import { Ticket, Member, User, Team } from '../models';
 import { AuthRequest } from '../middleware/authMiddleware';
 import sequelize from '../config/sequelize';
+import logger from '../utils/logger';
 
 export const createTicket = async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
@@ -162,8 +163,13 @@ export const updateTicket = async (req: Request, res: Response) => {
     });
 
     res.json(updatedTicket);
-  } catch (error) {
-    console.error('Error updating ticket:', error);
+  } catch (error: any) {
+    logger.error('Error updating ticket: ' + (error instanceof Error ? error.message : String(error)));
+    logger.error(error); // Log full stack trace
+    if (error instanceof ValidationError) {
+      res.status(400).json({ message: error.message });
+      return;
+    }
     res.status(500).json({ message: 'Error updating ticket' });
   }
 };

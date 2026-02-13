@@ -59,7 +59,7 @@ Ticket.init(
       allowNull: false,
     },
     link: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     teamId: {

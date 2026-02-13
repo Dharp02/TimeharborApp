@@ -70,6 +70,17 @@ class SyncManager {
           break;
         }
 
+        // If it's a client error (4xx), the request is invalid and retrying won't help. 
+        // We should delete it to unblock the queue.
+        if (error.message.startsWith('CLIENT_ERROR')) {
+           console.warn(`Mutation ${mutation.id} failed with client error, removing from queue:`, error.message);
+           if (mutation.id) {
+             await db.offlineMutations.delete(mutation.id);
+           }
+           // Continue to next mutation
+           continue;
+        }
+
         // Stop processing to maintain order
         break; 
       }
@@ -91,7 +102,15 @@ class SyncManager {
       if (response.status === 401) {
         throw new Error('Session expired. Please sign in again.');
       }
-      throw new Error(`HTTP error! status: ${response.status}`);
+      
+      // If client error (4xx), throw a specific error that we can catch and handle (delete mutation)
+      if (response.status >= 400 && response.status < 500) {
+        const text = await response.text();
+        throw new Error(`CLIENT_ERROR: ${response.status} - ${text}`);
+      }
+
+      const responseText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
     }
 
     // Handle ID updates if the server returns a new ID

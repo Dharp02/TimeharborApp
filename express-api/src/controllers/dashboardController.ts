@@ -478,6 +478,250 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
       })
     }));
 
+    // --- Pagination Logic for Work Sessions ---
+    const { cursor, limit } = req.query;
+    const limitNum = limit ? parseInt(limit as string) : 5;
+    const cursorDate = cursor ? new Date(cursor as string) : new Date();
+
+    // Fetch enough logs to construct at least 'limit' sessions
+    // We assume ~20 events per session is a safe upper bound to fetch enough data
+    const sessionLogs = await WorkLog.findAll({
+      where: {
+        userId: memberId,
+        timestamp: { [Op.lt]: cursorDate },
+        ...(teamId && { teamId: teamId as string })
+      },
+      // Removed include to avoid potential association errors, will fetch tickets manually
+      order: [['timestamp', 'DESC']],
+      limit: limitNum * 20 
+    });
+
+    // Fetch related tickets manually to ensure we have details for references
+    const ticketIds = new Set<string>();
+    sessionLogs.forEach(log => {
+        if (log.ticketId) ticketIds.add(log.ticketId);
+    });
+    
+    const relatedTicketsMap = new Map();
+    if (ticketIds.size > 0) {
+        const relatedTickets = await Ticket.findAll({
+            where: { id: Array.from(ticketIds) }
+        });
+        relatedTickets.forEach(t => relatedTicketsMap.set(t.id, t));
+    }
+
+    // Group logs into sessions (Newest First)
+    const sessions: any[] = [];
+    let currentSession: any = null;
+
+    // Process logs (chronological for grouping logic, so reverse first)
+    // Convert to plain objects to attach ticket data freely and avoid circular dependencies in Sequelize instances
+    const chronoSessionsLogs = sessionLogs.map(log => {
+        const plainLog = log.get({ plain: true }) as any;
+        if (plainLog.ticketId && relatedTicketsMap.has(plainLog.ticketId)) {
+            plainLog.ticket = relatedTicketsMap.get(plainLog.ticketId)?.get({ plain: true });
+        }
+        return plainLog;
+    }).reverse();
+
+    for (const event of chronoSessionsLogs) {
+      // event is now a plain object
+      
+      if (event.type === 'CLOCK_IN') {
+        // Start of a session (or end of "Active" session if processing reversed)
+        // With DESC logs reversed -> Chronological (Oldest -> Newest)
+        
+        // If we have an open session, this CLOCK_IN is its start.
+        // Wait, currentSession logic in getRecentActivity loop:
+        /*
+          if (CLOCK_IN) {
+             if (currentSession && !currentSession.endTime) { currentSession.endTime = event.timestamp ... } // Wait, CLOCK_IN ends a session? No. 
+             // In getRecentActivity logic above:
+             // if (CLOCK_IN) -> close current (if open??) -> start NEW session.
+        */
+       
+       // Let's re-verify getRecentActivity logic.
+       // It seems to assume CLOCK_IN starts a NEW session.
+       // If there was a previous session pending? It closes it?
+       // Actually, let's use the robust logic from MemberPageClient but on backend.
+       
+       // MemberPageClient Logic (Ascending):
+       // CLOCK_IN -> New Session.
+       // CLOCK_OUT -> End Current Session.
+       
+       if (currentSession && !currentSession.endTime) {
+          // We have an active session, and we hit another CLOCK_IN?
+          // This implies the previous one was never clocked out. 
+          // Auto-close it? Or just leave it active?
+          // For now, let's just start a new one.
+          sessions.push(currentSession);
+       }
+       
+       currentSession = {
+          id: `session-${event.id}`,
+          startTime: event.timestamp,
+          endTime: null,
+          events: [event],
+          status: 'active'
+       };
+       
+      } else if (event.type === 'CLOCK_OUT') {
+         if (currentSession) {
+             currentSession.endTime = event.timestamp;
+             currentSession.status = 'completed';
+             currentSession.events.push(event);
+             sessions.push(currentSession);
+             currentSession = null;
+         } else {
+             // Orphaned Clock Out? Ignore or create adhoc?
+         }
+      } else {
+         // Ticket or Ticket Start/Stop
+         if (currentSession) {
+             currentSession.events.push(event);
+         } else {
+             // Event outside session - maybe create adhoc session?
+             // Or attach to a "Miscellaneous" session?
+             // For now, let's ignore or create a temp session if critical.
+             // Given the requirements, let's be lenient.
+             /*
+             currentSession = {
+                id: `adhoc-${event.id}`,
+                startTime: event.timestamp,
+                endTime: event.timestamp, // single point?
+                events: [event],
+                status: 'adhoc'
+             };
+             sessions.push(currentSession);
+             currentSession = null;
+             */
+             // Actually, grouping tickets to "Sessions" requires a CLOCK_IN usually.
+             // If we don't have one, we can just group by similarity or time proximity? 
+             // Let's skip for now to match frontend logic which requires CLOCK_IN.
+         }
+      }
+    }
+    
+    // If we have a lingering currentSession (Active), push it
+    if (currentSession) {
+        sessions.push(currentSession);
+    }
+
+    // Now sessions are Ascending. Reverse to get Newest First.
+    const reversedSessions = sessions.reverse();
+    
+    // Slice to limit
+    const paginatedSessions = reversedSessions.slice(0, limitNum);
+
+    // Map to simplified structure for frontend
+    const formattedSessions = paginatedSessions.map(session => {
+        const groupedEvents: any[] = [];
+        let pendingTicket: any = null;
+
+        const flushPendingTicket = (forceEndTimestamp?: Date) => {
+             if (pendingTicket) {
+                 let durationStr = '';
+                 const startTime = new Date(pendingTicket.startTime);
+                 
+                 let endTime = pendingTicket.endTime ? new Date(pendingTicket.endTime) : null;
+                 
+                 if (endTime) {
+                     const diff = endTime.getTime() - startTime.getTime();
+                     const minutes = Math.floor(diff / 60000);
+                     if (minutes < 1) durationStr = '< 1m';
+                     else if (minutes < 60) durationStr = `${minutes}m`;
+                     else {
+                         const h = Math.floor(minutes / 60);
+                         const m = minutes % 60;
+                         durationStr = `${h}h ${m}m`;
+                     }
+                 } else {
+                     durationStr = startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true});
+                 }
+
+                 // Extract detailed ticket info
+                 const originalTicket = pendingTicket.originalStart.ticket;
+                 const references = [];
+                 if (originalTicket && originalTicket.link) {
+                     references.push({ type: 'link', url: originalTicket.link, label: 'External Link' });
+                 }
+
+                 groupedEvents.push({
+                     id: pendingTicket.startId, 
+                     type: 'TICKET',
+                     title: pendingTicket.ticketTitle || 'Ticket Work',
+                     timestamp: pendingTicket.startTime,
+                     references,
+                     original: {
+                         ...pendingTicket.originalStart,
+                         comment: pendingTicket.comment, 
+                     },
+                     timeFormatted: durationStr,
+                     startTimeFormatted: startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true}),
+                     endTimeFormatted: endTime ? endTime.toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true}) : undefined
+                 });
+                 pendingTicket = null;
+             }
+        };
+
+        // Current session events are already chronological (CLOCK_IN -> ... -> CLOCK_OUT)
+        session.events.forEach((e: any) => {
+            if (e.type === 'CLOCK_IN' || e.type === 'CLOCK_OUT') {
+                flushPendingTicket();
+                groupedEvents.push({
+                    id: e.id,
+                    type: 'CLOCK',
+                    title: e.type === 'CLOCK_IN' ? 'Clocked In' : 'Clocked Out',
+                    timestamp: e.timestamp,
+                    original: e,
+                    timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
+                });
+            } else if (e.type === 'START_TICKET') {
+                flushPendingTicket(e.timestamp); // force flush previous ticket
+                pendingTicket = {
+                    startId: e.id,
+                    startTime: e.timestamp,
+                    ticketTitle: e.ticketTitle,
+                    originalStart: e,
+                    comment: e.comment 
+                };
+            } else if (e.type === 'STOP_TICKET') {
+                if (pendingTicket) {
+                    if (!pendingTicket.ticketTitle && e.ticketTitle) pendingTicket.ticketTitle = e.ticketTitle;
+                    pendingTicket.endTime = e.timestamp;
+                    if (e.comment) pendingTicket.comment = e.comment; 
+                    flushPendingTicket();
+                } else {
+                    // Orphaned stop
+                     groupedEvents.push({
+                         id: e.id,
+                         type: 'TICKET',
+                         title: e.ticketTitle || 'Ticket Work',
+                         timestamp: e.timestamp,
+                         original: e,
+                         timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
+                     });
+                }
+            } else {
+                 flushPendingTicket();
+                 groupedEvents.push({
+                     id: e.id,
+                     type: 'UNKNOWN',
+                     title: 'Unknown Event',
+                     timestamp: e.timestamp,
+                     original: e,
+                     timeFormatted: ''
+                 });
+            }
+        });
+        flushPendingTicket();
+
+        return {
+            ...session,
+            events: groupedEvents
+        };
+    });
+
     res.json({
       member: {
         id: member.id,
@@ -499,7 +743,8 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
         id: ticket.ticketId,
         title: ticket.ticketTitle,
         lastWorkedOn: ticket.timestamp
-      }))
+      })),
+      sessions: formattedSessions
     });
 
   } catch (error) {
