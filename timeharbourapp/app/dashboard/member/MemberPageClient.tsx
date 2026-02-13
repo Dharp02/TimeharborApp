@@ -3,8 +3,9 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Clock, User, Calendar, Loader2 } from 'lucide-react';
+import { ChevronLeft, Clock, User, Calendar, Loader2, Github, Linkedin, ChevronDown, Zap } from 'lucide-react';
 import * as API from '@/TimeharborAPI/dashboard';
+import * as TeamAPI from '@/TimeharborAPI/teams';
 import { useRouter } from 'next/navigation';
 import { ActivitySession } from './types';
 import { SessionCard } from './components/SessionCard';
@@ -42,6 +43,7 @@ function MemberPageContent({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>('today');
+  const [teamMembers, setTeamMembers] = useState<TeamAPI.Member[]>([]);
 
   const filteredSessions = sessions.filter(session => {
     const sessionDate = new Date(session.startTime);
@@ -122,6 +124,30 @@ function MemberPageContent({
     fetchMemberActivity();
   }, [memberId, teamId]);
 
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      try {
+        const teams = await TeamAPI.fetchMyTeams();
+        let targetTeam: TeamAPI.Team | undefined;
+        
+        if (teamId) {
+            targetTeam = teams.find(t => t.id === teamId);
+        } else if (memberId) {
+             targetTeam = teams.find(t => t.members.some(m => m.id === memberId));
+        }
+        
+        if (!targetTeam && teams.length > 0) targetTeam = teams[0];
+
+        if (targetTeam) {
+            setTeamMembers(targetTeam.members);
+        }
+      } catch (err) {
+        console.error("Failed to load team members", err);
+      }
+    };
+    loadTeamMembers();
+  }, [teamId, memberId]);
+
   const handleShowMore = async () => {
       if (!nextCursor || loadingMore) return;
       
@@ -199,9 +225,14 @@ function MemberPageContent({
     );
   }
 
-  const { member, timeTracking, recentTickets } = memberData;
+  const { member: apiMember, timeTracking, recentTickets } = memberData;
 
-
+  // TEMPORARY: Inject dummy social links so you can see the UI layout
+  const member = {
+    ...apiMember,
+    github: apiMember.github || 'https://github.com',
+    linkedin: apiMember.linkedin || 'https://linkedin.com'
+  };
 
   // Pulse count temporary disabled (set to 0)
   const pulseCount = 0;
@@ -226,60 +257,109 @@ function MemberPageContent({
           <div className="w-20 h-20 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0 text-2xl text-white font-medium">
             <User className="w-10 h-10" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{member.name}</h1>
-            <p className="text-gray-500 dark:text-gray-400 mb-3">{member.email}</p>
-            <div className="flex gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="relative group w-fit">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2 cursor-pointer">
+                  {member.name}
+                  <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                </h1>
+                {teamMembers.length > 0 && (
+                    <select 
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        value={member.id}
+                        onChange={(e) => {
+                            const newId = e.target.value;
+                            if (newId !== member.id) {
+                                const url = `/dashboard/member?id=${newId}${teamId ? `&teamId=${teamId}` : ''}`;
+                                router.push(url);
+                            }
+                        }}
+                    >
+                        {teamMembers.map((m) => (
+                            <option key={m.id} value={m.id}>
+                                {m.name}
+                            </option>
+                        ))}
+                    </select>
+                )}
+            </div>
+            
+            <p className="text-gray-500 dark:text-gray-400 mb-3 truncate">{member.email}</p>
+            
+            <div className="flex flex-wrap items-center gap-3">
               <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 text-sm font-medium border border-gray-200 dark:border-gray-700 flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${member.status === 'online' ? 'bg-green-500' : 'bg-slate-500'}`} />
                 {member.status === 'online' ? 'Online' : 'Offline'}
               </span>
+
+              {/* Pulse Count & Social Links */}
+              <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-full border border-amber-100 dark:border-amber-800/30" title="Pulse Points">
+                     <Zap className="w-3.5 h-3.5 fill-current" />
+                     <span className="text-sm font-bold">{pulseCount}</span>
+                  </div>
+
+                  {(member.github || member.linkedin) && (
+                    <>
+                       <div className="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1 hidden sm:block"></div>
+                       {member.github && (
+                        <a 
+                          href={member.github}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors border border-gray-100 dark:border-gray-700"
+                          aria-label="GitHub Profile"
+                        >
+                          <Github className="w-4 h-4" />
+                        </a>
+                      )}
+                      {member.linkedin && (
+                        <a 
+                          href={member.linkedin}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors border border-gray-100 dark:border-gray-700"
+                          aria-label="LinkedIn Profile"
+                        >
+                          <Linkedin className="w-4 h-4" />
+                        </a>
+                      )}
+                    </>
+                  )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats Row: Today, Week, Pulses */}
-      <div className="grid grid-cols-3 gap-2 md:gap-4">
+      {/* Stats Row: Today, Week (Compact) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 mb-2">
         {/* Today's Time */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-             <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-                <div className="p-1.5 md:p-2 bg-blue-500/10 rounded-lg text-blue-500 w-fit mx-auto md:mx-0">
-                   <Clock className="w-4 h-4 md:w-5 md:h-5" />
-                </div>
-                <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Today</span>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-3 transition-colors">
+             <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500 flex-shrink-0">
+                <Clock className="w-5 h-5" />
              </div>
-             <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{timeTracking.today.duration}</span>
+             <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Today</p>
+                <p className="text-gray-900 dark:text-white font-bold text-lg leading-tight">{timeTracking.today.duration}</p>
+             </div>
           </div>
 
         {/* Week's Time */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-           <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-              <div className="p-1.5 md:p-2 bg-violet-500/10 rounded-lg text-violet-500 w-fit mx-auto md:mx-0">
-                 <Calendar className="w-4 h-4 md:w-5 md:h-5" />
-              </div>
-              <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Week</span>
-           </div>
-           <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{timeTracking.week.duration}</span>
-        </div>
-
-        {/* Pulses */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-           <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-              <div className="p-1.5 md:p-2 bg-emerald-500/10 rounded-lg text-emerald-500 w-fit mx-auto md:mx-0">
-                 <svg className="w-4 h-4 md:w-5 md:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                 </svg>
-              </div>
-              <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Pulses</span>
-           </div>
-           <p className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{pulseCount}</p>
-        </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-3 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-3 transition-colors">
+             <div className="p-2 bg-violet-500/10 rounded-lg text-violet-500 flex-shrink-0">
+                <Calendar className="w-5 h-5" />
+             </div>
+             <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Week</p>
+                <p className="text-gray-900 dark:text-white font-bold text-lg leading-tight">{timeTracking.week.duration}</p>
+             </div>
+          </div>
       </div>
 
       {/* Main Content: Unified Activity Timeline */}
       <div className="space-y-4">
-         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-2 px-2">
+         <div className="flex flex-row items-center justify-between gap-4 mb-2 px-2">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                Activity Feed
             </h2>

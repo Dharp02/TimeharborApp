@@ -201,6 +201,8 @@ export interface MemberProfile {
   email: string;
   role: string;
   status: string;
+  github?: string;
+  linkedin?: string;
 }
 
 export interface ClockEvent {

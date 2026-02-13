@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar } from 'lucide-react';
+import { Calendar, ChevronDown } from 'lucide-react';
 
 export type TimeRange = 'today' | 'yesterday' | 'week' | 'month';
 
@@ -13,36 +13,35 @@ interface TimeRangeFilterProps {
 const timeRangeOptions: { value: TimeRange; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: 'yesterday', label: 'Yesterday' },
-  { value: 'week', label: 'Week' },
-  { value: 'month', label: 'Month' },
+  { value: 'week', label: 'This Week' },
+  { value: 'month', label: 'This Month' },
 ];
 
 export default function TimeRangeFilter({ selected, onChange, className = '' }: TimeRangeFilterProps) {
+  const selectedOption = timeRangeOptions.find(opt => opt.value === selected) || timeRangeOptions[0];
+
   return (
-    <div className={`flex items-center gap-2 ${className}`} role="group" aria-label="Time range filter">
-      <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-500 hidden sm:block">
-        <Calendar className="w-4 h-4" />
+    <div className={`relative group ${className}`}>
+      <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors cursor-pointer min-w-[140px]">
+        <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+        <span className="flex-1 text-sm font-medium text-gray-900 dark:text-gray-200">
+          {selectedOption.label}
+        </span>
+        <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors" />
       </div>
-      <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
+      
+      <select
+        value={selected}
+        onChange={(e) => onChange(e.target.value as TimeRange)}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        aria-label="Filter activity by time range"
+      >
         {timeRangeOptions.map((option) => (
-          <button
-            key={option.value}
-            onClick={() => onChange(option.value)}
-            className={`
-              px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
-              ${
-                selected === option.value
-                  ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm border border-gray-200 dark:border-gray-600'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-              }
-            `}
-            aria-pressed={selected === option.value}
-            aria-label={`Filter by ${option.label.toLowerCase()}`}
-          >
+          <option key={option.value} value={option.value}>
             {option.label}
-          </button>
+          </option>
         ))}
-      </div>
+      </select>
     </div>
   );
 }
