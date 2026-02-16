@@ -116,4 +116,8 @@ export class TimeharborDB extends Dexie {
   }
 }
 
-export const db = new TimeharborDB();
+// Create the database instance only in browser environments
+// This prevents Dexie initialization errors during Server-Side Rendering (SSR)
+export const db = typeof window !== 'undefined' 
+  ? new TimeharborDB() 
+  : {} as TimeharborDB;

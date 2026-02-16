@@ -217,4 +217,8 @@ class SyncManager {
   }
 }
 
-export const syncManager = SyncManager.getInstance();
+// Create the sync manager instance only in browser environments
+// This prevents initialization errors during Server-Side Rendering (SSR)
+export const syncManager = typeof window !== 'undefined' 
+  ? SyncManager.getInstance() 
+  : {} as SyncManager;
