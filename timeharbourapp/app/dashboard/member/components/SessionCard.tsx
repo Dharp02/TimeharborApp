@@ -6,40 +6,39 @@ import { ClockEventItem } from './ClockEventItem';
 
 export function SessionCard({ session }: { session: ActivitySession }) {
   const dateStr = session.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const timeRange = `${session.startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${session.endTime ? session.endTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'Now'}`;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl px-2 py-4 border border-gray-200 dark:border-gray-700 shadow-sm mb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4 px-2">
-         <div className={`w-3 h-3 rounded-full ${session.status === 'adhoc' ? 'bg-orange-400' : 'bg-green-500'}`} />
-         <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
-            {dateStr}
-         </span>
-         <span className="text-base text-gray-500">
-            {timeRange}
-         </span>
+    <div className="mb-8 px-1">
+      {/* Date Header */}
+      <div className="text-xl font-bold text-gray-900 dark:text-white mb-4 px-1">
+         {dateStr}
       </div>
 
-      {/* Timeline */}
-      <div className="relative pl-6 ml-3 border-l border-gray-200 dark:border-gray-800 space-y-4 pb-2">
+      {/* Events List - Timeline Container */}
+      <div className="relative pl-2 ml-0 border-l-2 border-gray-200 dark:border-gray-800 space-y-2 pb-2">
          {session.events.map((event, idx) => {
             const isClock = event.type === 'CLOCK';
             const isClockIn = isClock && event.original.type === 'CLOCK_IN';
+            const isLast = idx === session.events.length - 1;
             
             return (
-               <div key={event.id} className="relative group">
-                  {/* Minimal Dot */}
-                  <div className={`absolute -left-[29px] top-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 ${
+               <div key={event.id} className="relative">
+                  {/* Timeline Dot */}
+                  <div className={`absolute -left-[16px] top-2 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 ${
                      isClock 
                         ? (isClockIn ? 'bg-emerald-500' : 'bg-orange-500')
-                        : 'bg-blue-500'
-                  }`} />
+                        : 'bg-blue-400'
+                  } z-10`} />
 
                   {isClock ? (
                      <ClockEventItem event={event} isClockIn={isClockIn} />
                   ) : (
                      <TicketItem event={event} />
+                  )}
+                  
+                  {/* Separator after Clock Out if not last */}
+                  {isClock && !isClockIn && !isLast && (
+                      <div className="my-4 border-b border-gray-200 dark:border-gray-800 border-dashed" />
                   )}
                </div>
             );

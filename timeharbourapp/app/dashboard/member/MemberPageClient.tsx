@@ -278,9 +278,9 @@ function MemberPageContent({
   };
 
   return (
-    <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col max-h-[100dvh]">
       {/* Profile Header */}
-      <div className="bg-white dark:bg-[#0B1120] px-4 py-6 md:px-8 md:py-8 pb-12 md:pb-16 border-b border-gray-100 dark:border-gray-800 transition-colors duration-200">
+      <div className="bg-white dark:bg-[#0B1120] px-4 py-6 md:px-8 md:py-8 pb-12 md:pb-16 border-b border-gray-100 dark:border-gray-800 transition-colors duration-200 flex-shrink-0">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between gap-4">
             
@@ -380,9 +380,9 @@ function MemberPageContent({
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 md:px-0 -mt-6 md:-mt-8 relative z-10 space-y-6 pb-12">
+      <div className="max-w-5xl w-full mx-auto px-4 md:px-0 -mt-6 md:-mt-8 relative z-10 flex flex-col flex-1 min-h-0 pb-0 overflow-hidden">
         {/* Stats Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 flex-shrink-0 mb-4">
             {(() => {
                 const getRangeConfig = () => {
                     if (timeRange === 'custom') return { show: true, label: 'Custom Range' };
@@ -443,9 +443,9 @@ function MemberPageContent({
             })()}
         </div>
 
-      {/* Main Content: Unified Activity Timeline */}
-       <div className="">
-         <div className="mb-6">
+       {/* Main Content: Unified Activity Timeline */}
+       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+         <div className="mb-4 flex-shrink-0">
             <SlidingDateFilter selected={timeRange} onSelect={setTimeRange} />
             
             {timeRange === 'custom' && (
@@ -468,11 +468,25 @@ function MemberPageContent({
             )}
          </div>
 
-         <div className="space-y-4">
+         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
            {filteredSessions.length > 0 ? (
-             filteredSessions.map((session) => (
-               <SessionCard key={session.id} session={session} />
-             ))
+             <div className="overflow-y-auto pr-2 -mr-2 flex-1 scrollbar-hide">
+               {filteredSessions.map((session) => (
+                 <SessionCard key={session.id} session={session} />
+               ))}
+               
+               {hasMore && (
+                  <div className="flex justify-center py-8">
+                      <button
+                          onClick={handleShowMore}
+                          disabled={loadingMore}
+                          className="px-8 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-2 shadow-sm"
+                      >
+                          {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Show More'}
+                      </button>
+                  </div>
+               )}
+             </div>
            ) : (
               <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-3xl border border-dashed border-gray-200 dark:border-gray-700">
                  <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700/50 rounded-full mx-auto mb-4 flex items-center justify-center text-gray-400">
@@ -485,18 +499,6 @@ function MemberPageContent({
               </div>
            )}
          </div>
-
-         {hasMore && (
-            <div className="flex justify-center pt-8">
-                <button
-                    onClick={handleShowMore}
-                    disabled={loadingMore}
-                    className="px-8 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-2 shadow-sm"
-                >
-                    {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Show More'}
-                </button>
-            </div>
-         )}
       </div>
     </div>
     </div>

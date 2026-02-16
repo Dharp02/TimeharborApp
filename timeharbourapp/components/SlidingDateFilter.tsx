@@ -86,7 +86,7 @@ export function SlidingDateFilter({ selected, onSelect, className = '' }: Slidin
                 <button
                     key={dateStr}
                     onClick={() => onSelect(dateStr)}
-                    className={`flex flex-col items-center justify-center min-w-[64px] h-[72px] rounded-2xl border transition-all duration-200 snap-start flex-shrink-0
+                    className={`flex flex-col items-center justify-center min-w-[64px] h-[68px] rounded-2xl border transition-all duration-200 snap-start flex-shrink-0
                         ${isActive 
                             ? 'bg-blue-600 border-blue-600 text-white dark:bg-blue-500 dark:border-blue-500 dark:text-white shadow-md scale-105' 
                             : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-300 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-400'

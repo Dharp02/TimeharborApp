@@ -36,33 +36,87 @@ export function TicketItem({ event }: { event: SessionEvent }) {
 
   return (
     <div className="flex flex-col w-full group">
-       {/* Main Row - Clickable */}
+       {/* Main Ticket Card */}
        <div 
-          className="flex items-center gap-3 cursor-pointer py-3 px-3 select-none bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-gray-300 dark:hover:border-gray-600 transition-all"
+          className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm transition-all hover:shadow-md cursor-pointer select-none"
           onClick={() => setExpanded(!expanded)}
        >
-          <div className="flex items-center gap-2 min-w-[80px]">
-              <span className="text-sm font-mono text-gray-500">{event.timeFormatted}</span>
+          <div className="flex items-start justify-between mb-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate pr-2">
+                  {event.title}
+              </h3>
+              {event.status && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                      {event.status.replace(/_/g, ' ')}
+                  </span>
+              )}
+          </div>
+
+          <div className="text-xs text-gray-500 mb-4 font-medium flex items-center gap-1.5 flex-wrap">
+              {/* Using timestamp from start of event */}
+              <span>{event.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              
+              {/* Use formatted times if available, fallback to basic time string */}
+              {(event.startTimeFormatted || event.endTimeFormatted) ? (
+                 <>
+                    <span>·</span>
+                    <span>{event.startTimeFormatted}</span>
+                    {event.endTimeFormatted && (
+                        <>
+                            <span>-</span>
+                            <span>{event.endTimeFormatted}</span>
+                        </>
+                    )}
+                    {/* Duration usually in timeFormatted */}
+                    {event.timeFormatted && event.timeFormatted !== event.startTimeFormatted && (
+                        <>
+                            <span>·</span>
+                            <span>{event.timeFormatted}</span>
+                        </>
+                    )}
+                 </>
+              ) : (
+                 <>
+                    <span>·</span>
+                    <span>{event.timeFormatted}</span>
+                 </>
+              )}
+          </div>
+
+          {/* Comment / Reply Box Area */}
+          <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 flex items-start gap-4">
+              <MessageSquare className="w-5 h-5 text-gray-400 mt-1 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                  <div className="max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 pr-1">
+                      <p className="text-base text-gray-700 dark:text-gray-300 font-medium break-words whitespace-pre-wrap">
+                          {event.original?.comment || "No description"}
+                      </p>
+                  </div>
+                  <p className="text-xs text-blue-500 mt-1 font-medium">
+                      Tap to reply
+                  </p>
+              </div>
           </div>
           
-          <Briefcase className="w-5 h-5 text-blue-500 flex-shrink-0" />
-          
-          <div className="flex-1 min-w-0">
-             <span className="text-base font-medium text-gray-900 dark:text-gray-100 truncate block">{event.title}</span>
-             
-             {/* Inline Preview */}
-             {!expanded && hasComments && (
-                 <div className="flex items-center gap-1.5 mt-1 text-gray-400">
-                     <MessageSquare className="w-3.5 h-3.5" />
-                     <span className="text-sm truncate max-w-[200px]">
-                        {replies.length > 0 ? `${replies.length} replies` : event.original.comment}
-                     </span>
-                 </div>
-             )}
-          </div>
+          {/* Latest Reply Preview (if not expanded) */}
+          {!expanded && replies.length > 0 && (
+            <div className="mt-2 pl-3 border-l-2 border-gray-100 dark:border-gray-700 ml-4">
+                <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1">
+                    <span className="font-semibold text-blue-500 mr-1">
+                        {replies[replies.length - 1].user?.full_name || 'You'}:
+                    </span>
+                    {replies[replies.length - 1].content || replies[replies.length - 1]}
+                </div>
+                {replies.length > 1 && (
+                    <div className="text-xs text-blue-500 mt-0.5 font-medium">
+                        View {replies.length - 1} more replies
+                    </div>
+                )}
+            </div>
+          )}
        </div>
 
-       {/* Expanded Content */}
+       {/* Expanded Content - Revealed below card */}
        {expanded && (
           <div className="mt-2 pl-2 space-y-3 pb-2 animate-in fade-in slide-in-from-top-1 duration-200">
              {/* References */}
@@ -83,16 +137,9 @@ export function TicketItem({ event }: { event: SessionEvent }) {
                 </div>
              )}
 
-            {/* Original Comment */}
-            {event.original?.comment && (
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                    <ExpandableText text={event.original.comment} />
-                </div>
-            )}
-             
             {/* Replies */}
             {replies.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-2 mt-2">
                     {replies.map((reply, i) => (
                         <div key={reply.id || i} className="text-sm text-gray-700 dark:text-gray-200 pl-2 border-l-2 border-gray-200 dark:border-gray-700">
                             {reply.user && <span className="font-semibold text-xs text-blue-500 block mb-0.5">{reply.user.full_name}</span>}
@@ -109,7 +156,7 @@ export function TicketItem({ event }: { event: SessionEvent }) {
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     placeholder="Add a reply..."
-                    className="flex-1 text-sm bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                    className="flex-1 text-base bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
                     onKeyDown={(e) => e.key === 'Enter' && !sending && handleSend()}
                 />
                 <button
