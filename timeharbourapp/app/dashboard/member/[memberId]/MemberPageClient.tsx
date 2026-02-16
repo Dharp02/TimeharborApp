@@ -7,7 +7,7 @@ import { ChevronLeft, Clock, User, Briefcase, Calendar, ExternalLink, Link as Li
 import * as API from '@/TimeharborAPI/dashboard';
 import { enhanceTicketData } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import TimeRangeFilter, { TimeRange } from '@/components/TimeRangeFilter';
+import SlidingDateFilter, { DateRangeType } from '@/components/SlidingDateFilter';
 
 interface MemberPageProps {
   memberId?: string;
@@ -34,9 +34,10 @@ export default function MemberPageClient({
   const [memberData, setMemberData] = useState<API.MemberActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState<TimeRange>('today');
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [selectedRange, setSelectedRange] = useState<DateRangeType>('day');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
 
   useEffect(() => {
     const fetchMemberActivity = async () => {
@@ -112,10 +113,13 @@ export default function MemberPageClient({
     
     // Since we only have today's data, we'll return it for today and empty for others
     // This should be updated when the API supports fetching historical data
-    switch (timeRange) {
-      case 'today':
-        return allEvents;
-      case 'yesterday':
+    switch (selectedRange) {
+      case 'day':
+        // Check if selectedDate is today. Simple check.
+        const isToday = selectedDate.getDate() === now.getDate() && 
+                        selectedDate.getMonth() === now.getMonth() && 
+                        selectedDate.getFullYear() === now.getFullYear();
+        return isToday ? allEvents : []; // Show nothing for other dates for now
       case 'week':
       case 'month':
       case 'custom':
@@ -287,15 +291,18 @@ export default function MemberPageClient({
                  </div>
                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Activity Feed</h2>
              </div>
-             <TimeRangeFilter 
-               selected={timeRange} 
-               onChange={setTimeRange} 
-               startDate={customStartDate}
-               endDate={customEndDate}
-               onDateChange={(s, e) => {
-                 setCustomStartDate(s);
-                 setCustomEndDate(e);
+             <SlidingDateFilter 
+               selectedDate={selectedDate}
+               onDateSelect={setSelectedDate}
+               selectedRange={selectedRange}
+               onRangeSelect={setSelectedRange}
+               customStartDate={customStartDate}
+               customEndDate={customEndDate}
+               onCustomRangeChange={(start, end) => {
+                 setCustomStartDate(start);
+                 setCustomEndDate(end);
                }}
+               className="w-full sm:max-w-xl"
              />
           </div>
 
