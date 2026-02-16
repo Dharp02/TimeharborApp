@@ -65,7 +65,7 @@ export function SlidingDateFilter({ selected, onSelect, className = '' }: Slidin
       {/* Scroll Container */}
       <div 
         ref={scrollRef}
-        className="flex overflow-x-auto gap-3 py-4 px-1 scrollbar-hide snap-x snap-mandatory"
+        className="flex overflow-x-auto gap-3 py-0 px-1 scrollbar-hide snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {/* Date Options (Left Side - Chronological) */}
