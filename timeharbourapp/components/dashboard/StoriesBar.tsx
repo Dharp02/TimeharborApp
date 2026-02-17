@@ -51,7 +51,7 @@ export default function StoriesBar() {
             return (
               <Link 
                 key={member.id} 
-                href={`/dashboard/member/${member.id}?teamId=${currentTeam.id}`}
+                href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}`}
                 className={styles.storyItem}
               >
                 <div className={`${styles.storyAvatar} ${styles.memberStory}`}>
