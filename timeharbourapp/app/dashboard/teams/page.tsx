@@ -14,10 +14,17 @@ export default function TeamsPage() {
   const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams } = useTeam();
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'teamactivity' | 'edit' | 'share'>('teamactivity');
 
   useEffect(() => {
     refreshTeams();
   }, []);
+
+  useEffect(() => {
+    if (currentTeam) {
+      setEditTeamName(currentTeam.name);
+    }
+  }, [currentTeam]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -166,7 +173,7 @@ export default function TeamsPage() {
   }, []);
 
   return (
-    <div className="pt-0 pb-4 md:p-6 space-y-6">
+    <div className="pt-0 pb-4 md:p-6 space-y-4">
       <div className="hidden md:flex justify-end items-center px-0 md:px-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -190,65 +197,133 @@ export default function TeamsPage() {
         </div>
       </div>
 
-      <div className="mt-0 md:mt-8">
-        
+      <div className="mt-0">
         {!currentTeam ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400 mx-4 md:mx-0">
             <p>Please select or join a team to view members.</p>
           </div>
         ) : (
-          <div className="space-y-6">
-              <div 
-                key={currentTeam.id} 
-                className="bg-white dark:bg-gray-800 md:rounded-xl shadow-sm border-y-2 border-x-0 md:border-2 border-blue-500 dark:border-blue-500 transition-all"
-              >
-                <div className="p-4 md:p-6">
-                  <div className="flex justify-between items-start mb-4 md:mb-6">
-                    <div className="flex-1 min-w-0 mr-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white truncate">
-                          {currentTeam.name}
-                        </h3>
+          <>
+            {/* Tabs */}
+            <div className="flex gap-2 mb-4 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+                    <button
+                      onClick={() => setActiveTab('teamactivity')}
+                      className={`px-4 py-2 text-sm md:text-base font-medium rounded-md transition-all ${
+                        activeTab === 'teamactivity'
+                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      Team Activity
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('edit')}
+                      className={`px-4 py-2 text-sm md:text-base font-medium rounded-md transition-all ${
+                        activeTab === 'edit'
+                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      Edit Team Name
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('share')}
+                      className={`px-4 py-2 text-sm md:text-base font-medium rounded-md transition-all ${
+                        activeTab === 'share'
+                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      Share with Code
+                    </button>
+                  </div>
+
+                  {/* Tab Content */}
+                  <div>
+                    {activeTab === 'teamactivity' && (
+                      <div className="space-y-4">
+                        <TeamActivityReport />
                       </div>
-                      <div className="flex items-center gap-3 mt-2">
-                        <div className="flex items-center gap-2 px-2 md:px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                          <span className="text-xs md:text-sm font-mono text-gray-600 dark:text-gray-300">
-                            Code: {currentTeam.code}
-                          </span>
-                          <button
-                            onClick={copyHeaderCode}
-                            className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                            title="Copy Team Code"
-                          >
-                            {headerCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                          </button>
+                    )}
+
+                    {activeTab === 'edit' && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Team Name
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={editTeamName}
+                              onChange={(e) => setEditTeamName(e.target.value)}
+                              placeholder={currentTeam.name}
+                              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                            {currentTeam.role === 'Leader' && (
+                              <button
+                                onClick={() => {
+                                  if (editTeamName.trim()) {
+                                    updateTeamName(currentTeam.id, editTeamName);
+                                    setEditTeamName('');
+                                  }
+                                }}
+                                disabled={!editTeamName.trim()}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                Save
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-sm md:text-base text-gray-500 dark:text-gray-400">
+                      </div>
+                    )}
+
+                    {activeTab === 'share' && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Team Code
+                          </label>
+                          <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <span className="text-base md:text-lg font-mono text-gray-900 dark:text-white flex-1">
+                              {currentTeam.code}
+                            </span>
+                            <button
+                              onClick={copyHeaderCode}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
+                            >
+                              {headerCopied ? (
+                                <>
+                                  <Check className="w-4 h-4" />
+                                  <span>Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-4 h-4" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                            Share this code with others to invite them to your team.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-4 md:pt-6">
+                    <div className="flex justify-between items-center mb-3 md:mb-4">
+                      <div>
+                        <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
+                          Collaborators
+                        </h4>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                           {currentTeam.members.length} members
                         </p>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 shrink-0">
-                      {currentTeam.role === 'Leader' && (
-                        <>
-                          <button
-                            onClick={() => openEditModal(currentTeam)}
-                            className="p-1.5 md:p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            title="Edit Team"
-                          >
-                            <Edit2 className="w-4 h-4 md:w-5 md:h-5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="border-t border-gray-100 dark:border-gray-700 pt-4 md:pt-6">
-                    <div className="flex justify-between items-center mb-3 md:mb-4">
-                      <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
-                        Collaborators
-                      </h4>
                       <div className="flex items-center gap-2">
                         {/* Search Component */}
                         <div className={`flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg transition-all duration-300 ${isSearchOpen ? 'w-48 px-2 py-1' : 'w-8 h-8 md:w-9 md:h-9 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 justify-center'}`}>
@@ -396,18 +471,9 @@ export default function TeamsPage() {
                       })}
                     </div>
                   </div>
-                </div>
-              </div>
-          </div>
+          </>
         )}
       </div>
-
-      {/* Team Activity Report */}
-      {currentTeam && (
-        <div className="mt-8 px-4 md:px-0">
-          <TeamActivityReport />
-        </div>
-      )}
 
       {/* Join Team Modal */}
       <Modal
