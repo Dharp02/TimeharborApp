@@ -7,7 +7,7 @@ import { ChevronLeft, Clock, User, Briefcase, Calendar, ExternalLink, Link as Li
 import * as API from '@/TimeharborAPI/dashboard';
 import { enhanceTicketData } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import SlidingDateFilter, { DateRangeType } from '@/components/SlidingDateFilter';
+import { SlidingDateFilter } from '@/components/SlidingDateFilter';
 
 interface MemberPageProps {
   memberId?: string;
@@ -34,10 +34,7 @@ export default function MemberPageClient({
   const [memberData, setMemberData] = useState<API.MemberActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRange, setSelectedRange] = useState<DateRangeType>('day');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
-  const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
+  const [dateFilter, setDateFilter] = useState('today');
 
   useEffect(() => {
     const fetchMemberActivity = async () => {
@@ -98,36 +95,24 @@ export default function MemberPageClient({
 
   // Filter clock events based on selected time range
   const getFilteredClockEvents = () => {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfYesterday = new Date(startOfToday);
-    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-    const startOfWeek = new Date(startOfToday);
-    startOfWeek.setDate(startOfWeek.getDate() - 7);
-    const startOfMonth = new Date(startOfToday);
-    startOfMonth.setDate(startOfMonth.getDate() - 30);
-
     // For now, we're using today's events as the base
     // In a real implementation, you'd fetch data for the specific range
     const allEvents = timeTracking.today.clockEvents;
     
     // Since we only have today's data, we'll return it for today and empty for others
     // This should be updated when the API supports fetching historical data
-    switch (selectedRange) {
-      case 'day':
-        // Check if selectedDate is today. Simple check.
-        const isToday = selectedDate.getDate() === now.getDate() && 
-                        selectedDate.getMonth() === now.getMonth() && 
-                        selectedDate.getFullYear() === now.getFullYear();
-        return isToday ? allEvents : []; // Show nothing for other dates for now
-      case 'week':
-      case 'month':
-      case 'custom':
-        // TODO: Fetch actual historical data from API
-        return allEvents; // Placeholder - showing today's data for now
-      default:
-        return allEvents;
+    
+    if (dateFilter === 'today' || dateFilter === 'this_week' || dateFilter === 'this_month') {
+      return allEvents;
     }
+
+    // Check if it's explicitly today's date string
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (dateFilter === todayStr) {
+      return allEvents;
+    }
+
+    return []; 
   };
 
   const filteredClockEvents = getFilteredClockEvents();
@@ -292,16 +277,8 @@ export default function MemberPageClient({
                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Activity Feed</h2>
              </div>
              <SlidingDateFilter 
-               selectedDate={selectedDate}
-               onDateSelect={setSelectedDate}
-               selectedRange={selectedRange}
-               onRangeSelect={setSelectedRange}
-               customStartDate={customStartDate}
-               customEndDate={customEndDate}
-               onCustomRangeChange={(start, end) => {
-                 setCustomStartDate(start);
-                 setCustomEndDate(end);
-               }}
+               selected={dateFilter}
+               onSelect={setDateFilter}
                className="w-full sm:max-w-xl"
              />
           </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Header from './Header';
 import BottomNav from './BottomNav';
 import TeamSelectionModal from './TeamSelectionModal';
@@ -9,12 +9,24 @@ import { ClockInProvider } from './ClockInContext';
 import DesktopFooter from './DesktopFooter';
 import { Users, ArrowRightLeft } from 'lucide-react';
 import { useTeam } from './TeamContext';
+import { useAuth } from '@/components/auth/AuthProvider';
 import NotificationBell from './NotificationBell';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { currentTeam, isLoading } = useTeam();
+  const { user } = useAuth();
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+
+  const getHeaderTitle = () => {
+    if (!pathname) return 'Timeharbor';
+    if (pathname.startsWith('/dashboard/teams')) return 'Teams';
+    if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
+    if (pathname.startsWith('/dashboard/settings')) return user?.full_name || user?.email || 'Menu';
+    return 'Timeharbor';
+  };
+
 
   useEffect(() => {
     if (!isLoading && !currentTeam) {
@@ -53,7 +65,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Mobile Header */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-16 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">Timeharbor</h1>
+          <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px]">{getHeaderTitle()}</h1>
           <div className="flex items-center gap-3">
             <NotificationBell isMobile={true} />
             <button 
