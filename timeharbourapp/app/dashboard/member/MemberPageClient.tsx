@@ -278,7 +278,7 @@ function MemberPageContent({
   };
 
   return (
-    <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col max-h-[100dvh]">
+    <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Profile Header */}
       <div className="bg-white dark:bg-[#0B1120] px-4 py-6 md:px-8 md:py-8 pb-12 md:pb-16 border-b border-gray-100 dark:border-gray-800 transition-colors duration-200 flex-shrink-0">
         <div className="max-w-5xl mx-auto">
@@ -380,7 +380,7 @@ function MemberPageContent({
         </div>
       </div>
 
-      <div className="max-w-5xl w-full mx-auto px-4 md:px-0 -mt-6 md:-mt-8 relative z-10 flex flex-col flex-1 min-h-0 pb-0 overflow-hidden">
+      <div className="max-w-5xl w-full mx-auto px-4 md:px-0 -mt-6 md:-mt-8 relative z-10 pb-8">
         {/* Stats Card */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 flex-shrink-0 mb-4">
             {(() => {
@@ -444,8 +444,8 @@ function MemberPageContent({
         </div>
 
        {/* Main Content: Unified Activity Timeline */}
-       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-         <div className="mb-4 flex-shrink-0">
+       <div>
+         <div className="mb-4">
             <SlidingDateFilter selected={timeRange} onSelect={setTimeRange} />
             
             {timeRange === 'custom' && (
@@ -468,9 +468,9 @@ function MemberPageContent({
             )}
          </div>
 
-         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+         <div>
            {filteredSessions.length > 0 ? (
-             <div className="overflow-y-auto pr-2 -mr-2 flex-1 scrollbar-hide">
+             <div>
                {filteredSessions.map((session) => (
                  <SessionCard key={session.id} session={session} />
                ))}
