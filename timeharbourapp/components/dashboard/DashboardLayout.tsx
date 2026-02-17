@@ -34,7 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const shouldShowBackButton = () => {
     if (!pathname) return false;
-    return pathname.startsWith('/dashboard/member');
+    return pathname.startsWith('/dashboard/member') || pathname.startsWith('/dashboard/settings');
   };
 
 

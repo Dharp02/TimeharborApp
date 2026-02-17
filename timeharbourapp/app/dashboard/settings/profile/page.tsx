@@ -1,8 +1,7 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthProvider';
-import { ArrowLeft, User, FileText, Image as ImageIcon, Edit, Share2 } from 'lucide-react';
-import Link from 'next/link';
+import { User, FileText, Image as ImageIcon, Edit, Share2 } from 'lucide-react';
 import * as API from '@/TimeharborAPI/dashboard';
 import { auth } from '@/TimeharborAPI';
 import { Modal } from '@/components/ui/Modal';
@@ -86,13 +85,6 @@ export default function ProfilePage() {
 
   return (
     <div className="-mt-6 px-0 pb-4 pt-0 space-y-2 md:mt-0 md:p-4 md:space-y-6">
-      <div className="flex items-center gap-4 md:hidden px-4 pt-2 pb-2">
-        <Link href="/dashboard/settings" className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
-          <ArrowLeft className="w-6 h-6 text-gray-900 dark:text-white" />
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Profile</h1>
-      </div>
-
       <div className="max-w-5xl mx-auto space-y-4">
         {/* Top Section: Profile Header */}
         <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors">
