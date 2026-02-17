@@ -7,10 +7,10 @@ import BottomNav from './BottomNav';
 import TeamSelectionModal from './TeamSelectionModal';
 import { ClockInProvider } from './ClockInContext';
 import DesktopFooter from './DesktopFooter';
-import { Users, ArrowRightLeft, ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useTeam } from './TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
-import NotificationBell from './NotificationBell';
+import ProfileAvatarMenu from './ProfileAvatarMenu';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { currentTeam, isLoading } = useTeam();
@@ -87,15 +87,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
             <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px]">{getHeaderTitle()}</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <NotificationBell isMobile={true} />
-            <button 
-                onClick={() => setIsTeamModalOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-200 dark:border-gray-700"
-              >
-                <ArrowRightLeft className="w-4 h-4" />
-                <span className="text-sm font-medium">{currentTeam?.name || 'Switch Team'}</span>
-            </button>
+          <div className="flex items-center gap-2">
+            {currentTeam && (
+              <div className="text-right mr-1">
+                <div className="text-xs text-gray-500 dark:text-gray-400 leading-none">Team</div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-white leading-tight truncate max-w-[120px]">{currentTeam.name}</div>
+              </div>
+            )}
+            <ProfileAvatarMenu onTeamSwitchClick={() => setIsTeamModalOpen(true)} />
           </div>
         </div>
 
