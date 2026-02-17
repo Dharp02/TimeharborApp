@@ -35,17 +35,12 @@ export default function Dashboard() {
     <>
       <StoriesBar />
       
-      <div className="space-y-6 pb-20 md:pb-0 mt-6">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-4 md:mb-6">
-          Dashboard Overview
-        </h1>
+      <div className="space-y-6 pb-20 md:pb-0 mt-3">
         <DashboardSummary />
-      </div>
 
-      <OpenTickets />
-      
-      <RecentActivity />
+        <OpenTickets />
+        
+        <RecentActivity />
       </div>
     </>
   );
