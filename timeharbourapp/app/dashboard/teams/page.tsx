@@ -342,7 +342,7 @@ export default function TeamsPage() {
 
                         return (
                           <Link 
-                            href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}`}
+                            href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}&name=${encodeURIComponent(member.name)}`}
                             key={member.id}
                             className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                           >

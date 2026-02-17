@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Header from './Header';
 import BottomNav from './BottomNav';
 import TeamSelectionModal from './TeamSelectionModal';
@@ -18,18 +18,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const getHeaderTitle = () => {
     if (!pathname) return 'Timeharbor';
     if (pathname.startsWith('/dashboard/teams')) return 'Teams';
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
     if (pathname.startsWith('/dashboard/settings')) return user?.full_name || user?.email || 'Menu';
+    if (pathname.startsWith('/dashboard/member')) {
+      const memberName = searchParams?.get('name');
+      return memberName || 'Member';
+    }
     return 'Timeharbor';
   };
 
   const shouldShowBackButton = () => {
     if (!pathname) return false;
-    return pathname === '/dashboard/member';
+    return pathname.startsWith('/dashboard/member');
   };
 
 

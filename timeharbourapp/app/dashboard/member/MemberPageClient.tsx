@@ -298,7 +298,8 @@ function MemberPageContent({
                             onChange={(e) => {
                                 const newId = e.target.value;
                                 if (newId !== member.id) {
-                                    const url = `/dashboard/member?id=${newId}${teamId ? `&teamId=${teamId}` : ''}`;
+                                    const selectedMember = teamMembers.find(m => m.id === newId);
+                                    const url = `/dashboard/member?id=${newId}${teamId ? `&teamId=${teamId}` : ''}${selectedMember ? `&name=${encodeURIComponent(selectedMember.name)}` : ''}`;
                                     router.push(url);
                                 }
                             }}
