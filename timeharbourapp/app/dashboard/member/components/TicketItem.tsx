@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Briefcase, ExternalLink, Link as LinkIcon, Send, Bell } from 'lucide-react';
+import { Briefcase, ExternalLink, Link as LinkIcon, Send } from 'lucide-react';
 import { SessionEvent } from '../types';
 import { ExpandableText } from './ExpandableText';
 import * as API from '@/TimeharborAPI/dashboard';
@@ -27,11 +27,6 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
     } finally {
         setSending(false);
     }
-  };
-
-  const handlePushNotification = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    alert('Push notification sent!');
   };
 
   const hasComments = (event.original?.comment || replies.length > 0);
@@ -169,13 +164,6 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
                     className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors disabled:opacity-50"
                 >
                     <Send className="w-4 h-4" />
-                </button>
-                <button
-                    onClick={handlePushNotification}
-                    className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-full transition-colors"
-                    title="Send Push Notification"
-                >
-                    <Bell className="w-4 h-4" />
                 </button>
             </div>
           </div>

@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { getNotifications, markAsRead as apiMarkAsRead, markAllAsRead as apiMarkAllAsRead, Notification as ApiNotification } from '@/TimeharborAPI/notifications';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export interface AppNotification {
   id: string;
@@ -10,6 +12,7 @@ export interface AppNotification {
   timestamp: number;
   unread: boolean;
   data?: any;
+  type?: string;
 }
 
 interface NotificationContextType {
@@ -19,33 +22,41 @@ interface NotificationContextType {
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   clearAll: () => void;
+  refreshNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const { user } = useAuth();
 
-  // Load notifications from local storage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem('timeharbor_notifications');
-    if (stored) {
-      try {
-        setNotifications(JSON.parse(stored));
-      } catch (e) {
-        console.error('Failed to parse notifications', e);
-      }
+  const fetchNotifications = async () => {
+    if (!user) return;
+    try {
+      const response = await getNotifications(1, 100); // Fetch first 100
+      const mappedNotifications = response.notifications.map((n: ApiNotification) => ({
+        id: n.id,
+        title: n.title,
+        message: n.body,
+        timestamp: new Date(n.createdAt).getTime(),
+        unread: !n.readAt,
+        data: n.data,
+        type: n.type,
+      }));
+      setNotifications(mappedNotifications);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
     }
-    setIsInitialized(true);
-  }, []);
+  };
 
-  // Save notifications to local storage whenever they change
   useEffect(() => {
-    if (isInitialized) {
-      localStorage.setItem('timeharbor_notifications', JSON.stringify(notifications));
+    if (user) {
+      fetchNotifications();
+    } else {
+      setNotifications([]);
     }
-  }, [notifications, isInitialized]);
+  }, [user]);
 
   const addNotification = (data: Omit<AppNotification, 'id' | 'timestamp' | 'unread'>) => {
     const newNotification: AppNotification = {
@@ -58,16 +69,32 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => [newNotification, ...prev]);
   };
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
+    // Optimistic update
     setNotifications(prev => 
       prev.map(n => n.id === id ? { ...n, unread: false } : n)
     );
+    
+    try {
+      // Check if it's a backend notification (UUID vs pure UUID v4 generated on client might be distinguishable, 
+      // but for now we try API and catch error if not found or if it's local only)
+      await apiMarkAsRead(id);
+    } catch (error) {
+      console.error('Failed to mark notification as read on server:', error);
+    }
   };
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
+    // Optimistic update
     setNotifications(prev => 
       prev.map(n => ({ ...n, unread: false }))
     );
+
+    try {
+      await apiMarkAllAsRead();
+    } catch (error) {
+      console.error('Failed to mark all notifications as read on server:', error);
+    }
   };
 
   const clearAll = () => {
@@ -83,7 +110,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       addNotification, 
       markAsRead, 
       markAllAsRead,
-      clearAll 
+      clearAll,
+      refreshNotifications: fetchNotifications
     }}>
       {children}
     </NotificationContext.Provider>

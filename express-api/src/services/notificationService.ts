@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import apn from 'apn';
 import User from '../models/User';
+import Notification from '../models/Notification';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -259,6 +260,21 @@ export const sendNotificationToUser = async (
   payload: NotificationPayload
 ): Promise<boolean> => {
   try {
+    // Save notification to database
+    try {
+      await Notification.create({
+        userId,
+        title: payload.title,
+        body: payload.body,
+        type: (payload.data?.type as string) || 'info',
+        data: payload.data,
+        readAt: null
+      });
+      console.log(`[NOTIFICATION] ✅ Saved to database for user ${userId}`);
+    } catch (dbError) {
+      console.error('[NOTIFICATION] ❌ Failed to save to database:', dbError);
+    }
+
     // Get user's FCM token
     const user = await User.findByPk(userId);
     

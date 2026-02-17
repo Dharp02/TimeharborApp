@@ -29,12 +29,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <NotificationProvider>
-          <SyncInitializer />
-          <AuthProvider>
+        <AuthProvider>
+          <NotificationProvider>
+            <SyncInitializer />
             {children}
-          </AuthProvider>
-        </NotificationProvider>
+          </NotificationProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -8,6 +8,7 @@ import authRoutes from './routes/authRoutes';
 import teamRoutes from './routes/teamRoutes';
 import timeRoutes from './routes/timeRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
 import { startCleanupJob } from './jobs/cleanupTokens';
@@ -39,6 +40,7 @@ app.use('/auth', authRoutes);
 app.use('/teams', teamRoutes);
 app.use('/time', timeRoutes);
 app.use('/dashboard', dashboardRoutes);
+app.use('/notifications', notificationRoutes);
 
 // Health check
 app.get('/', (req, res) => {

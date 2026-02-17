@@ -6,6 +6,7 @@ import Member from './Member';
 import Ticket from './Ticket';
 import WorkLog from './WorkLog';
 import WorkLogReply from './WorkLogReply';
+import Notification from './Notification';
 
 // Define associations
 User.hasMany(Member, { foreignKey: 'userId', as: 'memberships' });
@@ -39,6 +40,10 @@ WorkLogReply.belongsTo(WorkLog, { foreignKey: 'workLogId', as: 'workLog' });
 User.hasMany(WorkLogReply, { foreignKey: 'userId', as: 'workLogReplies' });
 WorkLogReply.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+// Notifications
+User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
+Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
 // Export all models
 export {
   User,
@@ -47,7 +52,9 @@ export {
   Member,
   Ticket,
   WorkLog,
-  WorkLogReply
+  WorkLogReply,
+  Notification
+
 };
 
 // Export sequelize instance
