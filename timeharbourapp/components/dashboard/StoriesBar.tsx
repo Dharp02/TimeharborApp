@@ -36,11 +36,11 @@ export default function StoriesBar() {
             <div className={styles.avatarCircle}>
               <span className={styles.initials}>{currentUserInitials}</span>
             </div>
-            <button className={styles.addStoryBtn} aria-label="Add your story">
+            <button className={styles.addStoryBtn} aria-label="Add your pulse">
               <Plus className="w-4 h-4" />
             </button>
           </div>
-          <span className={styles.storyName}>Your story</span>
+          <span className={styles.storyName}>Your pulse</span>
         </div>
 
         {/* Team Members */}

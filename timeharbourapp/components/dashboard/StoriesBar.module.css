@@ -3,7 +3,6 @@
   margin-left: calc(-50vw + 50%);
   margin-top: -1.25rem;
   background: linear-gradient(to bottom, #ffffff 0%, #fafafa 100%);
-  border-bottom: 1px solid #e5e5e5;
   padding: 16px 0 12px 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -18,13 +17,12 @@
 @media (prefers-color-scheme: dark) {
   .storiesBarContainer {
     background: linear-gradient(to bottom, #1f2937 0%, #111827 100%);
-    border-bottom: 1px solid #374151;
   }
 }
 
 .storiesBar {
   display: flex;
-  gap: 16px;
+  gap: 4px;
   padding: 0 16px;
   align-items: flex-start;
 }
@@ -34,7 +32,8 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  min-width: 64px;
+  width: 65px;
+  flex-shrink: 0;
   cursor: pointer;
   text-decoration: none;
   transition: transform 0.2s ease;
@@ -63,7 +62,13 @@
 }
 
 .memberStory {
-  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  background: #e5e5e5;
+}
+
+@media (prefers-color-scheme: dark) {
+  .memberStory {
+    background: #374151;
+  }
 }
 
 .avatarCircle {
@@ -134,11 +139,12 @@
 .storyName {
   font-size: 12px;
   color: #374151;
-  max-width: 64px;
+  text-align: center;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
+  width: 100%;
+  padding: 0 2px;
 }
 
 @media (prefers-color-scheme: dark) {
