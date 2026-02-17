@@ -484,7 +484,7 @@ function MemberPageContent({
            {filteredSessions.length > 0 ? (
              <div>
                {filteredSessions.map((session) => (
-                 <SessionCard key={session.id} session={session} />
+                 <SessionCard key={session.id} session={session} member={member} />
                ))}
                
                {hasMore && (

@@ -1,16 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Briefcase, ExternalLink, Link as LinkIcon, Send, Bell, MessageSquare } from 'lucide-react';
+import { Briefcase, ExternalLink, Link as LinkIcon, Send, Bell } from 'lucide-react';
 import { SessionEvent } from '../types';
 import { ExpandableText } from './ExpandableText';
 import * as API from '@/TimeharborAPI/dashboard';
 
-export function TicketItem({ event }: { event: SessionEvent }) {
+export function TicketItem({ event, member }: { event: SessionEvent, member?: any }) {
   const [expanded, setExpanded] = useState(false);
   const [comment, setComment] = useState('');
   const [replies, setReplies] = useState<any[]>(event.original?.replies || []);
   const [sending, setSending] = useState(false);
+
+  const senderInitial = member?.name ? member.name.charAt(0).toUpperCase() : (member?.email ? member.email.charAt(0).toUpperCase() : '?');
 
   const handleSend = async () => {
     if (!comment.trim() || sending) return;
@@ -85,7 +87,9 @@ export function TicketItem({ event }: { event: SessionEvent }) {
 
           {/* Comment / Reply Box Area */}
           <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 flex items-start gap-4">
-              <MessageSquare className="w-5 h-5 text-gray-400 mt-1 flex-shrink-0" />
+              <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-violet-700 dark:text-violet-300 font-semibold text-sm flex-shrink-0">
+                  {senderInitial}
+              </div>
               <div className="flex-1 min-w-0">
                   <div className="max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 pr-1">
                       <p className="text-base text-gray-700 dark:text-gray-300 font-medium break-words whitespace-pre-wrap">

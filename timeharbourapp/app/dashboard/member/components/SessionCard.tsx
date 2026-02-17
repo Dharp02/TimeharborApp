@@ -4,7 +4,7 @@ import { ActivitySession } from '../types';
 import { TicketItem } from './TicketItem';
 import { ClockEventItem } from './ClockEventItem';
 
-export function SessionCard({ session }: { session: ActivitySession }) {
+export function SessionCard({ session, member }: { session: ActivitySession, member?: any }) {
   const dateStr = session.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return (
@@ -33,7 +33,7 @@ export function SessionCard({ session }: { session: ActivitySession }) {
                   {isClock ? (
                      <ClockEventItem event={event} isClockIn={isClockIn} />
                   ) : (
-                     <TicketItem event={event} />
+                     <TicketItem event={event} member={member} />
                   )}
                   
                   {/* Separator after Clock Out if not last */}
