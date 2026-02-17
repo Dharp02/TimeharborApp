@@ -276,6 +276,159 @@ export default function TeamsPage() {
                             )}
                           </div>
                         </div>
+
+                        <div className="pt-4 md:pt-6">
+                          <div className="flex justify-between items-center mb-3 md:mb-4">
+                            <div>
+                              <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
+                                Collaborators
+                              </h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {currentTeam.members.length} members
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {/* Search Component */}
+                              <div className={`flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg transition-all duration-300 ${isSearchOpen ? 'w-48 px-2 py-1' : 'w-8 h-8 md:w-9 md:h-9 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 justify-center'}`}>
+                                {isSearchOpen ? (
+                                   <>
+                                     <Search className="w-4 h-4 text-gray-500 flex-shrink-0 mr-2" />
+                                     <input 
+                                        autoFocus
+                                        type="text"
+                                        placeholder="Search members..."
+                                        value={memberSearchQuery}
+                                        onChange={(e) => setMemberSearchQuery(e.target.value)}
+                                        className="bg-transparent border-none outline-none text-sm w-full text-gray-900 dark:text-gray-100 placeholder-gray-500"
+                                        onBlur={() => {
+                                           if (!memberSearchQuery) setIsSearchOpen(false);
+                                        }}
+                                     />
+                                     <button 
+                                        onClick={() => {
+                                           setMemberSearchQuery('');
+                                           setIsSearchOpen(false);
+                                        }}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                   </>
+                                ) : (
+                                   <button onClick={() => setIsSearchOpen(true)} className="flex items-center justify-center w-full h-full text-gray-500 dark:text-gray-400">
+                                      <Search className="w-4 h-4" />
+                                   </button>
+                                )}
+                              </div>
+
+                              {currentTeam.role === 'Leader' && (
+                                <button
+                                  onClick={() => setIsAddMemberModalOpen(true)}
+                                  className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                                  title="Add Member"
+                                >
+                                  <Plus className="w-5 h-5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {[...currentTeam.members]
+                              .filter(member => 
+                                 (member.name || '').toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
+                                 (member.email || '').toLowerCase().includes(memberSearchQuery.toLowerCase())
+                              )
+                              .sort((a, b) => {
+                                if (a.role === 'Leader' && b.role !== 'Leader') return -1;
+                                if (a.role !== 'Leader' && b.role === 'Leader') return 1;
+                                  return 0;
+                              })
+                              .map((member) => {
+                              const isLeader = currentTeam.role === 'Leader';
+                              const isSelf = user?.id === member.id;
+
+                              if (!isLeader || isSelf) {
+                                return (
+                                  <div 
+                                    key={member.id}
+                                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
+                                  >
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
+                                      {member.name.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900 dark:text-white truncate">
+                                          {member.name}
+                                        </p>
+                                        {member.role === 'Leader' && (
+                                          <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                            Leader
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                        {member.email}
+                                      </p>
+                                    </div>
+                                    {isLeader && !isSelf && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          openRemoveMemberModal(member);
+                                        }}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Remove Member"
+                                      >
+                                        <UserMinus className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <Link 
+                                  href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}&name=${encodeURIComponent(member.name)}`}
+                                  key={member.id}
+                                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                                >
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
+                                    {member.name.charAt(0)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-medium text-gray-900 dark:text-white truncate">
+                                        {member.name}
+                                      </p>
+                                      {member.role === 'Leader' && (
+                                        <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                          Leader
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                      {member.email}
+                                    </p>
+                                  </div>
+                                  {currentTeam.role === 'Leader' && member.id !== user?.id && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        openRemoveMemberModal(member);
+                                      }}
+                                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                      title="Remove Member"
+                                    >
+                                      <UserMinus className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -310,166 +463,161 @@ export default function TeamsPage() {
                             Share this code with others to invite them to your team.
                           </p>
                         </div>
-                      </div>
-                    )}
-                  </div>
 
-                  <div className="pt-4 md:pt-6">
-                    <div className="flex justify-between items-center mb-3 md:mb-4">
-                      <div>
-                        <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
-                          Collaborators
-                        </h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          {currentTeam.members.length} members
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {/* Search Component */}
-                        <div className={`flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg transition-all duration-300 ${isSearchOpen ? 'w-48 px-2 py-1' : 'w-8 h-8 md:w-9 md:h-9 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 justify-center'}`}>
-                          {isSearchOpen ? (
-                             <>
-                               <Search className="w-4 h-4 text-gray-500 flex-shrink-0 mr-2" />
-                               <input 
-                                  autoFocus
-                                  type="text"
-                                  placeholder="Search members..."
-                                  value={memberSearchQuery}
-                                  onChange={(e) => setMemberSearchQuery(e.target.value)}
-                                  className="bg-transparent border-none outline-none text-sm w-full text-gray-900 dark:text-gray-100 placeholder-gray-500"
-                                  onBlur={() => {
-                                     if (!memberSearchQuery) setIsSearchOpen(false);
-                                  }}
-                               />
-                               <button 
-                                  onClick={() => {
-                                     setMemberSearchQuery('');
-                                     setIsSearchOpen(false);
-                                  }}
-                                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                             </>
-                          ) : (
-                             <button onClick={() => setIsSearchOpen(true)} className="flex items-center justify-center w-full h-full text-gray-500 dark:text-gray-400">
-                                <Search className="w-4 h-4" />
-                             </button>
-                          )}
-                        </div>
-
-                        {currentTeam.role === 'Leader' && (
-                          <button
-                            onClick={() => setIsAddMemberModalOpen(true)}
-                            className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
-                            title="Add Member"
-                          >
-                            <Plus className="w-5 h-5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {[...currentTeam.members]
-                        .filter(member => 
-                           (member.name || '').toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
-                           (member.email || '').toLowerCase().includes(memberSearchQuery.toLowerCase())
-                        )
-                        .sort((a, b) => {
-                          if (a.role === 'Leader' && b.role !== 'Leader') return -1;
-                          if (a.role !== 'Leader' && b.role === 'Leader') return 1;
-                            return 0;
-                        })
-                        .map((member) => {
-                        const isLeader = currentTeam.role === 'Leader';
-                        // Check if this member is the current user
-                        // We compare by email since user.id is not directly available in member object here (member.id is user ID but verifying)
-                        // Actually member.id is the userId.
-                        const isSelf = user?.id === member.id;
-
-                        // If not a leader, OR if it's the leader viewing themselves, render a plain div
-                        if (!isLeader || isSelf) {
-                          return (
-                            <div 
-                              key={member.id}
-                              className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
-                            >
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
-                                {member.name.charAt(0)}
+                        <div className="pt-4 md:pt-6">
+                          <div className="flex justify-between items-center mb-3 md:mb-4">
+                            <div>
+                              <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
+                                Collaborators
+                              </h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {currentTeam.members.length} members
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {/* Search Component */}
+                              <div className={`flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg transition-all duration-300 ${isSearchOpen ? 'w-48 px-2 py-1' : 'w-8 h-8 md:w-9 md:h-9 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 justify-center'}`}>
+                                {isSearchOpen ? (
+                                   <>
+                                     <Search className="w-4 h-4 text-gray-500 flex-shrink-0 mr-2" />
+                                     <input 
+                                        autoFocus
+                                        type="text"
+                                        placeholder="Search members..."
+                                        value={memberSearchQuery}
+                                        onChange={(e) => setMemberSearchQuery(e.target.value)}
+                                        className="bg-transparent border-none outline-none text-sm w-full text-gray-900 dark:text-gray-100 placeholder-gray-500"
+                                        onBlur={() => {
+                                           if (!memberSearchQuery) setIsSearchOpen(false);
+                                        }}
+                                     />
+                                     <button 
+                                        onClick={() => {
+                                           setMemberSearchQuery('');
+                                           setIsSearchOpen(false);
+                                        }}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                   </>
+                                ) : (
+                                   <button onClick={() => setIsSearchOpen(true)} className="flex items-center justify-center w-full h-full text-gray-500 dark:text-gray-400">
+                                      <Search className="w-4 h-4" />
+                                   </button>
+                                )}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className="font-medium text-gray-900 dark:text-white truncate">
-                                    {member.name}
-                                  </p>
-                                  {member.role === 'Leader' && (
-                                    <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
-                                      Leader
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                  {member.email}
-                                </p>
-                              </div>
-                              {isLeader && !isSelf && (
+
+                              {currentTeam.role === 'Leader' && (
                                 <button
-                                  onClick={(e) => {
-                                    e.preventDefault(); // Prevent bubbling if it were in a link
-                                    openRemoveMemberModal(member);
-                                  }}
-                                  className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                  title="Remove Member"
+                                  onClick={() => setIsAddMemberModalOpen(true)}
+                                  className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                                  title="Add Member"
                                 >
-                                  <UserMinus className="w-4 h-4" />
+                                  <Plus className="w-5 h-5" />
                                 </button>
                               )}
                             </div>
-                          );
-                        }
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {[...currentTeam.members]
+                              .filter(member => 
+                                 (member.name || '').toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
+                                 (member.email || '').toLowerCase().includes(memberSearchQuery.toLowerCase())
+                              )
+                              .sort((a, b) => {
+                                if (a.role === 'Leader' && b.role !== 'Leader') return -1;
+                                if (a.role !== 'Leader' && b.role === 'Leader') return 1;
+                                  return 0;
+                              })
+                              .map((member) => {
+                              const isLeader = currentTeam.role === 'Leader';
+                              const isSelf = user?.id === member.id;
 
-                        return (
-                          <Link 
-                            href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}&name=${encodeURIComponent(member.name)}`}
-                            key={member.id}
-                            className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                          >
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
-                              {member.name.charAt(0)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-gray-900 dark:text-white truncate">
-                                  {member.name}
-                                </p>
-                                {member.role === 'Leader' && (
-                                  <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
-                                    Leader
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                {member.email}
-                              </p>
-                            </div>
-                            {/* Remove button logic handled within Link block */}
-                            {currentTeam.role === 'Leader' && member.id !== user?.id && (
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  openRemoveMemberModal(member);
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                title="Remove Member"
-                              >
-                                <UserMinus className="w-4 h-4" />
-                              </button>
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </div>
+                              if (!isLeader || isSelf) {
+                                return (
+                                  <div 
+                                    key={member.id}
+                                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
+                                  >
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
+                                      {member.name.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900 dark:text-white truncate">
+                                          {member.name}
+                                        </p>
+                                        {member.role === 'Leader' && (
+                                          <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                            Leader
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                        {member.email}
+                                      </p>
+                                    </div>
+                                    {isLeader && !isSelf && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          openRemoveMemberModal(member);
+                                        }}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Remove Member"
+                                      >
+                                        <UserMinus className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <Link 
+                                  href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}&name=${encodeURIComponent(member.name)}`}
+                                  key={member.id}
+                                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                                >
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
+                                    {member.name.charAt(0)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-medium text-gray-900 dark:text-white truncate">
+                                        {member.name}
+                                      </p>
+                                      {member.role === 'Leader' && (
+                                        <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                          Leader
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                      {member.email}
+                                    </p>
+                                  </div>
+                                  {currentTeam.role === 'Leader' && member.id !== user?.id && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        openRemoveMemberModal(member);
+                                      }}
+                                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                      title="Remove Member"
+                                    >
+                                      <UserMinus className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
           </>
         )}
