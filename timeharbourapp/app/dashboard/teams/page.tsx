@@ -154,9 +154,7 @@ export default function TeamsPage() {
 
   return (
     <div className="pt-0 pb-4 md:p-6 space-y-6">
-      <div className="flex justify-between items-center px-0 md:px-0">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Teams</h1>
-
+      <div className="flex justify-end items-center px-0 md:px-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <button

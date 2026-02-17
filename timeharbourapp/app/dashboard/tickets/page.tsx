@@ -272,11 +272,7 @@ export default function TicketsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tickets</h1>
-          <p className="text-gray-500 dark:text-gray-400">Manage and track your tasks</p>
-        </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         <button 
           onClick={() => setIsAddTicketModalOpen(true)}
           className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
