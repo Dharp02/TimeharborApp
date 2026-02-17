@@ -7,7 +7,7 @@ import BottomNav from './BottomNav';
 import TeamSelectionModal from './TeamSelectionModal';
 import { ClockInProvider } from './ClockInContext';
 import DesktopFooter from './DesktopFooter';
-import { Users, ArrowRightLeft } from 'lucide-react';
+import { Users, ArrowRightLeft, ChevronLeft } from 'lucide-react';
 import { useTeam } from './TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import NotificationBell from './NotificationBell';
@@ -25,6 +25,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
     if (pathname.startsWith('/dashboard/settings')) return user?.full_name || user?.email || 'Menu';
     return 'Timeharbor';
+  };
+
+  const shouldShowBackButton = () => {
+    if (!pathname) return false;
+    return pathname === '/dashboard/member';
   };
 
 
@@ -65,7 +70,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Mobile Header */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-16 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px]">{getHeaderTitle()}</h1>
+          <div className="flex items-center gap-2">
+            {shouldShowBackButton() && (
+              <button
+                onClick={() => router.back()}
+                className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px]">{getHeaderTitle()}</h1>
+          </div>
           <div className="flex items-center gap-3">
             <NotificationBell isMobile={true} />
             <button 

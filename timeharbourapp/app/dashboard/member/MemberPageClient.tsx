@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Clock, User, Calendar, Loader2, Github, Linkedin, ChevronDown } from 'lucide-react';
+import { Clock, User, Calendar, Loader2, Github, Linkedin, ChevronDown } from 'lucide-react';
 import * as API from '@/TimeharborAPI/dashboard';
 import * as TeamAPI from '@/TimeharborAPI/teams';
 import { useRouter } from 'next/navigation';
@@ -232,13 +232,6 @@ function MemberPageContent({
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="p-8 text-center">
             <p className="text-gray-500 mb-4">No member specified</p>
-            <Link
-            href="/dashboard/teams"
-            className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline"
-            >
-            <ChevronLeft className="w-5 h-5" />
-            <span>Back to Teams</span>
-            </Link>
         </div>
       </div>
      );
@@ -262,14 +255,6 @@ function MemberPageContent({
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="p-4 md:p-8">
-          <Link
-            href="/dashboard/teams"
-            className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline mb-6"
-            aria-label="Go back to teams page"
-          >
-            <ChevronLeft className="w-5 h-5" />
-            <span>Back to Teams</span>
-          </Link>
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
             <p className="text-red-600 dark:text-red-400">{error || 'Failed to load member data'}</p>
           </div>
@@ -294,17 +279,8 @@ function MemberPageContent({
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between gap-4">
             
-            {/* Left Side: Back + Profile */}
+            {/* Left Side: Profile */}
             <div className="flex items-center gap-4 md:gap-5 flex-1 min-w-0">
-                {showBackButton && (
-                  <Link
-                    href="/dashboard/teams"
-                    className="inline-flex items-center justify-center -ml-2 w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all flex-shrink-0"
-                  >
-                    <ChevronLeft className="w-6 h-6" />
-                  </Link>
-                )}
-
                 <div className="w-20 h-20 rounded-[1.5rem] bg-violet-600 flex items-center justify-center flex-shrink-0 text-2xl text-white font-medium shadow-lg shadow-violet-900/20">
                   <User className="w-9 h-9" />
                 </div>
