@@ -2,7 +2,14 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { getNotifications, markAsRead as apiMarkAsRead, markAllAsRead as apiMarkAllAsRead, Notification as ApiNotification } from '@/TimeharborAPI/notifications';
+import { 
+  getNotifications, 
+  markAsRead as apiMarkAsRead, 
+  markAllAsRead as apiMarkAllAsRead, 
+  deleteNotification as apiDeleteNotification,
+  deleteNotifications as apiDeleteNotifications,
+  Notification as ApiNotification 
+} from '@/TimeharborAPI/notifications';
 import { useAuth } from '@/components/auth/AuthProvider';
 
 export interface AppNotification {
@@ -19,8 +26,10 @@ interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
   addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'unread'>) => void;
-  markAsRead: (id: string) => void;
+  markAsRead: (id: string, autoDelete?: boolean) => void;
   markAllAsRead: () => void;
+  deleteNotification: (id: string) => void;
+  deleteNotifications: (ids: string[]) => void;
   clearAll: () => void;
   refreshNotifications: () => Promise<void>;
 }
@@ -69,18 +78,54 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => [newNotification, ...prev]);
   };
 
-  const markAsRead = async (id: string) => {
-    // Optimistic update
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, unread: false } : n)
-    );
+  const markAsRead = async (id: string, autoDelete: boolean = true) => {
+    if (autoDelete) {
+      // Auto-delete: remove from UI immediately
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      
+      try {
+        // Delete from backend
+        await apiDeleteNotification(id);
+      } catch (error) {
+        console.error('Failed to delete notification on server:', error);
+      }
+    } else {
+      // Just mark as read without deleting
+      setNotifications(prev => 
+        prev.map(n => n.id === id ? { ...n, unread: false } : n)
+      );
+      
+      try {
+        await apiMarkAsRead(id);
+      } catch (error) {
+        console.error('Failed to mark notification as read on server:', error);
+      }
+    }
+  };
+
+  const deleteNotification = async (id: string) => {
+    // Optimistic delete
+    setNotifications(prev => prev.filter(n => n.id !== id));
     
     try {
-      // Check if it's a backend notification (UUID vs pure UUID v4 generated on client might be distinguishable, 
-      // but for now we try API and catch error if not found or if it's local only)
-      await apiMarkAsRead(id);
+      await apiDeleteNotification(id);
     } catch (error) {
-      console.error('Failed to mark notification as read on server:', error);
+      console.error('Failed to delete notification on server:', error);
+      // Optionally refetch to restore state on error
+      fetchNotifications();
+    }
+  };
+
+  const deleteNotifications = async (ids: string[]) => {
+    // Optimistic delete
+    setNotifications(prev => prev.filter(n => !ids.includes(n.id)));
+    
+    try {
+      await apiDeleteNotifications(ids);
+    } catch (error) {
+      console.error('Failed to delete notifications on server:', error);
+      // Optionally refetch to restore state on error
+      fetchNotifications();
     }
   };
 
@@ -110,6 +155,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       addNotification, 
       markAsRead, 
       markAllAsRead,
+      deleteNotification,
+      deleteNotifications,
       clearAll,
       refreshNotifications: fetchNotifications
     }}>

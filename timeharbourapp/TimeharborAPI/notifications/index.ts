@@ -51,3 +51,29 @@ export const markAllAsRead = async (): Promise<void> => {
     throw new Error('Failed to mark all notifications as read');
   }
 };
+
+export const deleteNotification = async (id: string): Promise<void> => {
+  const response = await authenticatedFetch(`${API_URL}/notifications/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to delete notification');
+  }
+};
+
+export const deleteNotifications = async (ids: string[]): Promise<{ count: number }> => {
+  const response = await authenticatedFetch(`${API_URL}/notifications`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ ids }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to delete notifications');
+  }
+
+  return response.json();
+};

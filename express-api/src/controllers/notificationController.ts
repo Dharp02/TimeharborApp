@@ -75,3 +75,50 @@ export const markAllAsRead = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to mark notifications as read' });
   }
 };
+
+export const deleteNotification = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const { id } = req.params;
+
+    const notification = await Notification.findOne({
+      where: { id, userId },
+    });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    await notification.destroy();
+    res.json({ message: 'Notification deleted' });
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+};
+
+export const deleteNotifications = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid notification IDs' });
+    }
+
+    const deleted = await Notification.destroy({
+      where: { id: ids, userId },
+    });
+
+    res.json({ message: `${deleted} notifications deleted`, count: deleted });
+  } catch (error) {
+    console.error('Error deleting notifications:', error);
+    res.status(500).json({ error: 'Failed to delete notifications' });
+  }
+};

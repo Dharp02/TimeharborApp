@@ -1,14 +1,17 @@
 'use client';
 
 import { useNotifications } from '@/contexts/NotificationContext';
+import type { AppNotification } from '@/contexts/NotificationContext';
 import { formatDistanceToNow } from 'date-fns';
 import { CheckCheck, Trash2, Bell, MessageSquare, Info, AlertTriangle, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function NotificationsPage() {
-  const { notifications, markAsRead, markAllAsRead, unreadCount, refreshNotifications } = useNotifications();
+  const { notifications, markAsRead, markAllAsRead, unreadCount, refreshNotifications, deleteNotifications } = useNotifications();
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const router = useRouter();
 
   useEffect(() => {
     refreshNotifications();
@@ -45,9 +48,9 @@ export default function NotificationsPage() {
     setSelectedIds(new Set());
   };
 
-  const deleteSelected = () => {
-    // TODO: Implement delete functionality in NotificationContext
-    console.log('Delete notifications:', Array.from(selectedIds));
+  const deleteSelected = async () => {
+    const idsToDelete = Array.from(selectedIds);
+    await deleteNotifications(idsToDelete);
     setSelectedIds(new Set());
     setSelectionMode(false);
   };
@@ -55,6 +58,23 @@ export default function NotificationsPage() {
   const exitSelectionMode = () => {
     setSelectionMode(false);
     setSelectedIds(new Set());
+  };
+
+  const handleNotificationClick = (notification: AppNotification) => {
+    if (selectionMode) {
+      toggleSelection(notification.id);
+      return;
+    }
+
+    // Mark as read and auto-delete
+    markAsRead(notification.id, true); // Auto-delete on read
+
+    // Navigate to member profile if data contains member information
+    if (notification.data?.memberId) {
+      const { memberId, memberName, teamId } = notification.data;
+      const memberUrl = `/dashboard/member?id=${memberId}${teamId ? `&teamId=${teamId}` : ''}${memberName ? `&name=${encodeURIComponent(memberName)}` : ''}`;
+      router.push(memberUrl);
+    }
   };
 
   const allSelected = notifications.length > 0 && selectedIds.size === notifications.length;
@@ -123,16 +143,10 @@ export default function NotificationsPage() {
           {notifications.map((notification) => (
             <div
               key={notification.id}
-              className={`px-4 py-3.5 transition-colors ${
+              className={`px-4 py-3.5 transition-colors cursor-pointer ${
                 notification.unread ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
               } ${!selectionMode ? 'active:bg-gray-100 dark:active:bg-gray-700/50' : ''}`}
-              onClick={() => {
-                if (selectionMode) {
-                  toggleSelection(notification.id);
-                } else if (notification.unread) {
-                  markAsRead(notification.id);
-                }
-              }}
+              onClick={() => handleNotificationClick(notification)}
             >
               <div className="flex gap-3">
                 {selectionMode && (
