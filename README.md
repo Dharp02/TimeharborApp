@@ -425,6 +425,3 @@ tail -f express-api/logs/error.log
 4. Run tests
 5. Submit a pull request
 
-## License
-
-[Add your license information here]
