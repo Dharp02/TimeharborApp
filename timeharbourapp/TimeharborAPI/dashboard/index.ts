@@ -221,6 +221,9 @@ export interface MemberActivityData {
     week: {
       duration: string;
     };
+    month: {
+      duration: string;
+    };
   };
   recentTickets: Array<{
     id: string;

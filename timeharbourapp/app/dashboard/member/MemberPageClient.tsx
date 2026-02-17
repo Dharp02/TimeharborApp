@@ -79,6 +79,16 @@ function MemberPageContent({
         startOfMonth.setDate(startOfMonth.getDate() - 30);
         return sessionDate >= startOfMonth;
       }
+      case 'this_month': {
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        return sessionDate >= startOfMonth;
+      }
+      case 'this_week': {
+        const startOfWeek = new Date(startOfToday);
+        // Assuming week starts on Sunday. Adjust if needed (e.g. Monday)
+        startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+        return sessionDate >= startOfWeek;
+      }
       case 'custom': {
         if (!customStartDate) return true;
         
@@ -387,7 +397,9 @@ function MemberPageContent({
                 const getRangeConfig = () => {
                     if (timeRange === 'custom') return { show: true, label: 'Custom Range' };
                     if (timeRange === 'last_week') return { show: true, label: 'Last Week' };
+                    if (timeRange === 'this_week') return { show: true, label: 'This Week' };
                     if (timeRange === 'last_month') return { show: true, label: 'Last Month' };
+                    if (timeRange === 'this_month') return { show: true, label: 'This Month' };
                     
                     // Check for YYYY-MM-DD date string
                     if (/^\d{4}-\d{2}-\d{2}$/.test(timeRange)) {

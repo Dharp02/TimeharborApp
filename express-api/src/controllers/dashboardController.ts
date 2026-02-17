@@ -348,6 +348,7 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(startOfToday);
     startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     // Helper to get time entries for a period
     const getTimeEntriesForPeriod = async (userId: string, startTime: Date, teamId?: string) => {
@@ -436,6 +437,11 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
     const weekEntries = await getTimeEntriesForPeriod(memberId, startOfWeek, teamId as string);
     const weekInitialState = await getInitialState(memberId, startOfWeek, teamId as string);
     const weekDuration = calculateDuration(weekEntries, startOfWeek, weekInitialState);
+
+    // Get this month's entries
+    const monthEntries = await getTimeEntriesForPeriod(memberId, startOfMonth, teamId as string);
+    const monthInitialState = await getInitialState(memberId, startOfMonth, teamId as string);
+    const monthDuration = calculateDuration(monthEntries, startOfMonth, monthInitialState);
 
     // Format durations
     const formatDuration = (ms: number): string => {
@@ -754,11 +760,14 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
       },
       timeTracking: {
         today: {
-          duration: formatDuration(todayDuration),
-          clockEvents: clockTimes
+            duration: formatDuration(todayDuration),
+            clockEvents: clockTimes
         },
         week: {
-          duration: formatDuration(weekDuration)
+            duration: formatDuration(weekDuration)
+        },
+        month: {
+            duration: formatDuration(monthDuration)
         }
       },
       recentTickets: uniqueTickets.map((ticket: any) => ({
