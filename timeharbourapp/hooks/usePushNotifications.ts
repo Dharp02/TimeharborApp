@@ -148,6 +148,14 @@ export function usePushNotifications() {
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('👆 [NOTIFICATION TAP] User tapped notification');
+        
+        // Add to notification history if not already present
+        addNotification({
+          title: notification.notification.title || 'New Notification',
+          message: notification.notification.body || '',
+          data: notification.notification.data
+        });
+
         console.log('📋 [NOTIFICATION TAP] Full notification:', JSON.stringify(notification, null, 2));
         console.log('📋 [NOTIFICATION TAP] Data:', JSON.stringify(notification.notification.data, null, 2));
         
