@@ -16,117 +16,166 @@ export function SlidingDateFilter({ selected, onSelect, className = '' }: Slidin
       return localDate.toISOString().split('T')[0];
   };
 
+  const todayStr = formatDateValue(new Date());
+
   const getDayName = (dateStr: string) => {
+      if (dateStr === 'this_week') return 'THIS';
+      if (dateStr === 'this_month') return 'THIS';
+      if (dateStr === 'last_week') return 'LAST';
+      if (dateStr === 'last_month') return 'LAST';
+      if (dateStr === 'custom') return 'CUSTOM';
+      
       const [y, m, d] = dateStr.split('-').map(Number);
       const dateObj = new Date(y, m - 1, d); 
       return dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
   };
 
   const getFullDisplayDate = (dateStr: string) => {
+       if (dateStr === 'this_week') return 'Week';
+       if (dateStr === 'this_month') return 'Month';
+       if (dateStr === 'last_week') return 'Week';
+       if (dateStr === 'last_month') return 'Month';
+       if (dateStr === 'custom') return 'Range';
+
        const [y, m, d] = dateStr.split('-').map(Number);
        const dateObj = new Date(y, m - 1, d);
-       // e.g. "Oct 24, 2024"
        return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  // Determine active date to display in the middle box
-  const isRangeSelected = ['last_week', 'last_month', 'custom'].includes(selected);
-  const displayDateStr = isRangeSelected ? formatDateValue(new Date()) : selected; // Default to Today if range active
-
   const handlePrevDay = () => {
-      const [y, m, d] = displayDateStr.split('-').map(Number);
+      if (selected === 'last_month') {
+          onSelect('last_week');
+          return;
+      }
+      if (selected === 'last_week') {
+          onSelect('this_month');
+          return;
+      }
+      if (selected === 'this_month') {
+          onSelect('this_week');
+          return;
+      }
+      if (selected === 'this_week') {
+          onSelect(todayStr); // Go back to Today
+          return;
+      }
+      if (selected === 'custom') {
+          onSelect(todayStr); // Default behavior for custom
+          return;
+      }
+
+      // If date
+      // Handle 'today' string case or 'todayStr'
+      const dateToUse = (selected === 'today') ? todayStr : selected;
+
+      const [y, m, d] = dateToUse.split('-').map(Number);
       const date = new Date(y, m - 1, d);
       date.setDate(date.getDate() - 1);
       onSelect(formatDateValue(date));
   };
   
+  const getDisplayDayName = () => {
+       if (selected === 'today') return getDayName(todayStr);
+       return getDayName(selected);
+  }
+
+  const getDisplayFullDate = () => {
+        if (selected === 'today') return getFullDisplayDate(todayStr);
+        return getFullDisplayDate(selected);
+  }
+
   const handleNextDay = () => {
-      const [y, m, d] = displayDateStr.split('-').map(Number);
-      const date = new Date(y, m - 1, d);
-      date.setDate(date.getDate() + 1);
-      onSelect(formatDateValue(date));
+       if (selected === 'last_month') {
+           // Do nothing, end of forward sequence
+           return; 
+       }
+       if (selected === 'last_week') {
+           onSelect('last_month');
+           return;
+       }
+       if (selected === 'this_month') {
+           onSelect('last_week');
+           return;
+       }
+       if (selected === 'this_week') {
+           onSelect('this_month');
+           return;
+       }
+       if (selected === 'custom') {
+           onSelect('this_week'); // Assume custom -> ranges flow
+           return;
+       }
+
+       // It is a date or 'today' string
+       const currentIsToday = selected === 'today' || selected === todayStr;
+
+       if (currentIsToday) {
+           // At Today, next step is ranges
+           onSelect('this_week');
+           return;
+       }
+
+       const [y, m, d] = selected.split('-').map(Number);
+       const date = new Date(y, m - 1, d);
+       const nextDate = new Date(date);
+       nextDate.setDate(date.getDate() + 1);
+       
+       const nextDateStr = formatDateValue(nextDate);
+       
+       // Check if next date is future
+       if (nextDateStr > todayStr) {
+           onSelect('this_week'); // If somehow we overshoot, fallback to range
+       } else {
+           onSelect(nextDateStr);
+       }
   };
 
-  const isSelected = (value: string) => selected === value;
-
   return (
-    <div className={`relative ${className}`}>
-      <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
-        {/* Navigation Controls (Left Side) */}
-        <div className="flex items-center gap-2">
-            <button
-                onClick={handlePrevDay}
-                className="flex items-center justify-center w-10 h-[68px] rounded-2xl border border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors shadow-sm"
-                aria-label="Previous day"
-            >
-                <ChevronLeft className="w-5 h-5" />
-            </button>
-            
-            {/* Current Date Display BUTTON */}
-            <button 
-                onClick={() => onSelect(formatDateValue(new Date()))}
-                className={`flex flex-col items-center justify-center min-w-[130px] h-[68px] px-2 rounded-2xl border transition-all duration-200
-                ${!isRangeSelected 
-                    ? 'bg-blue-600 border-blue-600 text-white dark:bg-blue-500 dark:border-blue-500 dark:text-white shadow-md scale-105' 
-                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 opacity-90'
-                }`}
-            >
-                <span className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${!isRangeSelected ? 'text-gray-200' : 'text-gray-400'}`}>
-                    {getDayName(displayDateStr)}
-                </span>
-                <span className="text-lg font-bold font-mono tracking-tight whitespace-nowrap">
-                   {getFullDisplayDate(displayDateStr)}
-                </span>
-            </button>
+    <div className={`inline-flex items-center p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm ${className}`}>
+      {/* Navigation Controls */}
+      <button
+        onClick={handlePrevDay}
+        className="flex items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+        aria-label="Previous"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
 
-            <button
-                onClick={handleNextDay}
-                className="flex items-center justify-center w-10 h-[68px] rounded-2xl border border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors shadow-sm"
-                aria-label="Next day"
-            >
-                <ChevronRight className="w-5 h-5" />
-            </button>
-        </div>
-
-        <div className="w-px h-10 bg-gray-200 dark:bg-gray-700 self-center mx-1 flex-shrink-0" />
-
-        {/* Range Options (Right Side) */}
-        <div className="flex gap-2 flex-shrink-0">
-             <button
-                onClick={() => onSelect('last_week')}
-                className={`flex flex-col items-center justify-center min-w-[70px] h-[68px] rounded-2xl border transition-all duration-200
-                    ${isSelected('last_week') 
-                        ? 'bg-blue-600 border-blue-600 text-white dark:bg-blue-500 dark:border-blue-500 dark:text-white shadow-md scale-105' 
-                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400'
-                    }`}
-            >
-                <span className="text-[10px] font-bold uppercase tracking-wider mb-1">Last</span>
-                <span className="text-sm font-bold">Week</span>
-            </button>
-            <button
-                onClick={() => onSelect('last_month')}
-                className={`flex flex-col items-center justify-center min-w-[70px] h-[68px] rounded-2xl border transition-all duration-200
-                    ${isSelected('last_month') 
-                        ? 'bg-blue-600 border-blue-600 text-white dark:bg-blue-500 dark:border-blue-500 dark:text-white shadow-md scale-105' 
-                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400'
-                    }`}
-            >
-                <span className="text-[10px] font-bold uppercase tracking-wider mb-1">Last</span>
-                <span className="text-sm font-bold">Month</span>
-            </button>
-             <button
-                onClick={() => onSelect('custom')}
-                className={`flex flex-col items-center justify-center min-w-[70px] h-[68px] rounded-2xl border transition-all duration-200
-                    ${isSelected('custom') 
-                        ? 'bg-blue-600 border-blue-600 text-white dark:bg-blue-500 dark:border-blue-500 dark:text-white shadow-md scale-105' 
-                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400'
-                    }`}
-            >
-                <Calendar className="w-5 h-5 mb-1" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Custom</span>
-            </button>
-        </div>
+      {/* Date Display */}
+      <div className="flex flex-col items-center justify-center min-w-[140px] px-2 select-none">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
+          {getDisplayDayName()}
+        </span>
+        <span className="text-lg font-bold font-mono tracking-tight text-gray-900 dark:text-white">
+          {getDisplayFullDate()}
+        </span>
       </div>
+
+      <button
+        onClick={handleNextDay}
+        disabled={selected === 'last_month'}
+        className={`flex items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors
+            ${selected === 'last_month' ? 'opacity-30 cursor-not-allowed hover:bg-transparent dark:hover:bg-transparent' : ''}`}
+        aria-label="Next"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+
+      {/* Divider */}
+      <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-2" />
+
+      {/* Custom Trigger */}
+      <button
+        onClick={() => onSelect('custom')}
+        className={`flex items-center gap-2 px-4 h-10 rounded-xl transition-all font-medium text-sm
+            ${selected === 'custom' 
+                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700/50'
+            }`}
+      >
+        <Calendar className="w-4 h-4" />
+        <span>Custom</span>
+      </button>
     </div>
   );
 }
