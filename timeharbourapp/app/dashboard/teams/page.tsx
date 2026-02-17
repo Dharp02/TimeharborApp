@@ -152,32 +152,45 @@ export default function TeamsPage() {
     }
   };
 
+  useEffect(() => {
+    const handleOpenJoinModal = () => setIsJoinModalOpen(true);
+    const handleOpenCreateModal = () => setIsCreateModalOpen(true);
+    
+    window.addEventListener('openJoinTeamModal', handleOpenJoinModal);
+    window.addEventListener('openCreateTeamModal', handleOpenCreateModal);
+    
+    return () => {
+      window.removeEventListener('openJoinTeamModal', handleOpenJoinModal);
+      window.removeEventListener('openCreateTeamModal', handleOpenCreateModal);
+    };
+  }, []);
+
   return (
     <div className="pt-0 pb-4 md:p-6 space-y-6">
-      <div className="flex justify-end items-center px-0 md:px-0">
+      <div className="hidden md:flex justify-end items-center px-0 md:px-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsJoinModalOpen(true)}
-              className="flex items-center gap-2 p-2 md:px-4 md:py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors font-medium"
+              className="flex items-center gap-2 px-4 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors font-medium"
               title="Join a Team"
             >
               <Users className="w-5 h-5" />
-              <span className="hidden md:inline">Join Team</span>
+              <span>Join Team</span>
             </button>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 p-2 md:px-4 md:py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors font-medium"
+              className="flex items-center gap-2 px-4 py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors font-medium"
               title="Create a Team"
             >
               <Plus className="w-5 h-5" />
-              <span className="hidden md:inline">Create Team</span>
+              <span>Create Team</span>
             </button>
           </div>
         </div>
       </div>
 
-      <div className="mt-6 md:mt-8">
+      <div className="mt-0 md:mt-8">
         
         {!currentTeam ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400 mx-4 md:mx-0">

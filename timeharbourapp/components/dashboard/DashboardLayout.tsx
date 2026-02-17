@@ -7,7 +7,7 @@ import BottomNav from './BottomNav';
 import TeamSelectionModal from './TeamSelectionModal';
 import { ClockInProvider } from './ClockInContext';
 import DesktopFooter from './DesktopFooter';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Users, Plus } from 'lucide-react';
 import { useTeam } from './TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import ProfileAvatarMenu from './ProfileAvatarMenu';
@@ -16,6 +16,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { currentTeam, isLoading } = useTeam();
   const { user } = useAuth();
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -95,6 +97,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
             )}
             <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px]">{getHeaderTitle()}</h1>
+            {pathname?.startsWith('/dashboard/teams') && (
+              <div className="flex items-center gap-1 ml-2">
+                <button
+                  onClick={() => {
+                    const event = new CustomEvent('openJoinTeamModal');
+                    window.dispatchEvent(event);
+                  }}
+                  className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                  title="Join a Team"
+                >
+                  <Users className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    const event = new CustomEvent('openCreateTeamModal');
+                    window.dispatchEvent(event);
+                  }}
+                  className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                  title="Create a Team"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {currentTeam && (
