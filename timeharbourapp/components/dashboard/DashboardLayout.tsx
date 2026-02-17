@@ -24,6 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!pathname) return 'Timeharbor';
     if (pathname.startsWith('/dashboard/teams')) return 'Teams';
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
+    if (pathname.startsWith('/dashboard/notifications')) return 'Notifications';
     if (pathname.startsWith('/dashboard/settings')) return user?.full_name || user?.email || 'Menu';
     if (pathname.startsWith('/dashboard/member')) {
       const memberName = searchParams?.get('name');
@@ -34,7 +35,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const shouldShowBackButton = () => {
     if (!pathname) return false;
-    return pathname.startsWith('/dashboard/member') || pathname.startsWith('/dashboard/settings');
+    return pathname.startsWith('/dashboard/member') || pathname.startsWith('/dashboard/settings') || pathname.startsWith('/dashboard/notifications');
+  };
+
+  const handleBackClick = () => {
+    if (pathname?.startsWith('/dashboard/notifications')) {
+      router.push('/dashboard');
+    } else {
+      router.back();
+    }
   };
 
 
@@ -78,7 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-2">
             {shouldShowBackButton() && (
               <button
-                onClick={() => router.back()}
+                onClick={handleBackClick}
                 className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                 aria-label="Go back"
               >
