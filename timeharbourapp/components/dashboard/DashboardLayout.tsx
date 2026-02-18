@@ -27,7 +27,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname.startsWith('/dashboard/teams')) return 'Teams';
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
     if (pathname.startsWith('/dashboard/notifications')) return 'Notifications';
-    if (pathname.startsWith('/dashboard/settings')) return user?.full_name || user?.email || 'Menu';
+    
+    // Settings Routes
+    if (pathname === '/dashboard/settings' || pathname === '/dashboard/settings/') return 'Settings';
+    if (pathname.startsWith('/dashboard/settings/profile')) return user?.full_name || 'My Profile';
+    if (pathname.startsWith('/dashboard/settings')) return 'Settings';
+    
     if (pathname.startsWith('/dashboard/member')) {
       const memberName = searchParams?.get('name');
       return memberName || 'Member';
