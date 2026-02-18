@@ -1,6 +1,5 @@
 import express from 'express';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -15,18 +14,12 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
 import { startCleanupJob } from './jobs/cleanupTokens';
 import { initializeFirebase, initializeAPNs } from './services/notificationService';
+import { initializeSocket } from './socket/socketManager';
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: "*", // Allow all origins for development/Capacitor
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -91,21 +84,8 @@ const startServer = async () => {
     // Start token cleanup job
     startCleanupJob();
 
-    // Socket.IO Connection Handler
-    io.on('connection', (socket) => {
-      logger.info(`New client connected: ${socket.id}`);
-
-      // Send immediate feedback
-      socket.emit('status', { status: 'online', message: 'Connected to Timeharbor API' });
-
-      socket.on('disconnect', () => {
-        logger.info(`Client disconnected: ${socket.id}`);
-      });
-
-      socket.on('ping', () => {
-        socket.emit('pong', { timestamp: new Date().toISOString() });
-      });
-    });
+    // Initialize Socket.IO
+    initializeSocket(httpServer);
 
     // Start server
     httpServer.listen(PORT, '0.0.0.0', () => {

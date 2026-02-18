@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useSocket } from '@/contexts/SocketContext';
 import { createNewTeam, joinTeamByCode, fetchMyTeams, updateTeam as apiUpdateTeam, deleteTeam as apiDeleteTeam, addMemberToTeam, removeMemberFromTeam } from '@/TimeharborAPI/teams';
 
 export type Member = {
@@ -39,9 +40,39 @@ const TeamContext = createContext<TeamContextType | undefined>(undefined);
 
 export function TeamProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { socket } = useSocket();
   const [teams, setTeams] = useState<Team[]>([]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Listen for real-time online status updates
+  useEffect(() => {
+    if (!socket || !currentTeam) return;
+
+    const handleStatusChange = ({ userId, status }: { userId: string, status: 'online' | 'offline' }) => {
+      console.log(`User status changed: ${userId} -> ${status}`);
+      
+      setCurrentTeam(prevTeam => {
+        if (!prevTeam) return null;
+        
+        const memberExists = prevTeam.members.some(m => m.id === userId);
+        if (!memberExists) return prevTeam;
+
+        return {
+          ...prevTeam,
+          members: prevTeam.members.map(member => 
+            member.id === userId ? { ...member, status } : member
+          )
+        };
+      });
+    };
+
+    socket.on('user_status_change', handleStatusChange);
+
+    return () => {
+      socket.off('user_status_change', handleStatusChange);
+    };
+  }, [socket, currentTeam?.id]); // Re-subscribe if socket or team ID changes
 
   const loadTeams = async () => {
     try {
@@ -181,8 +212,23 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Memoize the context value to prevent unnecessary re-renders of consumers
+  const contextValue = React.useMemo(() => ({
+    currentTeam,
+    teams,
+    isLoading,
+    selectTeam,
+    joinTeam,
+    createTeam,
+    deleteTeam,
+    updateTeamName,
+    addMember,
+    removeMember,
+    refreshTeams: loadTeams
+  }), [currentTeam, teams, isLoading]);
+
   return (
-    <TeamContext.Provider value={{ currentTeam, teams, isLoading, selectTeam, joinTeam, createTeam, deleteTeam, updateTeamName, addMember, removeMember, refreshTeams: loadTeams }}>
+    <TeamContext.Provider value={contextValue}>
       {children}
     </TeamContext.Provider>
   );

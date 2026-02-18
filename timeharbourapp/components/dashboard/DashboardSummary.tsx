@@ -20,6 +20,11 @@ export default function DashboardSummary() {
   });
   const [loading, setLoading] = useState(true);
 
+  // Calculate real-time online members from local state
+  // We subtract 1 if we don't want to count ourselves, or keep it as is depending on requirement.
+  // Usually "Team Members Online" includes everyone online in the team.
+  const onlineCount = currentTeam?.members?.filter(m => m.status === 'online').length || 0;
+
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -33,7 +38,9 @@ export default function DashboardSummary() {
       }
     };
 
-    fetchStats();
+    if (currentTeam?.id) {
+      fetchStats();
+    }
   }, [currentTeam?.id]);
 
   if (loading) {
@@ -74,7 +81,7 @@ export default function DashboardSummary() {
             <h3 className="text-xs md:text-lg font-semibold text-green-900 dark:text-green-100 mb-1 md:mb-2">
               Team Members
             </h3>
-            <p className="text-lg md:text-3xl font-bold text-green-600 dark:text-green-400 truncate">{stats.teamMembers}</p>
+            <p className="text-lg md:text-3xl font-bold text-green-600 dark:text-green-400 truncate">{onlineCount}</p>
           </div>
           <p className="text-[10px] md:text-sm text-green-600/60 dark:text-green-400/60 mt-1 truncate">Online now</p>
         </div>

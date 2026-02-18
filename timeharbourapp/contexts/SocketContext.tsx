@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -18,6 +19,7 @@ const SocketContext = createContext<SocketContextType>({
 export const useSocket = () => useContext(SocketContext);
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -36,13 +38,25 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Remove /api suffix if present to connect to root namespace, as sockets run on root
     const SOCKET_URL = apiUrl.replace(/\/api\/?$/, '');
     
-    console.log('Connecting to socket at:', SOCKET_URL);
+    // Only connect if we have a user
+    if (!user) {
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+      }
+      return;
+    }
+
+    console.log('Connecting to socket at:', SOCKET_URL, 'User:', user.id);
     
     const socketInstance = io(SOCKET_URL, {
       transports: ['websocket', 'polling'], // Allow fallback
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       autoConnect: true,
+      query: {
+        userId: user.id
+      }
     });
 
     socketInstance.on('connect', () => {
@@ -66,7 +80,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       window.removeEventListener('offline', handleOffline);
       socketInstance.disconnect();
     };
-  }, []);
+  }, [user?.id]); // Re-connect when user ID changes
 
   return (
     <SocketContext.Provider value={{ socket, isConnected, isOnline }}>

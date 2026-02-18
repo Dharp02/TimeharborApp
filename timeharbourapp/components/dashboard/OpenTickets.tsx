@@ -24,15 +24,34 @@ export default function OpenTickets() {
   const [showClockInWarning, setShowClockInWarning] = useState(false);
 
   useEffect(() => {
-    if (currentTeam) {
-      loadTickets();
-    } else {
-      setTickets([]);
-    }
-  }, [currentTeam]);
+    let isMounted = true;
+    
+    const fetchTickets = async () => {
+      if (!currentTeam?.id) {
+        if (isMounted) setTickets([]);
+        return;
+      }
+      
+      if (isMounted) setIsLoading(true);
+      try {
+        const fetchedTickets = await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' });
+        if (isMounted) setTickets(fetchedTickets);
+      } catch (error) {
+        console.error('Failed to load tickets:', error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    fetchTickets();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentTeam?.id]);
 
   const loadTickets = async () => {
-    if (!currentTeam) return;
+    if (!currentTeam?.id) return;
     setIsLoading(true);
     try {
       const fetchedTickets = await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' });
