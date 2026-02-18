@@ -12,6 +12,7 @@ export default function ActivityPage() {
   const { currentTeam } = useTeam();
   const { isSessionActive, activeTicketTitle, sessionStartTime, sessionDuration } = useClockIn();
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [visibleCount, setVisibleCount] = useState(20);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -77,6 +78,13 @@ export default function ActivityPage() {
     }
   }
 
+  const showedActivities = displayActivities.slice(0, visibleCount);
+  const hasMore = displayActivities.length > visibleCount;
+
+  const handleShowMore = () => {
+    setVisibleCount(prev => prev + 20);
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString([], { month: 'numeric', day: 'numeric', year: 'numeric' });
@@ -88,80 +96,92 @@ export default function ActivityPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto">
-      <div className="flex items-center gap-4 mb-8">
-        <Link 
-          href="/dashboard" 
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-        >
-          <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-gray-300" />
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">All Activity</h1>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
-        {loading ? (
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-20 bg-gray-100 dark:bg-gray-700/50 rounded-xl animate-pulse" />
-            ))}
-          </div>
-        ) : displayActivities.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400 text-center py-8">No activity found</p>
-        ) : (
-          <div className="space-y-4">
-            {displayActivities.map((activity) => (
-              <div 
-                key={activity.id}
-                className={`p-4 rounded-xl border transition-colors ${
-                  activity.status === 'Active'
-                    ? 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30'
-                    : 'bg-gray-50 dark:bg-gray-700/30 border-gray-100 dark:border-gray-700'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className={`mt-1 p-2 rounded-full ${
-                      activity.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                    }`}>
-                      <Clock className="w-5 h-5" />
-                    </div>
+    <div className="-mt-2 md:-mt-0 px-0 md:px-4 py-4 w-full">
+      {loading ? (
+        <div className="space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-20 bg-gray-100 dark:bg-gray-700/50 rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : displayActivities.length === 0 ? (
+        <p className="text-gray-500 dark:text-gray-400 text-left py-8 pl-4">No activity found</p>
+      ) : (
+        <div className="space-y-0 divide-y divide-gray-100 dark:divide-gray-800 w-full max-w-none">
+          {showedActivities.map((activity) => (
+            <div 
+              key={activity.id}
+              className={`py-4 px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors w-full ${
+                activity.status === 'Active'
+                  ? 'bg-green-50/50 dark:bg-green-900/10'
+                  : ''
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`mt-0.5 p-2 rounded-full flex-shrink-0 ${
+                  activity.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                }`}>
+                  <Clock className="w-5 h-5" />
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-4">
                     <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-gray-900 dark:text-white text-base">
-                          {activity.title}
-                        </h3>
-                        {activity.status === 'Active' && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 rounded-full">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-base leading-tight">
+                        {activity.title}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 truncate">
                         {activity.subtitle}
                       </p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                        {formatDate(activity.startTime)}, {formatTime(activity.startTime)}
+                    </div>
+                    
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs font-medium text-gray-900 dark:text-gray-100">
+                        {formatDate(activity.startTime)}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {formatTime(activity.startTime)}
                         {activity.endTime ? ` - ${formatTime(activity.endTime)}` : ' - Now'}
                       </p>
                     </div>
                   </div>
-                  
-                  {activity.duration && (
-                    <div className={`px-3 py-1 rounded-lg text-sm font-mono font-medium ${
-                      activity.status === 'Active'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
-                    }`}>
-                      {activity.duration}
-                    </div>
+
+                  {activity.description && (
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mt-1.5 line-clamp-2">
+                      &quot;{activity.description}&quot;
+                    </p>
                   )}
+
+                  <div className="flex items-center gap-2 mt-2">
+                    {activity.status === 'Active' && (
+                      <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 rounded-md">
+                        Active
+                      </span>
+                    )}
+                    {activity.duration && (
+                      <div className={`text-xs font-mono font-medium ${
+                        activity.status === 'Active'
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}>
+                        {activity.duration}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ))}
+          
+          {hasMore && (
+            <button
+              onClick={handleShowMore}
+              className="w-full py-3 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-xl transition-colors"
+            >
+              Show More
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

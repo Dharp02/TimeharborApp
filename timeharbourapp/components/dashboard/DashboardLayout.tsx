@@ -26,6 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!pathname) return 'Timeharbor';
     if (pathname.startsWith('/dashboard/teams')) return 'Teams';
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
+    if (pathname.startsWith('/dashboard/activity')) return 'All Activity';
     if (pathname.startsWith('/dashboard/notifications')) return 'Notifications';
     
     // Settings Routes
@@ -53,7 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const mainTabs = ['/dashboard', '/dashboard/teams', '/dashboard/tickets', '/dashboard/settings', '/dashboard/notifications'];
     if (mainTabs.includes(normalizedPath)) return false;
 
-    return pathname.startsWith('/dashboard/member') || pathname.startsWith('/dashboard/settings') || pathname.startsWith('/dashboard/notifications');
+    return pathname.startsWith('/dashboard/member') || pathname.startsWith('/dashboard/settings') || pathname.startsWith('/dashboard/notifications') || pathname.startsWith('/dashboard/activity');
   };
 
   const handleBackClick = () => {
