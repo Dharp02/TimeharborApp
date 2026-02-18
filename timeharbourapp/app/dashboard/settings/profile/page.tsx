@@ -84,7 +84,7 @@ export default function ProfilePage() {
   const pulseCount = 0; // Hardcoded as per request
 
   return (
-    <div className="-mt-6 px-0 pb-4 pt-0 space-y-2 md:mt-0 md:p-4 md:space-y-6">
+    <div className="mt-2 px-0 pb-4 pt-0 space-y-2 md:mt-0 md:p-4 md:space-y-6">
       <div className="max-w-5xl mx-auto space-y-4">
         {/* Top Section: Profile Header */}
         <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors">
