@@ -1,11 +1,20 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Calendar, ChevronDown, Download, Filter, MoreHorizontal, Edit2, Check, X, Search } from 'lucide-react';
+import { Calendar, ChevronDown, Download, Filter, MoreHorizontal, Edit2, Check, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
 
 type Activity = {
+  id: string;
+  date: string;
+  member: string;
+  action: string; // e.g., "Clocked in with T-101, T-102", "Clocked out", "Started timer on T-101"
+  tickets?: string[];
+  role: string;
+};
+
+type DesktopActivity = {
   id: string;
   date: string;
   member: string;
@@ -18,12 +27,16 @@ type Activity = {
   role: string;
 };
 
+type DateRangeType = 'Today' | 'Yesterday' | 'This Week' | 'This Month' | 'Custom';
+
 export function TeamActivityReport() {
   const { currentTeam } = useTeam();
-  const [dateRange, setDateRange] = useState('Today');
+  const [dateRange, setDateRange] = useState<DateRangeType>('Today');
   const [customStartDate, setCustomStartDate] = useState('2025-12-26');
   const [customEndDate, setCustomEndDate] = useState('2025-12-26');
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [desktopActivities, setDesktopActivities] = useState<DesktopActivity[]>([]);
+  const [isCustomDateModalOpen, setIsCustomDateModalOpen] = useState(false);
   
   // Column Filters State
   const [columnFilters, setColumnFilters] = useState({
@@ -39,7 +52,7 @@ export function TeamActivityReport() {
 
   // Edit state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [editingActivity, setEditingActivity] = useState<DesktopActivity | null>(null);
   const [editForm, setEditForm] = useState({
     date: '',
     clockIn: '',
@@ -49,10 +62,49 @@ export function TeamActivityReport() {
   // Generate mock data based on current team members
   useEffect(() => {
     if (currentTeam) {
-      const mockActivities = currentTeam.members
-        .filter(member => member.role !== 'Leader') // Filter out leaders
+      // Event-based activity logs for mobile
+      const mockActivityLogs: Activity[] = [];
+      currentTeam.members
+        .filter(member => member.role !== 'Leader')
+        .forEach((member, index) => {
+          // Clock in event
+          mockActivityLogs.push({
+            id: `act-${index}-in`,
+            date: 'Dec 26',
+            member: member.name,
+            action: 'Clocked in with T-101, T-102',
+            tickets: ['T-101', 'T-102'],
+            role: member.role
+          });
+          // Timer start event
+          if (index % 2 === 0) {
+            mockActivityLogs.push({
+              id: `act-${index}-timer`,
+              date: 'Dec 26',
+              member: member.name,
+              action: 'Started timer on T-101',
+              tickets: ['T-101'],
+              role: member.role
+            });
+          }
+          // Clock out event (if not active)
+          if (member.status !== 'online') {
+            mockActivityLogs.push({
+              id: `act-${index}-out`,
+              date: 'Dec 26',
+              member: member.name,
+              action: 'Clocked out',
+              role: member.role
+            });
+          }
+        });
+      setActivities(mockActivityLogs);
+
+      // Traditional table data for desktop
+      const mockDesktopActivities = currentTeam.members
+        .filter(member => member.role !== 'Leader')
         .map((member, index) => ({
-          id: `act-${index}`,
+          id: `desk-${index}`,
           date: '2025-12-26',
           member: member.name,
           email: `${member.name.toLowerCase().replace(' ', '.')}@example.com`,
@@ -63,15 +115,24 @@ export function TeamActivityReport() {
           tickets: ['T-101', 'T-102'],
           role: member.role
         }));
-      setActivities(mockActivities);
+      setDesktopActivities(mockDesktopActivities);
     }
   }, [currentTeam]);
 
   const filters = ['Today', 'Yesterday', 'Last 7 Days', 'This Week', 'Last 14 Days'];
 
-  // Filtered activities based on column filters
+  // Filtered activities for mobile (event-based)
   const filteredActivities = useMemo(() => {
     return activities.filter(activity => {
+      return (
+        activity.member.toLowerCase().includes(columnFilters.member.toLowerCase())
+      );
+    });
+  }, [activities, columnFilters]);
+
+  // Filtered activities for desktop (table-based)
+  const filteredDesktopActivities = useMemo(() => {
+    return desktopActivities.filter(activity => {
       return (
         activity.date.toLowerCase().includes(columnFilters.date.toLowerCase()) &&
         activity.member.toLowerCase().includes(columnFilters.member.toLowerCase()) &&
@@ -83,13 +144,13 @@ export function TeamActivityReport() {
         activity.tickets.some(t => t.toLowerCase().includes(columnFilters.tickets.toLowerCase()))
       );
     });
-  }, [activities, columnFilters]);
+  }, [desktopActivities, columnFilters]);
 
   const handleFilterChange = (column: keyof typeof columnFilters, value: string) => {
     setColumnFilters(prev => ({ ...prev, [column]: value }));
   };
 
-  const handleEditClick = (activity: Activity) => {
+  const handleEditClick = (activity: DesktopActivity) => {
     setEditingActivity(activity);
     setEditForm({
       date: activity.date,
@@ -101,7 +162,7 @@ export function TeamActivityReport() {
 
   const handleSaveEdit = () => {
     if (editingActivity) {
-      setActivities(activities.map(act => 
+      setDesktopActivities(desktopActivities.map(act => 
         act.id === editingActivity.id 
           ? { 
               ...act, 
@@ -116,12 +177,98 @@ export function TeamActivityReport() {
     }
   };
 
+  // Date navigation handlers for mobile
+  const handlePrevDate = () => {
+    if (dateRange === 'Today') {
+      setDateRange('Yesterday');
+    } else if (dateRange === 'Yesterday') {
+      // Go to date before yesterday (could implement actual date handling)
+      setDateRange('Today');
+    }
+  };
+
+  const handleNextDate = () => {
+    const sequence: DateRangeType[] = ['Today', 'This Week', 'This Month', 'Custom'];
+    const currentIndex = sequence.indexOf(dateRange);
+    if (currentIndex < sequence.length - 1) {
+      const nextRange = sequence[currentIndex + 1];
+      if (nextRange === 'Custom') {
+        setIsCustomDateModalOpen(true);
+      } else {
+        setDateRange(nextRange);
+      }
+    }
+  };
+
   if (!currentTeam) return null;
 
   // Check if current user is a leader to show edit actions
   const isLeader = currentTeam.role === 'Leader';
 
   return (
+    <>
+      {/* Mobile View */}
+      <div className="md:hidden space-y-3">
+        {/* Compact Filter Row - Name Filter + Date Navigation in Single Container */}
+        <div className="mx-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Filter by name"
+            value={columnFilters.member}
+            onChange={(e) => handleFilterChange('member', e.target.value)}
+            className="flex-1 text-sm bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
+          />
+          <div className="flex items-center gap-1 border-l border-gray-300 dark:border-gray-600 pl-2">
+            <button
+              onClick={handlePrevDate}
+              className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <div className="text-xs font-medium text-gray-900 dark:text-white whitespace-nowrap min-w-[70px] text-center">
+              {dateRange}
+            </div>
+            <button
+              onClick={handleNextDate}
+              className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Activity List */}
+        <div className="px-2">
+          {filteredActivities.length > 0 ? (
+            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredActivities.map((activity) => (
+                <div key={activity.id} className="py-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-base font-medium flex-shrink-0">
+                        {activity.member.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-medium text-gray-900 dark:text-white">{activity.member}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{activity.action}</p>
+                      </div>
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
+                      {activity.date}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-6 text-center text-gray-500 dark:text-gray-400 text-sm">
+              No activity found
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop View */}
     <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
@@ -272,10 +419,9 @@ export function TeamActivityReport() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredActivities.length > 0 ? (
-              filteredActivities.map((activity) => (
-                <tr key={activity.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-white whitespace-nowrap">
+            {filteredDesktopActivities.length > 0 ? (
+              filteredDesktopActivities.map((activity) => (
+                <tr key={activity.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">\n                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-white whitespace-nowrap">
                     {activity.date}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
@@ -339,6 +485,7 @@ export function TeamActivityReport() {
           </tbody>
         </table>
       </div>
+    </div>
 
       {/* Edit Activity Modal */}
       <Modal
@@ -410,6 +557,55 @@ export function TeamActivityReport() {
           </div>
         </div>
       </Modal>
-    </div>
+
+      {/* Custom Date Range Modal (for mobile) */}
+      <Modal
+        isOpen={isCustomDateModalOpen}
+        onClose={() => setIsCustomDateModalOpen(false)}
+        title="Select Custom Date Range"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Start Date
+            </label>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              End Date
+            </label>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => setIsCustomDateModalOpen(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                setDateRange('Custom');
+                setIsCustomDateModalOpen(false);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }

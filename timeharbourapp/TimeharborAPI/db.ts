@@ -113,6 +113,10 @@ export class TimeharborDB extends Dexie {
       dashboardStats: 'teamId', // teamId as key, or 'global' for all teams
       dashboardActivity: 'id, teamId'
     });
+
+    this.version(7).stores({
+      events: 'id, userId, type, timestamp, synced, teamId' // Added teamId index
+    });
   }
 }
 
