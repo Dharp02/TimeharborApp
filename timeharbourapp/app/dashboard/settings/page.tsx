@@ -41,58 +41,56 @@ export default function SettingsPage() {
   return (
     <>
       {/* Mobile View */}
-      <div className="md:hidden -mt-2 p-4 space-y-6">
+      <div className="md:hidden -mt-2 -ml-7.5 px-0 py-2 space-y-0 w-[calc(100%+56px)]">
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
           <Link 
             href="/dashboard/settings/profile"
-            className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            className="flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <div className="p-0">
+                <User className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
               </div>
-              <span className="font-medium text-gray-900 dark:text-white">My Profile</span>
+              <span className="font-medium text-lg text-gray-900 dark:text-white">My Profile</span>
             </div>
-            <ChevronRight className="w-5 h-5 text-gray-400" />
+            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
           </Link>
 
           <button 
             onClick={() => setActiveModal('timesheet')}
-            className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <FileText className="w-5 h-5 text-green-600 dark:text-green-400" />
+              <div className="p-0">
+                <FileText className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
               </div>
-              <span className="font-medium text-gray-900 dark:text-white">My Timesheet</span>
+              <span className="font-medium text-lg text-gray-900 dark:text-white">My Timesheet</span>
             </div>
-            <ChevronRight className="w-5 h-5 text-gray-400" />
+            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
           </button>
 
           <button 
             onClick={() => setActiveModal('calendar')}
-            className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <div className="p-0">
+                <Calendar className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
               </div>
-              <span className="font-medium text-gray-900 dark:text-white">Calendar</span>
+              <span className="font-medium text-lg text-gray-900 dark:text-white">Calendar</span>
             </div>
-            <ChevronRight className="w-5 h-5 text-gray-400" />
+            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
           </button>
 
           <button 
             onClick={handleSignOut}
-            className="w-full flex items-center gap-4 p-4 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="w-full flex items-center gap-4 px-6 py-4 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
-            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-              <LogOut className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <div className="p-0">
+              <LogOut className="w-7 h-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
             </div>
-            <span className="font-medium text-red-600 dark:text-red-400">Log Out</span>
+            <span className="font-medium text-lg text-red-600 dark:text-red-400">Log Out</span>
           </button>
-        </div>
       </div>
 
       {/* Desktop View - Keeping original settings layout */}
