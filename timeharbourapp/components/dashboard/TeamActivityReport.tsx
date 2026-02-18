@@ -9,6 +9,7 @@ import { getTeamActivity } from '@/TimeharborAPI/teams';
 type Activity = {
   id: string;
   date: string;
+  timestamp: string; // Add timestamp for filtering
   member: string;
   action: string; // e.g., "Clocked in with T-101, T-102", "Clocked out", "Started timer on T-101"
   description?: string;
@@ -36,6 +37,7 @@ export function TeamActivityReport() {
   const [dateRange, setDateRange] = useState<DateRangeType>('Today');
   const [customStartDate, setCustomStartDate] = useState('2025-12-26');
   const [customEndDate, setCustomEndDate] = useState('2025-12-26');
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [activities, setActivities] = useState<Activity[]>([]);
   const [desktopActivities, setDesktopActivities] = useState<DesktopActivity[]>([]);
   const [isCustomDateModalOpen, setIsCustomDateModalOpen] = useState(false);
@@ -119,6 +121,7 @@ export function TeamActivityReport() {
              return {
                  id: log.id,
                  date: displayDate,
+                 timestamp: log.timestamp,
                  member: log.user?.full_name || 'Unknown',
                  action: action,
                  tickets: tickets,
@@ -152,11 +155,18 @@ export function TeamActivityReport() {
   // Filtered activities for mobile (event-based)
   const filteredActivities = useMemo(() => {
     return activities.filter(activity => {
-      return (
-        activity.member.toLowerCase().includes(columnFilters.member.toLowerCase())
-      );
+      // Parse timestamp to date for comparison
+      const activityDate = new Date(activity.timestamp);
+      
+      // Compare year, month, day
+      const isSameDate = 
+        activityDate.getFullYear() === currentDate.getFullYear() &&
+        activityDate.getMonth() === currentDate.getMonth() &&
+        activityDate.getDate() === currentDate.getDate();
+
+      return isSameDate && activity.member.toLowerCase().includes(columnFilters.member.toLowerCase());
     });
-  }, [activities, columnFilters]);
+  }, [activities, columnFilters, currentDate]);
 
   // Filtered activities for desktop (table-based)
   const filteredDesktopActivities = useMemo(() => {
@@ -211,25 +221,44 @@ export function TeamActivityReport() {
 
   // Date navigation handlers for mobile
   const handlePrevDate = () => {
-    if (dateRange === 'Today') {
-      setDateRange('Yesterday');
-    } else if (dateRange === 'Yesterday') {
-      // Go to date before yesterday (could implement actual date handling)
-      setDateRange('Today');
-    }
+    const prev = new Date(currentDate);
+    prev.setDate(prev.getDate() - 1);
+    setCurrentDate(prev);
+    // Sync with dateRange state if needed for consistency, but relying on currentDate for mobile
+    if (prev.toDateString() === new Date().toDateString()) setDateRange('Today');
+    else if (prev.toDateString() === new Date(Date.now() - 86400000).toDateString()) setDateRange('Yesterday');
+    else setDateRange('Custom');
+
+    // Reset pagination
+    setVisibleCount(5);
   };
 
   const handleNextDate = () => {
-    const sequence: DateRangeType[] = ['Today', 'This Week', 'This Month', 'Custom'];
-    const currentIndex = sequence.indexOf(dateRange);
-    if (currentIndex < sequence.length - 1) {
-      const nextRange = sequence[currentIndex + 1];
-      if (nextRange === 'Custom') {
-        setIsCustomDateModalOpen(true);
-      } else {
-        setDateRange(nextRange);
-      }
-    }
+    const next = new Date(currentDate);
+    next.setDate(next.getDate() + 1);
+    
+    // Prevent going to future dates (optional but good UX)
+    if (next > new Date()) return;
+    
+    setCurrentDate(next);
+    
+    if (next.toDateString() === new Date().toDateString()) setDateRange('Today');
+    else if (next.toDateString() === new Date(Date.now() - 86400000).toDateString()) setDateRange('Yesterday');
+    else setDateRange('Custom');
+
+    // Reset pagination
+    setVisibleCount(5);
+  };
+
+  const getDateLabel = () => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (currentDate.toDateString() === today.toDateString()) return 'Today';
+    if (currentDate.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    
+    return currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   if (!currentTeam) return null;
@@ -248,23 +277,30 @@ export function TeamActivityReport() {
             placeholder="Filter by name"
             value={columnFilters.member}
             onChange={(e) => handleFilterChange('member', e.target.value)}
-            className="flex-1 text-sm bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
+            className="flex-1 text-base bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
           />
           <div className="flex items-center gap-1 border-l border-gray-300 dark:border-gray-600 pl-2 shrink-0">
             <button
               onClick={handlePrevDate}
-              className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors shrink-0"
+              className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors shrink-0"
+              aria-label="Previous day"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-5 h-5" />
             </button>
-            <div className="text-xs font-medium text-gray-900 dark:text-white whitespace-nowrap min-w-[70px] text-center shrink-0">
-              {dateRange}
+            <div className="text-base md:text-lg font-bold text-gray-900 dark:text-white whitespace-nowrap min-w-[100px] text-center shrink-0">
+              {getDateLabel()}
             </div>
             <button
               onClick={handleNextDate}
-              className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+              disabled={currentDate.toDateString() === new Date().toDateString()}
+              className={`p-1.5 rounded-full transition-colors shrink-0 ${
+                currentDate.toDateString() === new Date().toDateString()
+                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  : 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+              }`}
+              aria-label="Next day"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>
