@@ -27,7 +27,7 @@ type DesktopActivity = {
   role: string;
 };
 
-type DateRangeType = 'Today' | 'Yesterday' | 'This Week' | 'This Month' | 'Custom';
+type DateRangeType = 'Today' | 'Yesterday' | 'Last 7 Days' | 'This Week' | 'Last 14 Days' | 'This Month' | 'Custom';
 
 export function TeamActivityReport() {
   const { currentTeam } = useTeam();
@@ -285,7 +285,7 @@ export function TeamActivityReport() {
             {filters.map((filter) => (
               <button
                 key={filter}
-                onClick={() => setDateRange(filter)}
+                onClick={() => setDateRange(filter as DateRangeType)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
                   dateRange === filter
                     ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
@@ -421,7 +421,8 @@ export function TeamActivityReport() {
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {filteredDesktopActivities.length > 0 ? (
               filteredDesktopActivities.map((activity) => (
-                <tr key={activity.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">\n                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-white whitespace-nowrap">
+                <tr key={activity.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-white whitespace-nowrap">
                     {activity.date}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">

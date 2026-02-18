@@ -14,7 +14,7 @@ export default function TeamsPage() {
   const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams } = useTeam();
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'teamactivity' | 'edit' | 'share'>('teamactivity');
+  const [activeTab, setActiveTab] = useState<'teaminfo' | 'teamactivity'>('teaminfo');
 
   useEffect(() => {
     refreshTeams();
@@ -205,417 +205,241 @@ export default function TeamsPage() {
         ) : (
           <>
             {/* Tabs */}
-            <div className="flex gap-2 mb-4 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+            <div className="flex mb-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => setActiveTab('teaminfo')}
+                      className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
+                        activeTab === 'teaminfo'
+                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                      }`}
+                    >
+                      Team Info
+                    </button>
+                    <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
                     <button
                       onClick={() => setActiveTab('teamactivity')}
-                      className={`px-4 py-2 text-sm md:text-base font-medium rounded-md transition-all ${
+                      className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
                         activeTab === 'teamactivity'
-                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                       }`}
                     >
                       Team Activity
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('edit')}
-                      className={`px-4 py-2 text-sm md:text-base font-medium rounded-md transition-all ${
-                        activeTab === 'edit'
-                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                      }`}
-                    >
-                      Edit Team Name
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('share')}
-                      className={`px-4 py-2 text-sm md:text-base font-medium rounded-md transition-all ${
-                        activeTab === 'share'
-                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                      }`}
-                    >
-                      Share with Code
                     </button>
                   </div>
 
                   {/* Tab Content */}
                   <div>
+                    {activeTab === 'teaminfo' && (
+                      <div className="space-y-4">
+                        {/* Team Name & Code Card */}
+                        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 text-center">
+                          {/* Edit Button - Top Right */}
+                          {currentTeam.role === 'Leader' && (
+                            <button
+                              onClick={() => {
+                                setEditTeamName(currentTeam.name);
+                                setIsEditModalOpen(true);
+                              }}
+                              className="absolute top-3 right-3 p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors shadow-sm"
+                              title="Edit team name"
+                            >
+                              <Edit2 className="w-5 h-5" />
+                            </button>
+                          )}
+
+                          {/* Centered Content */}
+                          <div className="flex flex-col items-center gap-3">
+                            <div>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Team Name</p>
+                              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                                {currentTeam.name}
+                              </h3>
+                            </div>
+
+                            <div className="h-px w-24 bg-gray-200 dark:bg-gray-700"></div>
+
+                            <div>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Team Code</p>
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-xl font-mono font-semibold text-gray-900 dark:text-white">
+                                  {currentTeam.code}
+                                </span>
+                                <button
+                                  onClick={copyHeaderCode}
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                  title="Copy team code"
+                                >
+                                  {headerCopied ? (
+                                    <Check className="w-4 h-4" />
+                                  ) : (
+                                    <Copy className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 md:pt-6">
+                          <div className="flex justify-between items-center mb-3 md:mb-4">
+                            <div>
+                              <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
+                                Collaborators
+                              </h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {currentTeam.members.length} members
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {/* Search Component */}
+                              <div className={`flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg transition-all duration-300 ${isSearchOpen ? 'w-48 px-2 py-1' : 'w-8 h-8 md:w-9 md:h-9 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 justify-center'}`}>
+                                {isSearchOpen ? (
+                                   <>
+                                     <Search className="w-4 h-4 text-gray-500 flex-shrink-0 mr-2" />
+                                     <input 
+                                        autoFocus
+                                        type="text"
+                                        placeholder="Search members..."
+                                        value={memberSearchQuery}
+                                        onChange={(e) => setMemberSearchQuery(e.target.value)}
+                                        className="bg-transparent border-none outline-none text-sm w-full text-gray-900 dark:text-gray-100 placeholder-gray-500"
+                                        onBlur={() => {
+                                           if (!memberSearchQuery) setIsSearchOpen(false);
+                                        }}
+                                     />
+                                     <button 
+                                        onClick={() => {
+                                           setMemberSearchQuery('');
+                                           setIsSearchOpen(false);
+                                        }}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                   </>
+                                ) : (
+                                   <button onClick={() => setIsSearchOpen(true)} className="flex items-center justify-center w-full h-full text-gray-500 dark:text-gray-400">
+                                      <Search className="w-4 h-4" />
+                                   </button>
+                                )}
+                              </div>
+
+                              {currentTeam.role === 'Leader' && (
+                                <button
+                                  onClick={() => setIsAddMemberModalOpen(true)}
+                                  className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                                  title="Add Member"
+                                >
+                                  <Plus className="w-5 h-5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {[...currentTeam.members]
+                              .filter(member => 
+                                 (member.name || '').toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
+                                 (member.email || '').toLowerCase().includes(memberSearchQuery.toLowerCase())
+                              )
+                              .sort((a, b) => {
+                                if (a.role === 'Leader' && b.role !== 'Leader') return -1;
+                                if (a.role !== 'Leader' && b.role === 'Leader') return 1;
+                                  return 0;
+                              })
+                              .map((member) => {
+                              const isLeader = currentTeam.role === 'Leader';
+                              const isSelf = user?.id === member.id;
+
+                              if (!isLeader || isSelf) {
+                                return (
+                                  <div 
+                                    key={member.id}
+                                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
+                                  >
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
+                                      {member.name.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900 dark:text-white truncate">
+                                          {member.name}
+                                        </p>
+                                        {member.role === 'Leader' && (
+                                          <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                            Leader
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                        {member.email}
+                                      </p>
+                                    </div>
+                                    {isLeader && !isSelf && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          openRemoveMemberModal(member);
+                                        }}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Remove Member"
+                                      >
+                                        <UserMinus className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <Link 
+                                  href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}&name=${encodeURIComponent(member.name)}`}
+                                  key={member.id}
+                                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                                >
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
+                                    {member.name.charAt(0)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-medium text-gray-900 dark:text-white truncate">
+                                        {member.name}
+                                      </p>
+                                      {member.role === 'Leader' && (
+                                        <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                          Leader
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                      {member.email}
+                                    </p>
+                                  </div>
+                                  {currentTeam.role === 'Leader' && member.id !== user?.id && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        openRemoveMemberModal(member);
+                                      }}
+                                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                      title="Remove Member"
+                                    >
+                                      <UserMinus className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {activeTab === 'teamactivity' && (
                       <div className="space-y-4">
                         <TeamActivityReport />
-                      </div>
-                    )}
-
-                    {activeTab === 'edit' && (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Team Name
-                          </label>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={editTeamName}
-                              onChange={(e) => setEditTeamName(e.target.value)}
-                              placeholder={currentTeam.name}
-                              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                            {currentTeam.role === 'Leader' && (
-                              <button
-                                onClick={() => {
-                                  if (editTeamName.trim()) {
-                                    updateTeamName(currentTeam.id, editTeamName);
-                                    setEditTeamName('');
-                                  }
-                                }}
-                                disabled={!editTeamName.trim()}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              >
-                                Save
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="pt-4 md:pt-6">
-                          <div className="flex justify-between items-center mb-3 md:mb-4">
-                            <div>
-                              <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
-                                Collaborators
-                              </h4>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                {currentTeam.members.length} members
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {/* Search Component */}
-                              <div className={`flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg transition-all duration-300 ${isSearchOpen ? 'w-48 px-2 py-1' : 'w-8 h-8 md:w-9 md:h-9 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 justify-center'}`}>
-                                {isSearchOpen ? (
-                                   <>
-                                     <Search className="w-4 h-4 text-gray-500 flex-shrink-0 mr-2" />
-                                     <input 
-                                        autoFocus
-                                        type="text"
-                                        placeholder="Search members..."
-                                        value={memberSearchQuery}
-                                        onChange={(e) => setMemberSearchQuery(e.target.value)}
-                                        className="bg-transparent border-none outline-none text-sm w-full text-gray-900 dark:text-gray-100 placeholder-gray-500"
-                                        onBlur={() => {
-                                           if (!memberSearchQuery) setIsSearchOpen(false);
-                                        }}
-                                     />
-                                     <button 
-                                        onClick={() => {
-                                           setMemberSearchQuery('');
-                                           setIsSearchOpen(false);
-                                        }}
-                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </button>
-                                   </>
-                                ) : (
-                                   <button onClick={() => setIsSearchOpen(true)} className="flex items-center justify-center w-full h-full text-gray-500 dark:text-gray-400">
-                                      <Search className="w-4 h-4" />
-                                   </button>
-                                )}
-                              </div>
-
-                              {currentTeam.role === 'Leader' && (
-                                <button
-                                  onClick={() => setIsAddMemberModalOpen(true)}
-                                  className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
-                                  title="Add Member"
-                                >
-                                  <Plus className="w-5 h-5" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                            {[...currentTeam.members]
-                              .filter(member => 
-                                 (member.name || '').toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
-                                 (member.email || '').toLowerCase().includes(memberSearchQuery.toLowerCase())
-                              )
-                              .sort((a, b) => {
-                                if (a.role === 'Leader' && b.role !== 'Leader') return -1;
-                                if (a.role !== 'Leader' && b.role === 'Leader') return 1;
-                                  return 0;
-                              })
-                              .map((member) => {
-                              const isLeader = currentTeam.role === 'Leader';
-                              const isSelf = user?.id === member.id;
-
-                              if (!isLeader || isSelf) {
-                                return (
-                                  <div 
-                                    key={member.id}
-                                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
-                                  >
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
-                                      {member.name.charAt(0)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <p className="font-medium text-gray-900 dark:text-white truncate">
-                                          {member.name}
-                                        </p>
-                                        {member.role === 'Leader' && (
-                                          <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
-                                            Leader
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                        {member.email}
-                                      </p>
-                                    </div>
-                                    {isLeader && !isSelf && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          openRemoveMemberModal(member);
-                                        }}
-                                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                        title="Remove Member"
-                                      >
-                                        <UserMinus className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              }
-
-                              return (
-                                <Link 
-                                  href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}&name=${encodeURIComponent(member.name)}`}
-                                  key={member.id}
-                                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                                >
-                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
-                                    {member.name.charAt(0)}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-medium text-gray-900 dark:text-white truncate">
-                                        {member.name}
-                                      </p>
-                                      {member.role === 'Leader' && (
-                                        <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
-                                          Leader
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                      {member.email}
-                                    </p>
-                                  </div>
-                                  {currentTeam.role === 'Leader' && member.id !== user?.id && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        openRemoveMemberModal(member);
-                                      }}
-                                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                      title="Remove Member"
-                                    >
-                                      <UserMinus className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {activeTab === 'share' && (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Team Code
-                          </label>
-                          <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                            <span className="text-base md:text-lg font-mono text-gray-900 dark:text-white flex-1">
-                              {currentTeam.code}
-                            </span>
-                            <button
-                              onClick={copyHeaderCode}
-                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-                            >
-                              {headerCopied ? (
-                                <>
-                                  <Check className="w-4 h-4" />
-                                  <span>Copied!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-4 h-4" />
-                                  <span>Copy</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                            Share this code with others to invite them to your team.
-                          </p>
-                        </div>
-
-                        <div className="pt-4 md:pt-6">
-                          <div className="flex justify-between items-center mb-3 md:mb-4">
-                            <div>
-                              <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
-                                Collaborators
-                              </h4>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                {currentTeam.members.length} members
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {/* Search Component */}
-                              <div className={`flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg transition-all duration-300 ${isSearchOpen ? 'w-48 px-2 py-1' : 'w-8 h-8 md:w-9 md:h-9 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 justify-center'}`}>
-                                {isSearchOpen ? (
-                                   <>
-                                     <Search className="w-4 h-4 text-gray-500 flex-shrink-0 mr-2" />
-                                     <input 
-                                        autoFocus
-                                        type="text"
-                                        placeholder="Search members..."
-                                        value={memberSearchQuery}
-                                        onChange={(e) => setMemberSearchQuery(e.target.value)}
-                                        className="bg-transparent border-none outline-none text-sm w-full text-gray-900 dark:text-gray-100 placeholder-gray-500"
-                                        onBlur={() => {
-                                           if (!memberSearchQuery) setIsSearchOpen(false);
-                                        }}
-                                     />
-                                     <button 
-                                        onClick={() => {
-                                           setMemberSearchQuery('');
-                                           setIsSearchOpen(false);
-                                        }}
-                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </button>
-                                   </>
-                                ) : (
-                                   <button onClick={() => setIsSearchOpen(true)} className="flex items-center justify-center w-full h-full text-gray-500 dark:text-gray-400">
-                                      <Search className="w-4 h-4" />
-                                   </button>
-                                )}
-                              </div>
-
-                              {currentTeam.role === 'Leader' && (
-                                <button
-                                  onClick={() => setIsAddMemberModalOpen(true)}
-                                  className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
-                                  title="Add Member"
-                                >
-                                  <Plus className="w-5 h-5" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                            {[...currentTeam.members]
-                              .filter(member => 
-                                 (member.name || '').toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
-                                 (member.email || '').toLowerCase().includes(memberSearchQuery.toLowerCase())
-                              )
-                              .sort((a, b) => {
-                                if (a.role === 'Leader' && b.role !== 'Leader') return -1;
-                                if (a.role !== 'Leader' && b.role === 'Leader') return 1;
-                                  return 0;
-                              })
-                              .map((member) => {
-                              const isLeader = currentTeam.role === 'Leader';
-                              const isSelf = user?.id === member.id;
-
-                              if (!isLeader || isSelf) {
-                                return (
-                                  <div 
-                                    key={member.id}
-                                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
-                                  >
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
-                                      {member.name.charAt(0)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <p className="font-medium text-gray-900 dark:text-white truncate">
-                                          {member.name}
-                                        </p>
-                                        {member.role === 'Leader' && (
-                                          <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
-                                            Leader
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                        {member.email}
-                                      </p>
-                                    </div>
-                                    {isLeader && !isSelf && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          openRemoveMemberModal(member);
-                                        }}
-                                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                        title="Remove Member"
-                                      >
-                                        <UserMinus className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              }
-
-                              return (
-                                <Link 
-                                  href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}&name=${encodeURIComponent(member.name)}`}
-                                  key={member.id}
-                                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                                >
-                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
-                                    {member.name.charAt(0)}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-medium text-gray-900 dark:text-white truncate">
-                                        {member.name}
-                                      </p>
-                                      {member.role === 'Leader' && (
-                                        <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
-                                          Leader
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                      {member.email}
-                                    </p>
-                                  </div>
-                                  {currentTeam.role === 'Leader' && member.id !== user?.id && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        openRemoveMemberModal(member);
-                                      }}
-                                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                      title="Remove Member"
-                                    >
-                                      <UserMinus className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -774,8 +598,11 @@ export default function TeamsPage() {
       {/* Edit Team Modal */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit Team"
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditTeamName(currentTeam?.name || '');
+        }}
+        title="Edit Team Name"
       >
         <div className="space-y-6">
           <div>
@@ -787,36 +614,33 @@ export default function TeamsPage() {
               value={editTeamName}
               onChange={(e) => setEditTeamName(e.target.value)}
               placeholder="e.g. Engineering Team"
+              autoFocus
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
-          <div className="flex items-center justify-between mt-6">
+          <div className="flex justify-end gap-3 mt-6">
             <button
-               onClick={() => {
-                  setIsEditModalOpen(false);
-                  openDeleteModal(selectedTeamForAction!);
-               }}
-               className="text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors whitespace-nowrap pr-2"
+              onClick={() => {
+                setIsEditModalOpen(false);
+                setEditTeamName(currentTeam?.name || '');
+              }}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
-               Delete Team
+              Cancel
             </button>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEditTeam}
-                disabled={!editTeamName.trim()}
-                className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-              >
-                Save Changes
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                if (currentTeam && editTeamName.trim()) {
+                  updateTeamName(currentTeam.id, editTeamName);
+                  setIsEditModalOpen(false);
+                }
+              }}
+              disabled={!editTeamName.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save Changes
+            </button>
           </div>
         </div>
       </Modal>
