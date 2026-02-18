@@ -14,7 +14,8 @@
     "dev:android": "npx cap sync android && npx cap open android",
     "dev:ios": "npx cap sync ios && npx cap open ios",
     "prod:android": "npm run build && npx cap sync android && npx cap open android",
-    "prod:ios": "npm run build && npx cap sync ios && npx cap open ios"
+    "prod:ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "serve": "serve out -p 3000"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
@@ -34,6 +35,7 @@
     "react-dom": "19.2.3",
     "sass": "^1.97.3",
     "serve": "^14.2.5",
+    "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.4.0",
     "uuid": "^11.0.3"
   },

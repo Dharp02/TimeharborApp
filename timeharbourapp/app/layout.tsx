@@ -5,6 +5,7 @@ import "./globals.css";
 import AuthProvider from "@/components/auth/AuthProvider";
 import SyncInitializer from "@/components/SyncInitializer";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import SocketLayout from "@/components/SocketLayout";
 
 // const geistSans = Geist({
 //   variable: "--font-geist-sans",
@@ -31,8 +32,10 @@ export default function RootLayout({
       <body className="antialiased">
         <AuthProvider>
           <NotificationProvider>
-            <SyncInitializer />
-            {children}
+            <SocketLayout>
+              <SyncInitializer />
+              {children}
+            </SocketLayout>
           </NotificationProvider>
         </AuthProvider>
       </body>

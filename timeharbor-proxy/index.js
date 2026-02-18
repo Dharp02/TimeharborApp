@@ -10,10 +10,12 @@ const server = http.createServer((req, res) => {
   // Log the request for debugging
   console.log(`${req.method} ${req.url}`);
 
-  if (req.url.startsWith('/api')) {
-    // Strip /api prefix
-    req.url = req.url.replace(/^\/api/, '');
-    if (req.url === '') req.url = '/';
+  if (req.url.startsWith('/api') || req.url.startsWith('/socket.io')) {
+    // Strip /api prefix only if it starts with /api
+    if (req.url.startsWith('/api')) {
+      req.url = req.url.replace(/^\/api/, '');
+      if (req.url === '') req.url = '/';
+    }
     
     // Proxy to backend
     proxy.web(req, res, { target: BACKEND_URL }, (err) => {
@@ -37,7 +39,12 @@ const server = http.createServer((req, res) => {
 
 // Handle upgrade for websockets (if needed, e.g. for Next.js HMR)
 server.on('upgrade', (req, socket, head) => {
-  if (req.url.startsWith('/api')) {
+  if (req.url.startsWith('/api') || req.url.startsWith('/socket.io')) {
+    // Correctly strip /api prefix for WebSocket upgrades as well
+    if (req.url.startsWith('/api')) {
+      req.url = req.url.replace(/^\/api/, '');
+      if (req.url === '') req.url = '/';
+    }
     proxy.ws(req, socket, head, { target: BACKEND_URL });
   } else {
     proxy.ws(req, socket, head, { target: FRONTEND_URL });
