@@ -542,3 +542,22 @@ export const removeMemberFromTeam = async (teamId: string, userIdToRemove: strin
     NetworkDetector.getInstance().triggerSync();
   }
 };
+
+export const getTeamActivity = async (teamId: string, limit: number = 50): Promise<any[]> => {
+  const url = `${API_URL}/teams/${teamId}/activity?limit=${limit}`;
+
+  try {
+    const response = await authenticatedFetch(url);
+
+    if (!response.ok) {
+        if (response.status === 404) return [];
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch team activity');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching team activity:', error);
+    return [];
+  }
+};
