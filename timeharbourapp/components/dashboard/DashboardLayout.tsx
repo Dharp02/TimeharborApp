@@ -37,6 +37,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const shouldShowBackButton = () => {
     if (!pathname) return false;
+    
+    // Normalize path by removing trailing slash and forcing lowercase
+    let normalizedPath = pathname.toLowerCase();
+    if (normalizedPath.endsWith('/')) {
+      normalizedPath = normalizedPath.slice(0, -1);
+    }
+    
+    // Explicitly hide back button on main tab pages
+    const mainTabs = ['/dashboard', '/dashboard/teams', '/dashboard/tickets', '/dashboard/settings', '/dashboard/notifications'];
+    if (mainTabs.includes(normalizedPath)) return false;
+
     return pathname.startsWith('/dashboard/member') || pathname.startsWith('/dashboard/settings') || pathname.startsWith('/dashboard/notifications');
   };
 

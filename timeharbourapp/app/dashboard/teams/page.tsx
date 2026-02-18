@@ -23,8 +23,11 @@ export default function TeamsPage() {
   useEffect(() => {
     if (currentTeam) {
       setEditTeamName(currentTeam.name);
+      if (currentTeam.role !== 'Leader' && activeTab === 'teamactivity') {
+        setActiveTab('teaminfo');
+      }
     }
-  }, [currentTeam]);
+  }, [currentTeam, activeTab]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -235,17 +238,21 @@ export default function TeamsPage() {
                     >
                       Team Info
                     </button>
-                    <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
-                    <button
-                      onClick={() => setActiveTab('teamactivity')}
-                      className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
-                        activeTab === 'teamactivity'
-                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                      }`}
-                    >
-                      Team Activity
-                    </button>
+                    {currentTeam.role === 'Leader' && (
+                      <>
+                        <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
+                        <button
+                          onClick={() => setActiveTab('teamactivity')}
+                          className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
+                            activeTab === 'teamactivity'
+                              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                          }`}
+                        >
+                          Team Activity
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {/* Tab Content */}
