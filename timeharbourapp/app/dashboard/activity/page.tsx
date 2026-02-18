@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { ChevronLeft, Clock } from 'lucide-react';
 import { useTeam } from '@/components/dashboard/TeamContext';
 import { useClockIn } from '@/components/dashboard/ClockInContext';
+import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import * as API from '@/TimeharborAPI';
 import { Activity } from '@/TimeharborAPI/dashboard';
+import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 export default function ActivityPage() {
   const { currentTeam } = useTeam();
@@ -14,6 +16,8 @@ export default function ActivityPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [visibleCount, setVisibleCount] = useState(20);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+  const [preset, setPreset] = useState<DateRangePreset>('today');
 
   useEffect(() => {
     const fetchActivity = async () => {
@@ -31,15 +35,35 @@ export default function ActivityPage() {
     fetchActivity();
   }, [currentTeam?.id]);
 
-  // Combine API activities with local active session
-  let displayActivities = [...activities];
+  const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
+    setDateRange(range);
+    setPreset(newPreset);
+    setVisibleCount(20); // Reset visible count on filter change
+  };
+
+  // Filter by date range (client-side for now)
+  // We filter original activities first
+  const filteredActivities = activities.filter(activity => {
+      if (!activity.startTime) return false;
+      const activityDate = new Date(activity.startTime);
+      // Ensure we compare dates correctly
+      return isWithinInterval(activityDate, { start: dateRange.from, end: dateRange.to });
+  });
+
+  let displayActivities = [...filteredActivities];
   
   // If there's an active session locally, ensure it's displayed at the top
   // We check if the API already returned an active session to avoid duplicates
+  // Note: We check against *original* activities to know if API is aware, 
+  // but we only display it if it falls within our filter (or always if active?)
+  // For now, let's respect the filter. If user selects 'Yesterday', active session (today) is hidden.
   const apiHasActiveSession = activities.some(a => a.status === 'Active');
   
-  if (isSessionActive && !apiHasActiveSession) {
-    const now = new Date();
+  // Check if current active session falls within selected range
+  const now = new Date();
+  const isActiveSessionInView = isWithinInterval(now, { start: dateRange.from, end: dateRange.to });
+
+  if (isSessionActive && !apiHasActiveSession && isActiveSessionInView) {
     const startTime = sessionStartTime ? new Date(sessionStartTime).toISOString() : now.toISOString();
     
     const activeActivity: Activity = {
@@ -54,7 +78,7 @@ export default function ActivityPage() {
     
     displayActivities.unshift(activeActivity);
   } else if (isSessionActive && apiHasActiveSession) {
-    // If API has active session, update its duration and subtitle from local state for better responsiveness
+    // If API has active session, it might be in displayActivities (if filtered in)
     const index = displayActivities.findIndex(a => a.status === 'Active');
     if (index !== -1) {
       displayActivities[index] = {
@@ -64,9 +88,7 @@ export default function ActivityPage() {
       };
     }
   } else if (!isSessionActive && apiHasActiveSession) {
-    // Optimistic update: If we are not active locally, but API says active, 
-    // it means we just clocked out and are waiting for the server to update.
-    // Show it as completed optimistically to prevent "vanishing" or "flashing".
+    // Optimistic update for just-finished session
     const index = displayActivities.findIndex(a => a.status === 'Active');
     if (index !== -1) {
       displayActivities[index] = {
@@ -97,6 +119,15 @@ export default function ActivityPage() {
 
   return (
     <div className="-mt-2 md:-mt-0 px-0 md:px-4 py-4 w-full">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 px-2 md:px-0">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 block md:block">Team Activity</h1>
+        <DateRangePicker 
+            initialPreset={preset}
+            onRangeChange={handleRangeChange}
+            className="w-full sm:w-auto"
+        />
+      </div>
+
       {loading ? (
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (

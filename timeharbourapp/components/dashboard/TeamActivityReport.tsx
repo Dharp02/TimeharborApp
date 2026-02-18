@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Calendar, ChevronDown, Download, Filter, MoreHorizontal, Edit2, Check, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit2 } from 'lucide-react';
+import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
 import { getTeamActivity } from '@/TimeharborAPI/teams';
@@ -20,6 +22,7 @@ type Activity = {
 type DesktopActivity = {
   id: string;
   date: string;
+  timestamp: string; // Added timestamp
   member: string;
   email: string;
   hours: string;
@@ -30,17 +33,13 @@ type DesktopActivity = {
   role: string;
 };
 
-type DateRangeType = 'Today' | 'Yesterday' | 'Last 7 Days' | 'This Week' | 'Last 14 Days' | 'This Month' | 'Custom';
-
 export function TeamActivityReport() {
   const { currentTeam } = useTeam();
-  const [dateRange, setDateRange] = useState<DateRangeType>('Today');
-  const [customStartDate, setCustomStartDate] = useState('2025-12-26');
-  const [customEndDate, setCustomEndDate] = useState('2025-12-26');
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [dateRange, setDateRange] = useState<DateRange>({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+  const [preset, setPreset] = useState<DateRangePreset>('today');
+  
   const [activities, setActivities] = useState<Activity[]>([]);
   const [desktopActivities, setDesktopActivities] = useState<DesktopActivity[]>([]);
-  const [isCustomDateModalOpen, setIsCustomDateModalOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(5);
   
   // Column Filters State
@@ -74,7 +73,7 @@ export function TeamActivityReport() {
           // Map to Activity (Mobile List View)
           const mappedActivities: Activity[] = logs.map((log: any) => {
              let action = '';
-             let tickets: string[] = [];
+             const tickets: string[] = [];
 
              const date = new Date(log.timestamp);
              // Format date to include time for better sorting visibility
@@ -150,7 +149,11 @@ export function TeamActivityReport() {
     }
   }, [currentTeam]);
 
-  const filters = ['Today', 'Yesterday', 'Last 7 Days', 'This Week', 'Last 14 Days'];
+  const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
+    setDateRange(range);
+    setPreset(newPreset);
+    setVisibleCount(20); 
+  };
 
   // Filtered activities for mobile (event-based)
   const filteredActivities = useMemo(() => {
@@ -158,20 +161,24 @@ export function TeamActivityReport() {
       // Parse timestamp to date for comparison
       const activityDate = new Date(activity.timestamp);
       
-      // Compare year, month, day
-      const isSameDate = 
-        activityDate.getFullYear() === currentDate.getFullYear() &&
-        activityDate.getMonth() === currentDate.getMonth() &&
-        activityDate.getDate() === currentDate.getDate();
+      // Compare ranges
+      const isWithin = isWithinInterval(activityDate, { start: dateRange.from, end: dateRange.to });
 
-      return isSameDate && activity.member.toLowerCase().includes(columnFilters.member.toLowerCase());
+      return isWithin && activity.member.toLowerCase().includes(columnFilters.member.toLowerCase());
     });
-  }, [activities, columnFilters, currentDate]);
+  }, [activities, columnFilters, dateRange]);
 
   // Filtered activities for desktop (table-based)
   const filteredDesktopActivities = useMemo(() => {
     return desktopActivities.filter(activity => {
+      // Parse timestamp to date for comparison
+      const activityDate = new Date(activity.timestamp);
+      
+      // Compare ranges
+      const isWithin = isWithinInterval(activityDate, { start: dateRange.from, end: dateRange.to });
+
       return (
+        isWithin &&
         activity.date.toLowerCase().includes(columnFilters.date.toLowerCase()) &&
         activity.member.toLowerCase().includes(columnFilters.member.toLowerCase()) &&
         activity.email.toLowerCase().includes(columnFilters.email.toLowerCase()) &&
@@ -182,7 +189,7 @@ export function TeamActivityReport() {
         activity.tickets.some(t => t.toLowerCase().includes(columnFilters.tickets.toLowerCase()))
       );
     });
-  }, [desktopActivities, columnFilters]);
+  }, [desktopActivities, columnFilters, dateRange]);
 
   const handleFilterChange = (column: keyof typeof columnFilters, value: string) => {
     setColumnFilters(prev => ({ ...prev, [column]: value }));
@@ -219,48 +226,6 @@ export function TeamActivityReport() {
     setVisibleCount(prev => prev + 5);
   };
 
-  // Date navigation handlers for mobile
-  const handlePrevDate = () => {
-    const prev = new Date(currentDate);
-    prev.setDate(prev.getDate() - 1);
-    setCurrentDate(prev);
-    // Sync with dateRange state if needed for consistency, but relying on currentDate for mobile
-    if (prev.toDateString() === new Date().toDateString()) setDateRange('Today');
-    else if (prev.toDateString() === new Date(Date.now() - 86400000).toDateString()) setDateRange('Yesterday');
-    else setDateRange('Custom');
-
-    // Reset pagination
-    setVisibleCount(5);
-  };
-
-  const handleNextDate = () => {
-    const next = new Date(currentDate);
-    next.setDate(next.getDate() + 1);
-    
-    // Prevent going to future dates (optional but good UX)
-    if (next > new Date()) return;
-    
-    setCurrentDate(next);
-    
-    if (next.toDateString() === new Date().toDateString()) setDateRange('Today');
-    else if (next.toDateString() === new Date(Date.now() - 86400000).toDateString()) setDateRange('Yesterday');
-    else setDateRange('Custom');
-
-    // Reset pagination
-    setVisibleCount(5);
-  };
-
-  const getDateLabel = () => {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (currentDate.toDateString() === today.toDateString()) return 'Today';
-    if (currentDate.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    
-    return currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
   if (!currentTeam) return null;
 
   // Check if current user is a leader to show edit actions
@@ -270,7 +235,13 @@ export function TeamActivityReport() {
     <>
       {/* Mobile View */}
       <div className="md:hidden space-y-3">
-        {/* Compact Filter Row - Name Filter + Date Navigation in Single Container */}
+        <DateRangePicker 
+            initialPreset={preset}
+            onRangeChange={handleRangeChange}
+            className="w-full px-2"
+        />
+
+        {/* Compact Filter Row - Name Filter */}
         <div className="mx-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 flex items-center gap-2">
           <input
             type="text"
@@ -279,30 +250,6 @@ export function TeamActivityReport() {
             onChange={(e) => handleFilterChange('member', e.target.value)}
             className="flex-1 text-base bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
           />
-          <div className="flex items-center gap-1 border-l border-gray-300 dark:border-gray-600 pl-2 shrink-0">
-            <button
-              onClick={handlePrevDate}
-              className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors shrink-0"
-              aria-label="Previous day"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div className="text-base md:text-lg font-bold text-gray-900 dark:text-white whitespace-nowrap min-w-[100px] text-center shrink-0">
-              {getDateLabel()}
-            </div>
-            <button
-              onClick={handleNextDate}
-              disabled={currentDate.toDateString() === new Date().toDateString()}
-              className={`p-1.5 rounded-full transition-colors shrink-0 ${
-                currentDate.toDateString() === new Date().toDateString()
-                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                  : 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-              }`}
-              aria-label="Next day"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
         </div>
 
         {/* Mobile Activity List */}
@@ -320,7 +267,7 @@ export function TeamActivityReport() {
                         <p className="text-base font-medium text-gray-900 dark:text-white truncate">{activity.member}</p>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">{activity.action}</p>
                         {activity.description && (
-                          <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mt-0.5 break-words">"{activity.description}"</p>
+                          <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mt-0.5 break-words">&quot;{activity.description}&quot;</p>
                         )}
                       </div>
                     </div>
@@ -362,47 +309,11 @@ export function TeamActivityReport() {
             Team Activity Report
           </h2>
           
-          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-            {filters.map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setDateRange(filter as DateRangeType)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  dateRange === filter
-                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span className="font-medium">Custom Date Range:</span>
-            <div className="relative">
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="pl-3 pr-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-            <span>to</span>
-            <div className="relative">
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="pl-3 pr-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-            <button className="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors">
-              Apply
-            </button>
-          </div>
+          <DateRangePicker 
+            initialPreset={preset}
+            onRangeChange={handleRangeChange}
+            className="w-auto"
+          />
         </div>
       </div>
 
@@ -640,54 +551,7 @@ export function TeamActivityReport() {
         </div>
       </Modal>
 
-      {/* Custom Date Range Modal (for mobile) */}
-      <Modal
-        isOpen={isCustomDateModalOpen}
-        onClose={() => setIsCustomDateModalOpen(false)}
-        title="Select Custom Date Range"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Start Date
-            </label>
-            <input
-              type="date"
-              value={customStartDate}
-              onChange={(e) => setCustomStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              End Date
-            </label>
-            <input
-              type="date"
-              value={customEndDate}
-              onChange={(e) => setCustomEndDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={() => setIsCustomDateModalOpen(false)}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                setDateRange('Custom');
-                setIsCustomDateModalOpen(false);
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      </Modal>
+
     </>
   );
 }
