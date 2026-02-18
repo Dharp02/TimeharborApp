@@ -9,7 +9,8 @@ import * as TeamAPI from '@/TimeharborAPI/teams';
 import { useRouter } from 'next/navigation';
 import { ActivitySession } from './types';
 import { SessionCard } from './components/SessionCard';
-import { SlidingDateFilter } from '@/components/SlidingDateFilter';
+import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
+import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 
 interface MemberPageProps {
   memberId?: string;
@@ -42,75 +43,20 @@ function MemberPageContent({
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [timeRange, setTimeRange] = useState<string>(() => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    return new Date(now.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
-  });
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
+  
+  const [dateRange, setDateRange] = useState<DateRange>({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+  const [preset, setPreset] = useState<DateRangePreset>('today');
   const [teamMembers, setTeamMembers] = useState<TeamAPI.Member[]>([]);
 
   const filteredSessions = sessions.filter(session => {
     const sessionDate = new Date(session.startTime);
-    const now = new Date();
-    // Normalize dates to start of day for comparison
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    // Check if timeRange is a date string (YYYY-MM-DD)
-    if (/^\d{4}-\d{2}-\d{2}$/.test(timeRange)) {
-        const [y, m, d] = timeRange.split('-').map(Number);
-        const targetDate = new Date(y, m - 1, d);
-        const nextDay = new Date(targetDate);
-        nextDay.setDate(nextDay.getDate() + 1);
-        return sessionDate >= targetDate && sessionDate < nextDay;
-    }
-
-    switch (timeRange) {
-      case 'today':
-        return sessionDate >= startOfToday;
-      case 'last_week': {
-        const startOfWeek = new Date(startOfToday);
-        startOfWeek.setDate(startOfWeek.getDate() - 7);
-        return sessionDate >= startOfWeek;
-      }
-      case 'last_month': {
-        const startOfMonth = new Date(startOfToday);
-        startOfMonth.setDate(startOfMonth.getDate() - 30);
-        return sessionDate >= startOfMonth;
-      }
-      case 'this_month': {
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        return sessionDate >= startOfMonth;
-      }
-      case 'this_week': {
-        const startOfWeek = new Date(startOfToday);
-        // Assuming week starts on Sunday. Adjust if needed (e.g. Monday)
-        startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
-        return sessionDate >= startOfWeek;
-      }
-      case 'custom': {
-        if (!customStartDate) return true;
-        
-        // Parse "YYYY-MM-DD" as local date
-        const [sYear, sMonth, sDay] = customStartDate.split('-').map(Number);
-        const startDate = new Date(sYear, sMonth - 1, sDay);
-        
-        if (sessionDate < startDate) return false;
-
-        if (customEndDate) {
-            const [eYear, eMonth, eDay] = customEndDate.split('-').map(Number);
-            const endDate = new Date(eYear, eMonth - 1, eDay);
-            // Add 1 day to include the end date fully (up to 23:59:59)
-            endDate.setDate(endDate.getDate() + 1); 
-            if (sessionDate >= endDate) return false;
-        }
-        return true;
-      }
-      default:
-        return true;
-    }
+    return isWithinInterval(sessionDate, { start: dateRange.from, end: dateRange.to });
   });
+
+  const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
+    setDateRange(range);
+    setPreset(newPreset);
+  };
 
   const calculateTotalDuration = (sessionsToSum: ActivitySession[]) => {
     let totalMs = 0;
@@ -372,32 +318,25 @@ function MemberPageContent({
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 flex-shrink-0 mb-4">
             {(() => {
                 const getRangeConfig = () => {
-                    if (timeRange === 'custom') return { show: true, label: 'Custom Range' };
-                    if (timeRange === 'last_week') return { show: true, label: 'Last Week' };
-                    if (timeRange === 'this_week') return { show: true, label: 'This Week' };
-                    if (timeRange === 'last_month') return { show: true, label: 'Last Month' };
-                    if (timeRange === 'this_month') return { show: true, label: 'This Month' };
+                    if (preset === 'today') return { show: false, label: '' };
+                    // We don't have a direct 'this_week' preset in DateRangePicker yet (it has past_week), 
+                    // but if we did, we would hide it. 
+                    // If preset is custom, or anything else not covered by Today/This Week stats, show it.
                     
-                    // Check for YYYY-MM-DD date string
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(timeRange)) {
-                        const now = new Date();
-                        const offset = now.getTimezoneOffset();
-                        const localToday = new Date(now.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
-                        const utcToday = now.toISOString().split('T')[0];
-                        
-                        // Hide if today (redundant with first card)
-                        if (timeRange === 'today' || timeRange === localToday || timeRange === utcToday) {
-                            return { show: false, label: '' };
-                        }
-                        
-                        const [y, m, d] = timeRange.split('-').map(Number);
-                        const date = new Date(y, m - 1, d);
-                        return { 
-                            show: true, 
-                            label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                        };
+                    let label = 'Custom Range';
+                    switch(preset) {
+                        case 'yesterday': label = 'Yesterday'; break;
+                        case 'past_week': label = 'Past Week'; break;
+                        case 'past_month': label = 'Past Month'; break;
+                        case 'custom': 
+                            if (dateRange.from && dateRange.to) {
+                                // Simplified label for custom range
+                                label = `${dateRange.from.toLocaleDateString()} - ${dateRange.to.toLocaleDateString()}`;
+                            }
+                            break;
                     }
-                    return { show: false, label: '' };
+
+                    return { show: true, label };
                 };
 
                 const { show, label } = getRangeConfig();
@@ -422,7 +361,7 @@ function MemberPageContent({
                             <div className="text-center px-2 pt-0.5 animate-in fade-in zoom-in-95 duration-200">
                                 <div className="text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wider mb-0.5 flex items-center justify-center gap-1.5">
                                     <Calendar className="w-3 h-3" />
-                                    {label}
+                                    <span className="truncate max-w-[80px]">{label}</span>
                                 </div>
                                 <div className="text-xl font-bold text-gray-900 dark:text-white">{calculateTotalDuration(filteredSessions)}</div>
                             </div>
@@ -435,26 +374,11 @@ function MemberPageContent({
        {/* Main Content: Unified Activity Timeline */}
        <div>
          <div className="mb-4">
-            <SlidingDateFilter selected={timeRange} onSelect={setTimeRange} />
-            
-            {timeRange === 'custom' && (
-                <div className="mt-4 flex flex-wrap items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">From:</span>
-                  <input
-                    type="date"
-                    value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">To:</span>
-                  <input
-                    type="date"
-                    value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-            )}
+            <DateRangePicker 
+                initialPreset={preset} 
+                onRangeChange={handleRangeChange}
+                className="w-full md:w-auto"
+            />
          </div>
 
          <div>
