@@ -32,7 +32,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Initialize Socket.io
     // Use environment variable or default to localhost:3001
-    const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    // Remove /api suffix if present to connect to root namespace, as sockets run on root
+    const SOCKET_URL = apiUrl.replace(/\/api\/?$/, '');
     
     console.log('Connecting to socket at:', SOCKET_URL);
     
