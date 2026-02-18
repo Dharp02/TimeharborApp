@@ -120,7 +120,7 @@ export default function ActivityPage() {
   return (
     <div className="-mt-2 md:-mt-0 px-0 md:px-4 py-4 w-full">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 px-2 md:px-0">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 block md:block">Team Activity</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 block md:block">My Activity</h1>
         <DateRangePicker 
             initialPreset={preset}
             onRangeChange={handleRangeChange}
