@@ -158,7 +158,7 @@ export default function RecentActivity() {
                       {activity.subtitle}
                     </p>
                     {activity.description && (
-                      <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300 mt-0.5 italic">
+                      <p className="text-sm md:text-base font-bold text-gray-700 dark:text-gray-200 mt-0.5">
                         "{activity.description}"
                       </p>
                     )}

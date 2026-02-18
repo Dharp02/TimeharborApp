@@ -139,6 +139,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           pt-28 md:pt-24
           pb-20 md:pb-24
           min-h-screen
+          overflow-x-hidden
         `}>
           <div className="p-4 md:p-8 max-w-7xl mx-auto">
             {children}

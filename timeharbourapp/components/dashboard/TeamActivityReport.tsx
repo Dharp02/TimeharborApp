@@ -11,6 +11,7 @@ type Activity = {
   date: string;
   member: string;
   action: string; // e.g., "Clocked in with T-101, T-102", "Clocked out", "Started timer on T-101"
+  description?: string;
   tickets?: string[];
   role: string;
 };
@@ -38,6 +39,7 @@ export function TeamActivityReport() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [desktopActivities, setDesktopActivities] = useState<DesktopActivity[]>([]);
   const [isCustomDateModalOpen, setIsCustomDateModalOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(5);
   
   // Column Filters State
   const [columnFilters, setColumnFilters] = useState({
@@ -112,13 +114,16 @@ export function TeamActivityReport() {
                  tickets.push(log.ticketTitle);
              }
 
+             const description = (log.comment && (log.type === 'CLOCK_OUT' || log.type === 'STOP_TICKET')) ? log.comment : undefined;
+
              return {
                  id: log.id,
                  date: displayDate,
                  member: log.user?.full_name || 'Unknown',
                  action: action,
                  tickets: tickets,
-                 role: log.user?.memberships?.[0]?.role || 'Member'
+                 role: log.user?.memberships?.[0]?.role || 'Member',
+                 description: description,
              };
           });
 
@@ -200,6 +205,10 @@ export function TeamActivityReport() {
     }
   };
 
+  const handleShowMore = () => {
+    setVisibleCount(prev => prev + 5);
+  };
+
   // Date navigation handlers for mobile
   const handlePrevDate = () => {
     if (dateRange === 'Today') {
@@ -241,14 +250,14 @@ export function TeamActivityReport() {
             onChange={(e) => handleFilterChange('member', e.target.value)}
             className="flex-1 text-sm bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
           />
-          <div className="flex items-center gap-1 border-l border-gray-300 dark:border-gray-600 pl-2">
+          <div className="flex items-center gap-1 border-l border-gray-300 dark:border-gray-600 pl-2 shrink-0">
             <button
               onClick={handlePrevDate}
-              className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+              className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors shrink-0"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <div className="text-xs font-medium text-gray-900 dark:text-white whitespace-nowrap min-w-[70px] text-center">
+            <div className="text-xs font-medium text-gray-900 dark:text-white whitespace-nowrap min-w-[70px] text-center shrink-0">
               {dateRange}
             </div>
             <button
@@ -264,16 +273,19 @@ export function TeamActivityReport() {
         <div className="px-2">
           {filteredActivities.length > 0 ? (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredActivities.map((activity) => (
+              {filteredActivities.slice(0, visibleCount).map((activity) => (
                 <div key={activity.id} className="py-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1">
+                  <div className="flex items-start justify-between min-w-0">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-base font-medium flex-shrink-0">
                         {activity.member.charAt(0)}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-base font-medium text-gray-900 dark:text-white">{activity.member}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{activity.action}</p>
+                      <div className="flex-1 min-w-0 pr-2">
+                        <p className="text-base font-medium text-gray-900 dark:text-white truncate">{activity.member}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">{activity.action}</p>
+                        {activity.description && (
+                          <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mt-0.5 break-words">"{activity.description}"</p>
+                        )}
                       </div>
                     </div>
                     <span className="text-sm text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
@@ -282,6 +294,16 @@ export function TeamActivityReport() {
                   </div>
                 </div>
               ))}
+              {filteredActivities.length > visibleCount && (
+                <div className="py-2 text-center">
+                  <button 
+                    onClick={handleShowMore}
+                    className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                  >
+                    Show more
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="py-6 text-center text-gray-500 dark:text-gray-400 text-sm">

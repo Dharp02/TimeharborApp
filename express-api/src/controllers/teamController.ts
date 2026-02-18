@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Op } from 'sequelize';
 import { Team, Member, WorkLog, Ticket } from '../models';
 import { AuthRequest } from '../middleware/authMiddleware';
 import logger from '../utils/logger';
@@ -361,7 +362,10 @@ export const getTeamActivity = async (req: AuthRequest, res: Response): Promise<
     }
 
     const activities = await WorkLog.findAll({
-      where: { teamId: id },
+      where: { 
+        teamId: id,
+        userId: { [Op.ne]: userId as string }
+      },
       order: [['timestamp', 'DESC']],
       limit,
       include: [
