@@ -14,6 +14,7 @@ export interface Activity {
   type: 'SESSION';
   title: string;
   subtitle?: string;
+  description?: string;
   startTime: string;
   endTime?: string;
   status?: 'Active' | 'Completed';
@@ -176,7 +177,8 @@ export const getActivity = async (teamId?: string, limit?: number | 'all'): Prom
             id: event.id, // Use the clock-out event ID
             type: 'SESSION',
             title: 'Work Session',
-            subtitle: event.comment || 'Clocked Out (Offline)',
+            subtitle: 'Clocked Out (Offline)',
+            description: event.comment,
             startTime: lastClockIn.timestamp,
             endTime: event.timestamp,
             status: 'Completed',

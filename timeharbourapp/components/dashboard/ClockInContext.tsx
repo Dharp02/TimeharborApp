@@ -218,7 +218,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setSessionStartTime(null);
     localStorage.removeItem('sessionStartTime');
 
-    await localTimeStore.clockOut(user.id, null, pendingSessionStopTeamId || null);
+    await localTimeStore.clockOut(user.id, stopTicketComment || null, pendingSessionStopTeamId || null);
 
     // Attempt to sync immediately
     await syncManager.syncNow();

@@ -207,6 +207,9 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
         if (currentSession) {
           currentSession.endTime = event.timestamp;
           currentSession.status = 'Completed';
+          if (event.comment) {
+            currentSession.comment = event.comment;
+          }
           // We don't nullify currentSession immediately to allow for potential trailing events 
           // (though unlikely in normal flow), but effectively this session is done.
           currentSession = null;
@@ -227,6 +230,10 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
 
         if (event.ticketTitle) {
           currentSession.tickets.add(event.ticketTitle);
+        }
+
+        if (event.comment) {
+          currentSession.comment = event.comment;
         }
       }
     }
@@ -266,6 +273,7 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
         type: 'SESSION',
         title: 'Work Session',
         subtitle,
+        description: session.comment,
         startTime: session.startTime,
         endTime: session.endTime,
         status: session.status,

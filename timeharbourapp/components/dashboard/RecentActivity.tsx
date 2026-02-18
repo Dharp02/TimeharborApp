@@ -157,6 +157,11 @@ export default function RecentActivity() {
                     <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                       {activity.subtitle}
                     </p>
+                    {activity.description && (
+                      <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300 mt-0.5 italic">
+                        "{activity.description}"
+                      </p>
+                    )}
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       {formatDate(activity.startTime)}, {formatTime(activity.startTime)}
                       {activity.endTime ? ` - ${formatTime(activity.endTime)}` : ' - Now'}
