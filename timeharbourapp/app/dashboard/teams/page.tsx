@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus, Search, X } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
@@ -47,6 +47,25 @@ export default function TeamsPage() {
   
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  
+  const [teamActionsOpen, setTeamActionsOpen] = useState(false);
+  const teamActionsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (teamActionsRef.current && !teamActionsRef.current.contains(event.target as Node)) {
+        setTeamActionsOpen(false);
+      }
+    };
+
+    if (teamActionsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [teamActionsOpen]);
 
   const handleJoinTeam = async () => {
     if (!joinCode.trim()) return;
@@ -233,57 +252,76 @@ export default function TeamsPage() {
                   <div>
                     {activeTab === 'teaminfo' && (
                       <div className="space-y-4">
-                        {/* Team Name & Code Card */}
-                        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 text-center">
-                          {/* Edit Button - Top Right */}
-                          {currentTeam.role === 'Leader' && (
-                            <button
+                        {/* Team Name & Code Section */}
+                        <div className="relative pt-2">
+                          {/* Team Name with Dropdown */}
+                          <div className="relative inline-block" ref={teamActionsRef}>
+                            <h3 
                               onClick={() => {
-                                setEditTeamName(currentTeam.name);
-                                setIsEditModalOpen(true);
+                                if (currentTeam.role === 'Leader') {
+                                  setTeamActionsOpen(!teamActionsOpen);
+                                }
                               }}
-                              className="absolute top-3 right-3 p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors shadow-sm"
-                              title="Edit team name"
+                              className={`text-2xl font-bold text-gray-900 dark:text-white ${
+                                currentTeam.role === 'Leader' 
+                                  ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors' 
+                                  : ''
+                              }`}
                             >
-                              <Edit2 className="w-5 h-5" />
-                            </button>
-                          )}
+                              {currentTeam.name}
+                            </h3>
 
-                          {/* Centered Content */}
-                          <div className="flex flex-col items-center gap-3">
-                            <div>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Team Name</p>
-                              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                                {currentTeam.name}
-                              </h3>
-                            </div>
-
-                            <div className="h-px w-24 bg-gray-200 dark:bg-gray-700"></div>
-
-                            <div>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Team Code</p>
-                              <div className="flex items-center justify-center gap-2">
-                                <span className="text-xl font-mono font-semibold text-gray-900 dark:text-white">
-                                  {currentTeam.code}
-                                </span>
+                            {/* Dropdown Menu */}
+                            {teamActionsOpen && currentTeam.role === 'Leader' && (
+                              <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 animate-in fade-in zoom-in duration-200">
                                 <button
-                                  onClick={copyHeaderCode}
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                                  title="Copy team code"
+                                  onClick={() => {
+                                    setEditTeamName(currentTeam.name);
+                                    setIsEditModalOpen(true);
+                                    setTeamActionsOpen(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                                 >
-                                  {headerCopied ? (
-                                    <Check className="w-4 h-4" />
-                                  ) : (
-                                    <Copy className="w-4 h-4" />
-                                  )}
+                                  <Edit2 className="w-4 h-4" />
+                                  Edit Name
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedTeamForAction(currentTeam);
+                                    setIsDeleteModalOpen(true);
+                                    setTeamActionsOpen(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Delete Team
                                 </button>
                               </div>
-                            </div>
+                            )}
+                          </div>
+
+                          {/* Team Code Below Name */}
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Code:</span>
+                            <span className="text-sm font-mono font-medium text-gray-900 dark:text-white">
+                              {currentTeam.code}
+                            </span>
+                            <button
+                              onClick={copyHeaderCode}
+                              className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                              title="Copy team code"
+                            >
+                              {headerCopied ? (
+                                <Check className="w-3 h-3" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
                           </div>
                         </div>
 
-                        <div className="pt-4 md:pt-6">
-                          <div className="flex justify-between items-center mb-3 md:mb-4">
+                        <div className="pt-1 md:pt-1">
+                          <div className="flex justify-between items-center mb-2 md:mb-3">
                             <div>
                               <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
                                 Collaborators

@@ -178,7 +178,7 @@ export const getActivity = async (teamId?: string, limit?: number | 'all'): Prom
             type: 'SESSION',
             title: 'Work Session',
             subtitle: 'Clocked Out (Offline)',
-            description: event.comment,
+            description: event.comment || undefined,
             startTime: lastClockIn.timestamp,
             endTime: event.timestamp,
             status: 'Completed',
