@@ -3,7 +3,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useSocket } from '@/contexts/SocketContext';
-import { createNewTeam, joinTeamByCode, fetchMyTeams, updateTeam as apiUpdateTeam, deleteTeam as apiDeleteTeam, addMemberToTeam, removeMemberFromTeam } from '@/TimeharborAPI/teams';
+import { 
+  fetchMyTeams, 
+  createNewTeam, 
+  joinTeamByCode, 
+  updateTeam as apiUpdateTeam, 
+  deleteTeam as apiDeleteTeam,
+  addMemberToTeam,
+  removeMemberFromTeam 
+} from '@/TimeharborAPI/teams';
 
 export type Member = {
   id: string;
@@ -27,8 +35,8 @@ interface TeamContextType {
   teams: Team[];
   isLoading: boolean;
   selectTeam: (teamId: string) => void;
-  joinTeam: (code: string) => Promise<{ success: boolean; error?: string }>;
-  createTeam: (name: string) => Promise<string>; // returns code
+  joinTeam: (code: string) => Promise<{ success: boolean; error?: string; teamId?: string }>;
+  createTeam: (name: string) => Promise<Team>; // returns entire team object
   deleteTeam: (teamId: string) => Promise<void>;
   updateTeamName: (teamId: string, name: string) => Promise<void>;
   addMember: (teamId: string, email: string) => Promise<void>;
@@ -154,7 +162,7 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
       const newTeam = await joinTeamByCode(code);
       localStorage.setItem('timeharbor-current-team-id', newTeam.id);
       await loadTeams();
-      return { success: true };
+      return { success: true, teamId: newTeam.id };
     } catch (error: any) {
       // console.error('Error joining team:', error);
       return { success: false, error: error.message || 'Failed to join team' };
@@ -162,15 +170,18 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createTeam = async (name: string) => {
-    const newTeam = await createNewTeam(name);
+    const newTeam = await createNewTeam(name); // returns { id, name, code, members, role }
     localStorage.setItem('timeharbor-current-team-id', newTeam.id);
+    
     await loadTeams();
-    return newTeam.code;
+    return newTeam;
   };
 
   const deleteTeam = async (teamId: string) => {
     try {
+      const teamNames = teams.find(t => t.id === teamId)?.name || 'Team';
       await apiDeleteTeam(teamId);
+      
       if (currentTeam?.id === teamId) {
         localStorage.removeItem('timeharbor-current-team-id');
         setCurrentTeam(null);
@@ -184,7 +195,9 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
 
   const updateTeamName = async (teamId: string, name: string) => {
     try {
+      const oldName = teams.find(t => t.id === teamId)?.name;
       await apiUpdateTeam(teamId, name);
+      
       await loadTeams();
     } catch (error) {
       console.error('Failed to update team:', error);

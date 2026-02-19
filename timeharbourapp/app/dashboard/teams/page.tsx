@@ -8,8 +8,10 @@ import { useTeam, Team, Member } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { TeamActivityReport } from '@/components/dashboard/TeamActivityReport';
 import { copyText } from '@/lib/utils';
+import { useLogger } from '@/hooks/useLogger';
 
 export default function TeamsPage() {
+  const logger = useLogger();
   const { user } = useAuth();
   const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams } = useTeam();
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -79,6 +81,11 @@ export default function TeamsPage() {
     const result = await joinTeam(joinCode);
     
     if (result.success) {
+      logger.log('Joined Team', { 
+        subtitle: joinCode, 
+        description: 'Joined via code',
+        teamId: result.teamId // Ensure we log to the new team activity log
+      });
       setIsJoinModalOpen(false);
       setJoinCode('');
     } else {
@@ -89,8 +96,18 @@ export default function TeamsPage() {
   };
 
   const handleCreateTeam = async () => {
-    const code = await createTeam(newTeamName);
-    setCreatedTeamCode(code);
+    try {
+      const newTeam = await createTeam(newTeamName);
+      // Log ensuring it goes to the NEW team storage
+      logger.log('Created Team', { 
+        subtitle: newTeamName, 
+        description: 'Created new team',
+        teamId: newTeam.id 
+      });
+      setCreatedTeamCode(newTeam.code);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const closeCreateModal = () => {
@@ -106,9 +123,10 @@ export default function TeamsPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleEditTeam = () => {
+  const handleEditTeam = async () => {
     if (selectedTeamForAction && editTeamName.trim()) {
-      updateTeamName(selectedTeamForAction.id, editTeamName);
+      await updateTeamName(selectedTeamForAction.id, editTeamName);
+      logger.log('Updated Team', { subtitle: `${selectedTeamForAction.name} -> ${editTeamName}` });
       setIsEditModalOpen(false);
       setSelectedTeamForAction(null);
       setEditTeamName('');
@@ -120,9 +138,10 @@ export default function TeamsPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteTeam = () => {
+  const handleDeleteTeam = async () => {
     if (selectedTeamForAction) {
-      deleteTeam(selectedTeamForAction.id);
+      await deleteTeam(selectedTeamForAction.id);
+      logger.log('Deleted Team', { subtitle: selectedTeamForAction.name });
       setIsDeleteModalOpen(false);
       setSelectedTeamForAction(null);
     }

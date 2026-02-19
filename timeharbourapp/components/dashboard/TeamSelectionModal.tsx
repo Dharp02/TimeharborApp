@@ -5,6 +5,7 @@ import { Users, Plus, Copy, Check, Shield, User } from 'lucide-react';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/lib/utils';
+import { useLogger } from '@/hooks/useLogger';
 
 interface TeamSelectionModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface TeamSelectionModalProps {
 }
 
 export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: TeamSelectionModalProps) {
+  const logger = useLogger();
   const { teams, currentTeam, selectTeam, deleteTeam, joinTeam, createTeam } = useTeam();
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -64,6 +66,11 @@ export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: 
       const result = await joinTeam(joinCode);
       
       if (result.success) {
+        logger.log('Joined Team', { 
+          subtitle: joinCode, 
+          description: 'Joined via code',
+          teamId: result.teamId // Ensure we log to the new team activity log
+        });
         setIsJoinModalOpen(false);
         setJoinCode('');
         onClose();
@@ -79,8 +86,14 @@ export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: 
     if (newTeamName.trim()) {
       setIsCreating(true);
       try {
-        const code = await createTeam(newTeamName);
-        setCreatedTeamCode(code);
+        const newTeam = await createTeam(newTeamName);
+        // Log to the *new* team's activity log using the new ID
+        logger.log('Created Team', { 
+          subtitle: newTeamName, 
+          description: 'Created new team',
+          teamId: newTeam.id 
+        });
+        setCreatedTeamCode(newTeam.code);
       } catch (err) {
         console.error('Failed to create team:', err);
       } finally {

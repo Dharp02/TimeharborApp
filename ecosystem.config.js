@@ -2,30 +2,30 @@ module.exports = {
   apps: [
     {
       name: "timeharbor-frontend",
-      cwd: "/home/dharapoonam/TimeharborApp/timeharbourapp",
-      script: "node_modules/.bin/serve",
-      args: "out -p 3000",
+      cwd: "/Users/mieloaner/mieprojects/TimeharborApp/timeharbourapp",
+      script: "npm",
+      args: "run dev",
       env: {
-        PORT: 3000,
-        HOSTNAME: "0.0.0.0",
-        NODE_ENV: "production"
+        NODE_ENV: "development",
+        PORT: 3000
       }
     },
     {
       name: "timeharbor-backend",
-      cwd: "/home/dharapoonam/TimeharborApp/express-api",
-      script: "dist/index.js",
+      cwd: "/Users/mieloaner/mieprojects/TimeharborApp/express-api",
+      script: "npm",
+      args: "run dev",
       env: {
-        PORT: 3001,
-        NODE_ENV: "production"
+        NODE_ENV: "development",
+        PORT: 3001
       }
     },
     {
       name: "timeharbor-proxy",
-      cwd: "/home/dharapoonam/TimeharborApp/timeharbor-proxy",
+      cwd: "/Users/mieloaner/mieprojects/TimeharborApp/timeharbor-proxy",
       script: "index.js",
       env: {
-        PORT: 80
+        PORT: 8080
       }
     }
   ]

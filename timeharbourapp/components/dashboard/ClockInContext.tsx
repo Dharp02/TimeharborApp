@@ -7,6 +7,7 @@ import { TimeService } from '@/TimeharborAPI/time/TimeService';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Network } from '@capacitor/network';
 import { Modal } from '@/components/ui/Modal';
+import { useActivityLog } from './ActivityLogContext';
 
 type ClockInContextType = {
   // Global Session
@@ -34,6 +35,7 @@ const ClockInContext = createContext<ClockInContextType | undefined>(undefined);
 
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { addActivity, updateActiveSession } = useActivityLog();
   
   // Session State
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -167,6 +169,22 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       setSessionStartTime(null);
       localStorage.removeItem('sessionStartTime');
       
+      const now = Date.now();
+      const startTimeMs = sessionStartTime || now;
+      const durationMs = now - startTimeMs;
+      const hours = Math.floor(durationMs / 3600000);
+      const minutes = Math.floor((durationMs % 3600000) / 60000);
+
+      updateActiveSession(new Date().toISOString(), `${hours}h ${minutes}m`);
+
+      addActivity({
+        type: 'SESSION',
+        title: 'Session Ended',
+        subtitle: `Duration: ${hours}h ${minutes}m`,
+        status: 'Completed',
+        duration: `${hours}h ${minutes}m`
+      });
+      
       // Then clock out
       await localTimeStore.clockOut(user.id, null, teamId || null);
 
@@ -178,6 +196,15 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       setIsSessionActive(true);
       setSessionStartTime(now);
       localStorage.setItem('sessionStartTime', now.toString());
+
+      addActivity({
+        type: 'SESSION',
+        title: 'Work Session Started',
+        subtitle: 'Clocked In',
+        status: 'Active',
+        duration: '0h 0m',
+        startTime: new Date(now).toISOString()
+      });
 
       await localTimeStore.clockIn(user.id, teamId || null);
 
@@ -218,6 +245,22 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setSessionStartTime(null);
     localStorage.removeItem('sessionStartTime');
 
+    const now = Date.now();
+    const startTimeMs = sessionStartTime || now;
+    const durationMs = now - startTimeMs;
+    const hours = Math.floor(durationMs / 3600000);
+    const minutes = Math.floor((durationMs % 3600000) / 60000);
+
+    updateActiveSession(new Date().toISOString(), `${hours}h ${minutes}m`);
+
+    addActivity({
+        type: 'SESSION',
+        title: 'Session Ended',
+        subtitle: `Duration: ${hours}h ${minutes}m`,
+        status: 'Completed',
+        duration: `${hours}h ${minutes}m`
+    });
+
     await localTimeStore.clockOut(user.id, stopTicketComment || null, pendingSessionStopTeamId || null);
 
     // Attempt to sync immediately
@@ -250,13 +293,25 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       // Save duration logic
       if (ticketStartTime) {
         const now = Date.now();
-        const sessionDuration = now - ticketStartTime;
+        const durationMs = now - ticketStartTime;
         const currentTotal = ticketDurations[ticketId] || 0;
-        const newTotal = currentTotal + sessionDuration;
+        const newTotal = currentTotal + durationMs;
         
         const updatedDurations = { ...ticketDurations, [ticketId]: newTotal };
         setTicketDurations(updatedDurations);
         localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
+        
+        const hours = Math.floor(durationMs / 3600000);
+        const minutes = Math.floor((durationMs % 3600000) / 60000);
+        
+        addActivity({
+            type: 'SESSION',
+            title: 'Stopped Ticket',
+            subtitle: activeTicketTitle || 'Ticket',
+            description: comment, // Description visible
+            status: 'Completed',
+            duration: `${hours}h ${minutes}m`
+        });
       }
 
       await localTimeStore.stopTicket(user.id, ticketId, comment, activeTicketTeamId);
@@ -273,7 +328,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     } else {
       // Starting Ticket (activeTicketId !== ticketId)
       
-      // If there was an active ticket, save its duration first
+      // Stop the previous ticket
       if (activeTicketId && ticketStartTime) {
         const now = Date.now();
         const sessionDuration = now - ticketStartTime;
@@ -284,11 +339,34 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         setTicketDurations(updatedDurations);
         localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
         
+        const hours = Math.floor(sessionDuration / 3600000);
+        const minutes = Math.floor((sessionDuration % 3600000) / 60000);
+
+        addActivity({
+            type: 'SESSION',
+            title: 'Stopped Ticket',
+            subtitle: activeTicketTitle || 'Ticket',
+            description: comment || 'Switched task',
+            status: 'Completed',
+            duration: `${hours}h ${minutes}m`
+        });
+
         // Stop the previous ticket
+        await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId);
+      } else if (activeTicketId) {
         await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId);
       }
 
       await localTimeStore.startTicket(user.id, ticketId, ticketTitle, teamId || null);
+
+      addActivity({
+        type: 'SESSION',
+        title: 'Started Ticket',
+        subtitle: ticketTitle,
+        status: 'Active',
+        duration: '0m',
+        startTime: new Date().toISOString()
+      });
 
       // Start new ticket state
       const now = Date.now();

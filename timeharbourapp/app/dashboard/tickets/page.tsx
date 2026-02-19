@@ -8,8 +8,10 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { Modal } from '@/components/ui/Modal';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType, CreateTicketData, UpdateTicketData } from '@/TimeharborAPI/tickets';
+import { useLogger } from '@/hooks/useLogger';
 
 export default function TicketsPage() {
+  const logger = useLogger();
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
   const { currentTeam } = useTeam();
   const { user } = useAuth();
@@ -137,6 +139,12 @@ export default function TicketsPage() {
           link: newTicket.reference
         };
         await ticketsApi.updateTicket(currentTeam.id, editingTicketId, updateData);
+        
+        logger.log('Updated Ticket', {
+          subtitle: newTicket.title,
+          description: `Ticket updated by ${user?.full_name || 'User'}`
+        });
+
       } else {
         // Create new ticket
         const ticketData: CreateTicketData = {
@@ -147,6 +155,11 @@ export default function TicketsPage() {
           link: newTicket.reference
         };
         await ticketsApi.createTicket(currentTeam.id, ticketData);
+        
+        logger.log('Created Ticket', {
+          subtitle: newTicket.title,
+          description: `Ticket created by ${user?.full_name || 'User'}`
+        });
       }
       
       setIsAddTicketModalOpen(false);
@@ -186,6 +199,12 @@ export default function TicketsPage() {
         await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
           assignedTo: memberId
         });
+        
+        logger.log('Assigned Ticket', {
+          subtitle: selectedTicketForAction.title,
+          description: `Assigned to ${memberName}`
+        });
+
         setIsAssignModalOpen(false);
         setSelectedTicketForAction(null);
         setOpenMenuTicketId(null);
@@ -203,6 +222,12 @@ export default function TicketsPage() {
         await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
           status: newStatus as any
         });
+        
+        logger.log('Status Updated', {
+          subtitle: selectedTicketForAction.title,
+          description: `Status changed to ${newStatus}`
+        });
+
         setIsStatusModalOpen(false);
         setSelectedTicketForAction(null);
         setOpenMenuTicketId(null);
@@ -218,6 +243,12 @@ export default function TicketsPage() {
     if (selectedTicketForAction && currentTeam) {
       try {
         await ticketsApi.deleteTicket(currentTeam.id, selectedTicketForAction.id);
+        
+        logger.log('Deleted Ticket', {
+          subtitle: selectedTicketForAction.title,
+          description: `Ticket deleted by ${user?.full_name || 'User'}`
+        });
+
         setIsDeleteModalOpen(false);
         setSelectedTicketForAction(null);
         setOpenMenuTicketId(null);

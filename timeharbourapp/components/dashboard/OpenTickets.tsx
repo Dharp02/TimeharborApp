@@ -8,10 +8,12 @@ import { Modal } from '@/components/ui/Modal';
 import { useTeam } from './TeamContext';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
+import { useActivityLog } from './ActivityLogContext';
 
 export default function OpenTickets() {
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
+  const { addActivity } = useActivityLog();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
@@ -133,6 +135,14 @@ export default function OpenTickets() {
         link: newTicket.reference
       });
       
+      addActivity({
+        type: 'SESSION',
+        title: 'Created Ticket',
+        subtitle: newTicket.title,
+        status: 'Completed',
+        duration: 'Now'
+      });
+
       setIsAddTicketModalOpen(false);
       setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
       loadTickets();

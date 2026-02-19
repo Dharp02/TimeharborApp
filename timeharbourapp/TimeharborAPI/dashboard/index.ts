@@ -11,14 +11,15 @@ export interface DashboardStats {
 
 export interface Activity {
   id: string;
-  type: 'SESSION';
+  type: string;
   title: string;
   subtitle?: string;
   description?: string;
   startTime: string;
   endTime?: string;
-  status?: 'Active' | 'Completed';
+  status?: 'Active' | 'Completed' | 'Pending' | 'Failed';
   duration?: string;
+  metadata?: Record<string, any>;
 }
 
 export const getStats = async (teamId?: string): Promise<DashboardStats> => {
