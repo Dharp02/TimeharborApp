@@ -108,6 +108,12 @@ function MemberPageContent({
         const data = await API.getMemberActivity(memberId, teamId, undefined, 5);
         setMemberData(data);
         
+        // Add name to URL if missing, for page title header
+        if (!searchParams?.get('name') && data.member?.name) {
+             const newUrl = `/dashboard/member?id=${memberId}${teamId ? `&teamId=${teamId}` : ''}&name=${encodeURIComponent(data.member.name)}`;
+             router.replace(newUrl);
+        }
+        
         if (data.sessions) {
             const mappedSessions = data.sessions.map(mapSessionFromApi);
             setSessions(mappedSessions);
@@ -337,7 +343,7 @@ function MemberPageContent({
                         case 'custom': 
                             if (dateRange.from && dateRange.to) {
                                 // Simplified label for custom range
-                                label = `${dateRange.from.toLocaleDateString()} - ${dateRange.to.toLocaleDateString()}`;
+                                label = `${(dateRange.from as any).toFormat('MM/dd/yyyy')} - ${(dateRange.to as any).toFormat('MM/dd/yyyy')}`;
                             }
                             break;
                     }

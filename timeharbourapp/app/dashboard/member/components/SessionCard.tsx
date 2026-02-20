@@ -5,7 +5,7 @@ import { TicketItem } from './TicketItem';
 import { ClockEventItem } from './ClockEventItem';
 
 export function SessionCard({ session, member }: { session: ActivitySession, member?: any }) {
-  const dateStr = session.startTime.toFormat('MMM d');
+  const dateStr = session.startTime.toFormat('MMM d, yyyy');
 
   return (
     <div className="mb-8 px-1">
