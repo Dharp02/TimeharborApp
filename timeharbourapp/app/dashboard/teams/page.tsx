@@ -22,14 +22,24 @@ export default function TeamsPage() {
     refreshTeams();
   }, []);
 
+  // When team changes, set default tab based on role
   useEffect(() => {
     if (currentTeam) {
       setEditTeamName(currentTeam.name);
-      if (currentTeam.role !== 'Leader' && activeTab === 'teamactivity') {
+      if (currentTeam.role === 'Leader') {
+        setActiveTab('teamactivity');
+      } else {
         setActiveTab('teaminfo');
       }
     }
-  }, [currentTeam, activeTab]);
+  }, [currentTeam?.id]); // Only run when team ID changes
+
+  // Ensure non-leaders can't see team activity if role changes while on that tab
+  useEffect(() => {
+    if (currentTeam && currentTeam.role !== 'Leader' && activeTab === 'teamactivity') {
+      setActiveTab('teaminfo');
+    }
+  }, [currentTeam?.role, activeTab]);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -247,19 +257,8 @@ export default function TeamsPage() {
           <>
             {/* Tabs */}
             <div className="flex mb-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
-                    <button
-                      onClick={() => setActiveTab('teaminfo')}
-                      className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
-                        activeTab === 'teaminfo'
-                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                      }`}
-                    >
-                      Team Info
-                    </button>
                     {currentTeam.role === 'Leader' && (
                       <>
-                        <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
                         <button
                           onClick={() => setActiveTab('teamactivity')}
                           className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
@@ -270,8 +269,19 @@ export default function TeamsPage() {
                         >
                           Team Activity
                         </button>
+                        <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
                       </>
                     )}
+                    <button
+                      onClick={() => setActiveTab('teaminfo')}
+                      className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
+                        activeTab === 'teaminfo'
+                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                      }`}
+                    >
+                      Team Info
+                    </button>
                   </div>
 
                   {/* Tab Content */}
