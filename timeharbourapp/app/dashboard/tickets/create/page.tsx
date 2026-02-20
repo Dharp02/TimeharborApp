@@ -65,7 +65,7 @@ export default function CreateTicketPage() {
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 overflow-y-auto">
       {/* Content */}
-      <div className="px-0 pt-0 pb-0 md:p-6 md:pb-6 flex-grow-0">
+      <div className="px-1 pt-0 pb-0 md:p-6 md:pb-6 flex-grow-0">
         <div className="max-w-3xl mr-auto space-y-6">
             
             {error && (
