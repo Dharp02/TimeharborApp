@@ -228,7 +228,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
 
       // Stop the ticket
-      await localTimeStore.stopTicket(user.id, activeTicketId, stopTicketComment || 'Session ended', activeTicketTeamId);
+      await localTimeStore.stopTicket(user.id, activeTicketId, '', activeTicketTeamId);
 
       setActiveTicketId(null);
       setActiveTicketTitle(null);
