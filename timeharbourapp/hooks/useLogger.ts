@@ -17,18 +17,9 @@ export function useLogger() {
      * @param details Additional details (subtitle, description, etc)
      */
     log: (message: string, details?: Partial<Omit<Activity, 'id' | 'title'>> & { teamId?: string }) => {
-      // If teamId is provided at call-site, bypass React context and persist directly to storage
+      // If teamId is provided at call-site, queue directly to Dexie
       if (details?.teamId) {
         try {
-          const logsKey = `timeharbor_activity_log_${details.teamId}`;
-          const currentLogs = localStorage.getItem(logsKey);
-          let currentActivities: Activity[] = [];
-          if (currentLogs) {
-             try { currentActivities = JSON.parse(currentLogs); } catch (e) {
-               console.warn("Failed to parse logs for team", details.teamId);
-             }
-          }
-
           const newActivity: Activity = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             type: 'LOG', 
@@ -38,11 +29,32 @@ export function useLogger() {
             ...details
           } as Activity;
 
-          // Remove the utility prop so it doesn't get saved
+          // Remove utility prop
+          const teamId = details.teamId;
           delete (newActivity as any).teamId;
 
-          const updatedActivities = [newActivity, ...currentActivities];
-          localStorage.setItem(logsKey, JSON.stringify(updatedActivities));
+          // Write to Dexie activityLogs (cache) - so it appears when we switch to that team
+          // But wait, the context uses 'where teamId equals currentTeam'. So if we switch, it loads.
+          // BUT, we need to ensure the record HAS a teamId property for Dexie to index/filter it!
+          // The Activity interface usually has teamId? Let's check.
+          // If not, we must add it to the record stored in Dexie.
+          
+          (newActivity as any).teamId = teamId;
+          
+          // Import db dynamically or use global if available (hooks are client side)
+          import('@/TimeharborAPI/db').then(({ db }) => {
+             db.activityLogs.put(newActivity);
+             
+             // Queue Sync
+             db.offlineMutations.add({
+                url: `/api/teams/${teamId}/logs/sync`,
+                method: 'POST',
+                body: [newActivity],
+                timestamp: Date.now(),
+                retryCount: 0
+             });
+          });
+
           return;
         } catch (e) {
           console.error('Failed to log to specific team storage', e);

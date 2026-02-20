@@ -3,6 +3,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Activity } from '@/TimeharborAPI/dashboard';
 import { useTeam } from './TeamContext';
+import { db } from '@/TimeharborAPI/db';
+import { Network, ConnectionStatus } from '@capacitor/network';
+import { authenticatedFetch } from '@/TimeharborAPI/auth';
+import { syncManager } from '@/TimeharborAPI/SyncManager';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 interface ActivityLogContextType {
   activities: Activity[];
@@ -17,64 +23,161 @@ const ActivityLogContext = createContext<ActivityLogContextType | undefined>(und
 export function ActivityLogProvider({ children }: { children: React.ReactNode }) {
   const { currentTeam } = useTeam();
   const [activities, setActivities] = useState<Activity[]>([]);
-  
-  // Key derived from current team
-  const logsKey = `timeharbor_activity_log_${currentTeam?.id || 'global'}`;
   const isLoadedRef = React.useRef(false);
 
-  // Load from local storage when logsKey changes
+  // Sync with backend when online
   useEffect(() => {
-    // Reset loaded state at start of effect (or could be cleanup of previous)
-    // Actually, setting it false here protects against synchronous execution issues
-    isLoadedRef.current = false;
-    
-    const saved = localStorage.getItem(logsKey);
-    let loadedActivities: Activity[] = [];
-    if (saved) {
-      try {
-        loadedActivities = JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse activity log', e);
-        loadedActivities = [];
-      }
-    }
-    
-    // Set state - this triggers passing new activities to re-render
-    setActivities(loadedActivities);
-    
-    // Mark as loaded immediately for subsequent updates
-    // Note: The state update above handles the "load" part
-    // But we need to signal that subsequent saves are valid
-    // We can use a setTimeout to ensure we skip the immediate effect from setActivities?
-    // Or check if current activities match loaded?
-    
-    requestAnimationFrame(() => {
-      isLoadedRef.current = true;
-    });
-  }, [logsKey]);
+    if (!currentTeam?.id) return;
 
-  // Save to local storage on change
-  useEffect(() => {
-    if (isLoadedRef.current) {
+    const syncWithBackend = async () => {
+      const status = await Network.getStatus();
+      if (!status.connected) return;
+
       try {
-        localStorage.setItem(logsKey, JSON.stringify(activities));
-      } catch (e) {
-        console.warn('Failed to save activity log', e);
+        // Ensure strictly that we push any pending local changes first
+        // This minimizes the chance of "pending > 0" incorrectly preventing a full refresh
+        if (syncManager && typeof syncManager.syncNow === 'function') {
+           await syncManager.syncNow(); 
+        }
+
+        const response = await authenticatedFetch(`${API_URL}/teams/${currentTeam.id}/logs`);
+        if (response.ok) {
+          const remoteLogs = await response.json();
+          if (Array.isArray(remoteLogs)) {
+            // Re-check pending count after sync attempt
+            // We use a more permissive check to catch any mutations for this endpoint
+            const pendingMutations = await db.offlineMutations
+              .filter(m => m.url.indexOf(`/teams/${currentTeam.id}/logs`) >= 0)
+              .toArray();
+            
+            const pendingCount = pendingMutations.length;
+
+            await db.transaction('rw', db.activityLogs, async () => {
+                // 1. Clear local logs for this team (Server is source of truth)
+                await db.activityLogs.where('teamId').equals(currentTeam.id).delete();
+                
+                // 2. Add fresh logs from server
+                if (remoteLogs.length > 0) {
+                  await db.activityLogs.bulkPut(remoteLogs);
+                }
+
+                // 3. Re-apply pending local changes that haven't synced yet
+                if (pendingCount > 0) {
+                   const itemsToRestore: Activity[] = [];
+                   pendingMutations.forEach(m => {
+                      if (Array.isArray(m.body)) {
+                         m.body.forEach((item: any) => {
+                            itemsToRestore.push({ ...item, teamId: currentTeam.id });
+                         });
+                      }
+                   });
+                   
+                   if (itemsToRestore.length > 0) {
+                      await db.activityLogs.bulkPut(itemsToRestore);
+                   }
+                }
+            });
+            
+            // Reload from Dexie to get merged view (sorted correctly)
+            const allLogs = await db.activityLogs
+              .where('teamId')
+              .equals(currentTeam.id)
+              .reverse()
+              .sortBy('startTime');
+            
+            setActivities(allLogs);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to sync activity logs:', error);
       }
+    };
+
+    // Initial sync
+    syncWithBackend();
+
+    // Listen for network status changes
+    // AddListener returns a promise, so we need to handle it properly
+    const handlerPromise = Network.addListener('networkStatusChange', status => {
+      if (status.connected) {
+        syncWithBackend();
+      }
+    });
+
+    return () => {
+      handlerPromise.then(handler => handler.remove());
+    };
+  }, [currentTeam?.id]);
+
+  // Load from Dexie when team changes
+  useEffect(() => {
+    if (!currentTeam?.id) {
+      setActivities([]);
+      return;
     }
-  }, [activities, logsKey]);
+
+    const loadLogs = async () => {
+      isLoadedRef.current = false;
+      try {
+        // Read local logs from Dexie
+        const localLogs = await db.activityLogs
+          .where('teamId')
+          .equals(currentTeam.id)
+          .reverse()
+          .sortBy('startTime');
+          
+        setActivities(localLogs);
+      } catch (e) {
+        console.error('Failed to load activity logs from Dexie', e);
+      } finally {
+        isLoadedRef.current = true;
+      }
+    };
+
+    loadLogs();
+  }, [currentTeam?.id]);
+
+
 
   const addActivity = (activity: Partial<Activity> & { title: string }) => {
+    if (!currentTeam?.id) return ''; // Should guard against no team
+
     const id = activity.id || Date.now().toString() + Math.random().toString(36).substr(2, 9);
     const newActivity: Activity = {
       id,
+      teamId: currentTeam.id, // Ensure teamId is attached
       type: 'LOG', 
       startTime: activity.startTime || new Date().toISOString(),
       status: 'Completed',
       ...activity
     } as Activity;
     
+    // Optimistic Update UI
     setActivities(prev => [newActivity, ...prev]);
+
+    // Persist to Dexie
+    db.activityLogs.put(newActivity).catch(e => console.error('Dexie put failed', e));
+
+    // Queue for Sync using SyncManager
+    if (typeof syncManager.addMutation === 'function') {
+      syncManager.addMutation(
+        `/teams/${currentTeam.id}/logs/sync`,
+        'POST',
+        [newActivity],
+        newActivity.id
+      ).catch(e => console.error('SyncManager add failed', e));
+    } else {
+      // Fallback if SyncManager not ready
+      db.offlineMutations.add({
+        url: `/teams/${currentTeam.id}/logs/sync`,
+        method: 'POST',
+        body: [newActivity],
+        timestamp: Date.now(),
+        retryCount: 0,
+        tempId: newActivity.id
+      }).catch(e => console.error('Mutation add failed', e));
+    }
+    
     return id;
   };
 
@@ -82,18 +185,64 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     setActivities(prev => prev.map(activity => 
       activity.id === id ? { ...activity, ...updates } : activity
     ));
+    
+    // Update Dexie
+    db.activityLogs.update(id, updates);
+    
+    // Queue Sync
+    if (currentTeam?.id) {
+       const endpoint = `/teams/${currentTeam.id}/logs/sync`;
+       const body = [{ id, ...updates }];
+       
+       if (typeof syncManager.addMutation === 'function') {
+         syncManager.addMutation(endpoint, 'POST', body)
+           .catch(e => console.error('SyncManager update failed', e));
+       } else {
+         db.offlineMutations.add({
+            url: endpoint,
+            method: 'POST',
+            body,
+            timestamp: Date.now(),
+            retryCount: 0
+         });
+       }
+    }
   };
 
   const updateActiveSession = (endTime: string, duration: string) => {
+    // Similar to updateActivity but specific logic
     setActivities(prev => prev.map(activity => {
-      // More robust check: any active session
       if (activity.status === 'Active' && activity.type === 'SESSION') {
-        return {
+        const updated = {
           ...activity,
           status: 'Completed',
           endTime,
           duration
-        };
+        } as Activity;
+        
+        // Update Dexie
+        db.activityLogs.put(updated);
+        
+        // Queue Sync
+         if (currentTeam?.id) {
+            const endpoint = `/teams/${currentTeam.id}/logs/sync`;
+            const body = [updated];
+            
+            if (typeof syncManager.addMutation === 'function') {
+               syncManager.addMutation(endpoint, 'POST', body)
+                  .catch(e => console.error('SyncManager update session failed', e));
+            } else {
+                db.offlineMutations.add({
+                    url: endpoint,
+                    method: 'POST',
+                    body,
+                    timestamp: Date.now(),
+                    retryCount: 0
+                });
+            }
+         }
+         
+        return updated;
       }
       return activity;
     }));

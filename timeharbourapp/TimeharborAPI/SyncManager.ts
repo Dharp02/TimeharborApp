@@ -91,7 +91,15 @@ class SyncManager {
     const { url, method, body, tempId } = mutation;
     
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.39:3001';
-    const fullUrl = url.startsWith('http') ? url : `${backendUrl}${url}`;
+    
+    // Strip /api prefix from mutation URL to avoid duplication or 404s
+    // blocked by backend not expecting /api prefix when hitting directly
+    let relativeUrl = url;
+    if (relativeUrl.startsWith('/api/')) {
+      relativeUrl = relativeUrl.substring(4); 
+    }
+    
+    const fullUrl = url.startsWith('http') ? url : `${backendUrl}${relativeUrl}`;
 
     const response = await authenticatedFetch(fullUrl, {
       method,

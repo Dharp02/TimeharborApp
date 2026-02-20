@@ -11,6 +11,7 @@ export interface DashboardStats {
 
 export interface Activity {
   id: string;
+  teamId?: string; // For Dexie indexing
   type: string;
   title: string;
   subtitle?: string;

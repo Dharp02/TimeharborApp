@@ -78,6 +78,7 @@ export class TimeharborDB extends Dexie {
   tickets!: Table<Ticket>;
   dashboardStats!: Table<{ teamId: string; data: any; updatedAt: number }>;
   dashboardActivity!: Table<{ id: string; teamId: string; data: any; updatedAt: number }>;
+  activityLogs!: Table<any>; // New table
 
   constructor() {
     super('TimeharborDB');
@@ -115,13 +116,13 @@ export class TimeharborDB extends Dexie {
     });
 
     this.version(7).stores({
-      events: 'id, userId, type, timestamp, synced, teamId' // Added teamId index
+      events: 'id, userId, type, timestamp, synced, teamId'
+    });
+
+    this.version(8).stores({
+      activityLogs: 'id, teamId, startTime' // Add explicit table for activity logs
     });
   }
 }
 
-// Create the database instance only in browser environments
-// This prevents Dexie initialization errors during Server-Side Rendering (SSR)
-export const db = typeof window !== 'undefined' 
-  ? new TimeharborDB() 
-  : {} as TimeharborDB;
+export const db = typeof window !== 'undefined' ? new TimeharborDB() : {} as TimeharborDB;
