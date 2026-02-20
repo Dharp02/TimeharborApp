@@ -5,6 +5,7 @@ export class ActivityLog extends Model {
   public id!: string;
   public activityId!: string;
   public teamId!: string;
+  public userId!: string;
   public type!: string;
   public title!: string;
   public subtitle?: string;
@@ -22,6 +23,14 @@ ActivityLog.init({
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
+  },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: true, // Allow null for legacy data or system events
+    references: {
+      model: 'users',
+      key: 'id'
+    }
   },
   activityId: {
     type: DataTypes.STRING, // Should match frontend generated ID

@@ -158,6 +158,7 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     const newActivity: Activity = {
       id,
       teamId: currentTeam.id, // Ensure teamId is attached
+      userId: activity.userId || undefined, // Allow frontend to pass userId if available
       type: 'LOG', 
       startTime: activity.startTime || new Date().toISOString(),
       status: 'Completed',

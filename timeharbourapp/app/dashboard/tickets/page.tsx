@@ -805,11 +805,38 @@ export default function TicketsPage() {
               </div>
 
               {/* Description */}
-              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Description</h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {ticket.description || "No description provided."}
-                </p>
+              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700 relative group">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</h4>
+                  {user && ticket.createdBy === user.id && (
+                    <button
+                      onClick={() => openEditModal(ticket)}
+                      className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      title="Edit Description"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                
+                {ticket.description ? (
+                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                    {ticket.description}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                    No description provided.
+                    {user && ticket.createdBy === user.id && (
+                      <button 
+                        onClick={() => openEditModal(ticket)}
+                        className="ml-2 text-blue-600 dark:text-blue-400 hover:underline not-italic font-medium"
+                      >
+                        Add description
+                      </button>
+                    )}
+                  </p>
+                )}
+
                 {ticket.reference && (
                   <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                     <a 
@@ -825,18 +852,25 @@ export default function TicketsPage() {
                 )}
               </div>
 
-              {/* Assignee */}
+              {/* Assignee / Assigner Info */}
               <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300">
-                    {ticket.assignee}
+                    {/* If current user created the ticket, show assignee. If someone else created it, show creator. */}
+                    {user && ticket.createdBy === user.id 
+                      ? ticket.assignee 
+                      : (ticket.creatorName ? ticket.creatorName.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) : 'CN')}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{ticket.assigneeName}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Currently assigned</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {user && ticket.createdBy === user.id ? ticket.assigneeName : ticket.creatorName}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {user && ticket.createdBy === user.id ? 'Assigned To' : 'Assigned By'} 
+                    </p>
                   </div>
                 </div>
-                {user && ticket.createdBy === user.id && (
+                {user && (ticket.createdBy === user.id || ticket.assigneeName === 'Unassigned') && (
                   <button 
                     onClick={(e) => {
                       setIsDetailModalOpen(false);
@@ -847,6 +881,24 @@ export default function TicketsPage() {
                     <UserPlus className="w-5 h-5" />
                   </button>
                 )}
+              </div>
+
+              {/* Creator Info */}
+              <div className="flex items-center justify-between px-1 text-sm text-gray-500 dark:text-gray-400 border-t border-b border-gray-100 dark:border-gray-700 py-3">
+                 <div className="flex flex-col">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-0.5">Created By</span>
+                    <span className="text-gray-900 dark:text-white font-medium">{ticket.creatorName}</span>
+                 </div>
+                 <div className="flex flex-col items-end">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-0.5">Created On</span>
+                    <span className="text-gray-900 dark:text-white font-medium">
+                        {new Date(ticket.createdAt).toLocaleDateString(undefined, { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric'
+                        })}
+                    </span>
+                 </div>
               </div>
 
               {/* Actions Grid */}
