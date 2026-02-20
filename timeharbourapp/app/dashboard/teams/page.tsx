@@ -13,7 +13,7 @@ import { useLogger } from '@/hooks/useLogger';
 export default function TeamsPage() {
   const logger = useLogger();
   const { user } = useAuth();
-  const { currentTeam, teams, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams } = useTeam();
+  const { currentTeam, teams, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams, joinTeam, createTeam } = useTeam();
   const [activeTab, setActiveTab] = useState<'teaminfo' | 'teamactivity'>('teaminfo');
 
   useEffect(() => {
@@ -43,6 +43,13 @@ export default function TeamsPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [isRemoveMemberModalOpen, setIsRemoveMemberModalOpen] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [createdTeamCode, setCreatedTeamCode] = useState<string | null>(null);
+  const [joinCode, setJoinCode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [selectedTeamForAction, setSelectedTeamForAction] = useState<Team | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
   
@@ -116,7 +123,7 @@ export default function TeamsPage() {
     setIsCreateModalOpen(false);
     setNewTeamName('');
     setCreatedTeamCode(null);
-    setCopied(false);
+    setHeaderCopied(false);
   };
 
   const openEditModal = (team: Team) => {
@@ -196,8 +203,22 @@ export default function TeamsPage() {
     <div className="pt-0 pb-4 md:p-6 space-y-4">
       <div className="mt-0">
         {!currentTeam ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400 mx-4 md:mx-0">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400 mx-4 md:mx-0 flex flex-col items-center gap-4">
             <p>Please select or join a team to view members.</p>
+            <div className="flex gap-4">
+              <button
+                 onClick={() => setIsJoinModalOpen(true)}
+                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                 Join Team
+              </button>
+              <button
+                 onClick={() => setIsCreateModalOpen(true)}
+                 className="px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              >
+                 Create Team
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -639,6 +660,153 @@ export default function TeamsPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Join Team Modal */}
+      <Modal
+        isOpen={isJoinModalOpen}
+        onClose={() => {
+          setIsJoinModalOpen(false);
+          setJoinCode('');
+          setJoinError(null);
+        }}
+        title="Join a Team"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Team Code
+            </label>
+            <input
+              type="text"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              placeholder="Enter team code"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+            {joinError && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                {joinError}
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => {
+                setIsJoinModalOpen(false);
+                setJoinCode('');
+                setJoinError(null);
+              }}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleJoinTeam}
+              disabled={!joinCode.trim() || isJoining}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isJoining ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Joining...
+                </>
+              ) : (
+                'Join Team'
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Create Team Modal */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setNewTeamName('');
+          setCreatedTeamCode(null);
+        }}
+        title="Create New Team"
+      >
+        {createdTeamCode ? (
+          <div className="text-center py-4">
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600 dark:text-green-400">
+              <Check className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Team Created Successfully!</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+              Share this code with your team members to invite them.
+            </p>
+            
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 mb-6">
+              <code className="flex-1 font-mono text-lg font-bold text-center tracking-wider text-gray-800 dark:text-gray-200">
+                {createdTeamCode}
+              </code>
+              <button
+                onClick={async () => {
+                  if (createdTeamCode) {
+                    await copyText(createdTeamCode);
+                    setHeaderCopied(true);
+                    setTimeout(() => setHeaderCopied(false), 2000);
+                  }
+                }}
+                className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+                title="Copy Code"
+              >
+                {headerCopied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+              </button>
+            </div>
+            
+            <button
+              onClick={() => {
+                setIsCreateModalOpen(false);
+                setNewTeamName('');
+                setCreatedTeamCode(null);
+                refreshTeams();
+              }}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Team Name
+              </label>
+              <input
+                type="text"
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+                placeholder="e.g. Design Team"
+                autoFocus
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  setNewTeamName('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTeam}
+                disabled={!newTeamName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Create Team
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

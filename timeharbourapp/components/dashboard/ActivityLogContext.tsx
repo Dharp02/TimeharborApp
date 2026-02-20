@@ -82,8 +82,10 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
             const allLogs = await db.activityLogs
               .where('teamId')
               .equals(currentTeam.id)
-              .reverse()
-              .sortBy('startTime');
+              .toArray();
+            
+            // Sort by startTime descending
+            allLogs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
             
             setActivities(allLogs);
           }
@@ -131,8 +133,10 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
         const localLogs = await db.activityLogs
           .where('teamId')
           .equals(currentTeam.id)
-          .reverse()
-          .sortBy('startTime');
+          .toArray();
+          
+        // Sort by startTime descending
+        localLogs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
           
         setActivities(localLogs);
       } catch (e) {
