@@ -46,9 +46,13 @@ export default function OpenTickets() {
     };
 
     fetchTickets();
+    
+    const handleRefresh = () => fetchTickets();
+    window.addEventListener('pull-to-refresh', handleRefresh);
 
     return () => {
       isMounted = false;
+      window.removeEventListener('pull-to-refresh', handleRefresh);
     };
   }, [currentTeam?.id]);
 

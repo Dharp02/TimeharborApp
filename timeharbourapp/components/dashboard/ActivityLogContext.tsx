@@ -96,6 +96,13 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     // Initial sync
     syncWithBackend();
 
+    // Listen for pull-to-refresh event
+    const handleRefresh = () => {
+        console.log('Refreshing activity logs due to pull-to-refresh');
+        syncWithBackend();
+    };
+    window.addEventListener('pull-to-refresh', handleRefresh);
+
     // Listen for network status changes
     // AddListener returns a promise, so we need to handle it properly
     const handlerPromise = Network.addListener('networkStatusChange', status => {
@@ -105,6 +112,7 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     });
 
     return () => {
+      window.removeEventListener('pull-to-refresh', handleRefresh);
       handlerPromise.then(handler => handler.remove());
     };
   }, [currentTeam?.id]);

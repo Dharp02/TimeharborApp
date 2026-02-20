@@ -50,6 +50,29 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
+/* Hide scrollbar but allow scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Apply to body on mobile for app-like feel */
+@media (max-width: 768px) {
+  html, body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }

@@ -11,6 +11,7 @@ import { ChevronLeft, Users, Plus } from 'lucide-react';
 import { useTeam } from './TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import ProfileAvatarMenu from './ProfileAvatarMenu';
+import PullToRefresh from '@/components/ui/PullToRefresh';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { currentTeam, isLoading } = useTeam();
@@ -158,9 +159,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           min-h-screen
           overflow-x-hidden
         `}>
-          <div className="p-4 md:p-8 max-w-7xl mx-auto">
-            {children}
-          </div>
+          <PullToRefresh>
+            <div className="p-4 md:p-8 max-w-7xl mx-auto">
+              {children}
+            </div>
+          </PullToRefresh>
         </main>
 
         {/* Desktop Footer */}

@@ -147,6 +147,12 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
         setCurrentTeam(null);
       }
     }
+
+    const handleRefresh = () => {
+      if (user) loadTeams();
+    };
+    window.addEventListener('pull-to-refresh', handleRefresh);
+    return () => window.removeEventListener('pull-to-refresh', handleRefresh);
   }, [user]);
 
   const selectTeam = (teamId: string) => {
