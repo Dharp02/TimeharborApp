@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User, ArrowRightLeft, Check, Edit2, ExternalLink, AlignLeft, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useClockIn } from '@/components/dashboard/ClockInContext';
 import { useTeam } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -12,6 +13,7 @@ import { useLogger } from '@/hooks/useLogger';
 
 export default function TicketsPage() {
   const logger = useLogger();
+  const router = useRouter();
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
   const { currentTeam } = useTeam();
   const { user } = useAuth();
@@ -305,7 +307,7 @@ export default function TicketsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         <button 
-          onClick={() => setIsAddTicketModalOpen(true)}
+          onClick={() => router.push('/dashboard/tickets/create')}
           className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
         >
           <Plus className="w-5 h-5" />
