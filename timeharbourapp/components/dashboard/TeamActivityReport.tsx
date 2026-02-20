@@ -238,11 +238,11 @@ export function TeamActivityReport() {
         <DateRangePicker 
             initialPreset={preset}
             onRangeChange={handleRangeChange}
-            className="w-full px-2"
+            className="w-full px-0"
         />
 
         {/* Compact Filter Row - Name Filter */}
-        <div className="mx-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 flex items-center gap-2">
+        <div className="mx-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 flex items-center gap-2">
           <input
             type="text"
             placeholder="Filter by name"
@@ -253,7 +253,7 @@ export function TeamActivityReport() {
         </div>
 
         {/* Mobile Activity List */}
-        <div className="px-2">
+        <div className="px-0">
           {filteredActivities.length > 0 ? (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredActivities.slice(0, visibleCount).map((activity) => (

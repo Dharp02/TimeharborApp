@@ -202,12 +202,12 @@ export default function TeamsPage() {
         ) : (
           <>
             {/* Tabs */}
-            <div className="flex mb-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
+            <div className="flex mb-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
                     {currentTeam.role === 'Leader' && (
                       <>
                         <button
                           onClick={() => setActiveTab('teamactivity')}
-                          className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
+                          className={`flex-1 px-3 py-3 text-sm md:text-base font-medium transition-all ${
                             activeTab === 'teamactivity'
                               ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
                               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
