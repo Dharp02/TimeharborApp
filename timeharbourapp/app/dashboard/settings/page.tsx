@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
-import { LogOut, User, Mail, FileText, Calendar, ChevronRight, X } from 'lucide-react';
+import { LogOut, User, Mail, FileText, Calendar, ChevronRight, X, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import RecentActivity from '@/components/dashboard/RecentActivity';
@@ -52,6 +52,19 @@ export default function SettingsPage() {
                 <User className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
               </div>
               <span className="font-medium text-lg text-gray-900 dark:text-white">My Profile</span>
+            </div>
+            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
+          </Link>
+
+          <Link 
+            href="/dashboard/settings/teams"
+            className="flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-0">
+                <Users className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
+              </div>
+              <span className="font-medium text-lg text-gray-900 dark:text-white">Team Settings</span>
             </div>
             <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
           </Link>

@@ -33,6 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Settings Routes
     if (pathname === '/dashboard/settings' || pathname === '/dashboard/settings/') return 'Settings';
     if (pathname.startsWith('/dashboard/settings/profile')) return user?.full_name || 'My Profile';
+    if (pathname.startsWith('/dashboard/settings/teams')) return 'Team Settings';
     if (pathname.startsWith('/dashboard/settings')) return 'Settings';
     
     if (pathname.startsWith('/dashboard/member')) {
@@ -115,30 +116,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
             )}
             <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px]">{getHeaderTitle()}</h1>
-            {pathname?.startsWith('/dashboard/teams') && (
-              <div className="flex items-center gap-1 ml-2">
-                <button
-                  onClick={() => {
-                    const event = new CustomEvent('openJoinTeamModal');
-                    window.dispatchEvent(event);
-                  }}
-                  className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  title="Join a Team"
-                >
-                  <Users className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    const event = new CustomEvent('openCreateTeamModal');
-                    window.dispatchEvent(event);
-                  }}
-                  className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
-                  title="Create a Team"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-2">
             {currentTeam && (

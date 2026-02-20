@@ -13,9 +13,7 @@ import { useLogger } from '@/hooks/useLogger';
 export default function TeamsPage() {
   const logger = useLogger();
   const { user } = useAuth();
-  const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams } = useTeam();
-  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { currentTeam, teams, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams } = useTeam();
   const [activeTab, setActiveTab] = useState<'teaminfo' | 'teamactivity'>('teaminfo');
 
   useEffect(() => {
@@ -48,16 +46,10 @@ export default function TeamsPage() {
   const [selectedTeamForAction, setSelectedTeamForAction] = useState<Team | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
   
-  const [joinCode, setJoinCode] = useState('');
-  const [isJoining, setIsJoining] = useState(false);
-  const [joinError, setJoinError] = useState<string | null>(null);
-  const [newTeamName, setNewTeamName] = useState('');
   const [editTeamName, setEditTeamName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [addMemberError, setAddMemberError] = useState<string | null>(null);
   const [isAddingMember, setIsAddingMember] = useState(false);
-  const [createdTeamCode, setCreatedTeamCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [headerCopied, setHeaderCopied] = useState(false);
   
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
@@ -190,16 +182,6 @@ export default function TeamsPage() {
     }
   };
 
-  const copyToClipboard = async () => {
-    if (createdTeamCode) {
-      const success = await copyText(createdTeamCode);
-      if (success) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
-    }
-  };
-
   const copyHeaderCode = async () => {
     if (currentTeam?.code) {
       const success = await copyText(currentTeam.code);
@@ -210,44 +192,8 @@ export default function TeamsPage() {
     }
   };
 
-  useEffect(() => {
-    const handleOpenJoinModal = () => setIsJoinModalOpen(true);
-    const handleOpenCreateModal = () => setIsCreateModalOpen(true);
-    
-    window.addEventListener('openJoinTeamModal', handleOpenJoinModal);
-    window.addEventListener('openCreateTeamModal', handleOpenCreateModal);
-    
-    return () => {
-      window.removeEventListener('openJoinTeamModal', handleOpenJoinModal);
-      window.removeEventListener('openCreateTeamModal', handleOpenCreateModal);
-    };
-  }, []);
-
   return (
     <div className="pt-0 pb-4 md:p-6 space-y-4">
-      <div className="hidden md:flex justify-end items-center px-0 md:px-0">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsJoinModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors font-medium"
-              title="Join a Team"
-            >
-              <Users className="w-5 h-5" />
-              <span>Join Team</span>
-            </button>
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors font-medium"
-              title="Create a Team"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Create Team</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       <div className="mt-0">
         {!currentTeam ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400 mx-4 md:mx-0">
@@ -530,154 +476,6 @@ export default function TeamsPage() {
           </>
         )}
       </div>
-
-      {/* Join Team Modal */}
-      <Modal
-        isOpen={isJoinModalOpen}
-        onClose={() => {
-          setIsJoinModalOpen(false);
-          setJoinError(null);
-          setJoinCode('');
-        }}
-        title="Join a Team"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Enter the 6-digit code provided by your team admin to join.
-          </p>
-          
-          {joinError && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800 animate-in fade-in slide-in-from-top-2">
-              {joinError}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Team Code
-            </label>
-            <input
-              type="text"
-              value={joinCode}
-              onChange={(e) => {
-                setJoinCode(e.target.value.toUpperCase());
-                setJoinError(null);
-              }}
-              placeholder="e.g. 123456"
-              maxLength={6}
-              disabled={isJoining}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono text-center tracking-widest text-lg uppercase disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={() => {
-                setIsJoinModalOpen(false);
-                setJoinError(null);
-                setJoinCode('');
-              }}
-              disabled={isJoining}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleJoinTeam}
-              disabled={joinCode.length < 6 || isJoining}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isJoining ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Joining...
-                </>
-              ) : (
-                'Join Team'
-              )}
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Create Team Modal */}
-      <Modal
-        isOpen={isCreateModalOpen}
-        onClose={closeCreateModal}
-        title="Create a Team"
-      >
-        <div className="space-y-4">
-          {!createdTeamCode ? (
-            <>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Give your new team a name. You'll get a code to share with your members.
-              </p>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Team Name
-                </label>
-                <input
-                  type="text"
-                  value={newTeamName}
-                  onChange={(e) => setNewTeamName(e.target.value)}
-                  placeholder="e.g. Engineering Team"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={closeCreateModal}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateTeam}
-                  disabled={!newTeamName.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Create Team
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="text-center space-y-6 py-4">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
-                <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Team Created!</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Share this code with your team members
-                </p>
-              </div>
-
-              <div className="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between gap-4">
-                <span className="font-mono text-2xl font-bold tracking-widest text-gray-900 dark:text-white">
-                  {createdTeamCode}
-                </span>
-                <button
-                  onClick={copyToClipboard}
-                  className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  title="Copy Code"
-                >
-                  {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                </button>
-              </div>
-
-              <button
-                onClick={closeCreateModal}
-                className="w-full px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:opacity-90 transition-opacity"
-              >
-                Done
-              </button>
-            </div>
-          )}
-        </div>
-      </Modal>
 
       {/* Edit Team Modal */}
       <Modal
