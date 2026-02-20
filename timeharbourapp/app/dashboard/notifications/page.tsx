@@ -6,10 +6,13 @@ import { formatDistanceToNow } from 'date-fns';
 import { CheckCheck, Trash2, Bell, MessageSquare, Info, AlertTriangle, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTeam } from '@/components/dashboard/TeamContext';
 
 export default function NotificationsPage() {
   const { notifications, markAsRead, markAllAsRead, unreadCount, refreshNotifications, deleteNotifications } = useNotifications();
+  const { currentTeam } = useTeam();
   const [selectionMode, setSelectionMode] = useState(false);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const router = useRouter();
 
@@ -69,8 +72,8 @@ export default function NotificationsPage() {
     // Mark as read and auto-delete
     markAsRead(notification.id, true); // Auto-delete on read
 
-    // Navigate to member profile if data contains member information
-    if (notification.data?.memberId) {
+    // Navigate to member profile if data contains member information AND user is a leader
+    if (notification.data?.memberId && currentTeam?.role === 'Leader') {
       const { memberId, memberName, teamId } = notification.data;
       const memberUrl = `/dashboard/member?id=${memberId}${teamId ? `&teamId=${teamId}` : ''}${memberName ? `&name=${encodeURIComponent(memberName)}` : ''}`;
       router.push(memberUrl);

@@ -48,20 +48,35 @@ export default function StoriesBar() {
           .filter(member => member.id !== user?.id)
           .map((member) => {
             const memberInitials = getUserInitials(member.name, member.email);
+            const isLeader = currentTeam.role === 'Leader';
+            
+            const StoryContent = (
+              <div className={`${styles.storyAvatar} ${styles.memberStory} relative`}>
+                <div className={`${styles.avatarCircle} ${member.status === 'online' ? 'ring-2 ring-green-500 ring-offset-2 dark:ring-offset-gray-900' : ''}`}>
+                  <span className={styles.initials}>{memberInitials}</span>
+                </div>
+                {member.status === 'online' && (
+                  <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full z-10"></div>
+                )}
+              </div>
+            );
+
+            if (!isLeader) {
+              return (
+                <div key={member.id} className={styles.storyItem}>
+                  {StoryContent}
+                  <span className={styles.storyName}>{member.name || member.email}</span>
+                </div>
+              );
+            }
+
             return (
               <Link 
                 key={member.id} 
                 href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}`}
                 className={styles.storyItem}
               >
-                <div className={`${styles.storyAvatar} ${styles.memberStory} relative`}>
-                  <div className={`${styles.avatarCircle} ${member.status === 'online' ? 'ring-2 ring-green-500 ring-offset-2 dark:ring-offset-gray-900' : ''}`}>
-                    <span className={styles.initials}>{memberInitials}</span>
-                  </div>
-                  {member.status === 'online' && (
-                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full z-10"></div>
-                  )}
-                </div>
+                {StoryContent}
                 <span className={styles.storyName}>{member.name || member.email}</span>
               </Link>
             );
