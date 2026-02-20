@@ -89,6 +89,77 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     // Network listener removed - handled by SyncManager
   }, []);
 
+  // Sync state with activity logs
+  const { activities } = useActivityLog();
+  
+  useEffect(() => {
+    if (!user?.id || activities.length === 0) return;
+
+    // Find the most recent session activity
+    const recentSession = activities.find(a => a.type === 'SESSION' && (a.title === 'Work Session Started' || a.title === 'Session Ended'));
+    
+    if (recentSession) {
+      if (recentSession.status === 'Active' && recentSession.title === 'Work Session Started') {
+        // Session is active on backend
+        const startTime = new Date(recentSession.startTime).getTime();
+        if (!isSessionActive || sessionStartTime !== startTime) {
+          setIsSessionActive(true);
+          setSessionStartTime(startTime);
+          localStorage.setItem('sessionStartTime', startTime.toString());
+        }
+      } else if (recentSession.status === 'Completed' && recentSession.title === 'Session Ended') {
+        // Session is ended on backend
+        if (isSessionActive) {
+          setIsSessionActive(false);
+          setSessionStartTime(null);
+          localStorage.removeItem('sessionStartTime');
+        }
+      }
+    }
+
+    // Find the most recent ticket activity
+    const recentTicket = activities.find(a => a.type === 'SESSION' && (a.title === 'Started Ticket' || a.title === 'Stopped Ticket'));
+    
+    if (recentTicket) {
+      if (recentTicket.status === 'Active' && recentTicket.title === 'Started Ticket') {
+        // Ticket is active on backend
+        const startTime = new Date(recentTicket.startTime).getTime();
+        
+        // If we don't have an active ticket locally, but backend says we do,
+        // we try to restore it. We need the ticket ID, which we might have to guess
+        // or extract if it was saved in the activity. For now, we'll just set the start time
+        // if the local storage has the matching title.
+        if (!activeTicketId && recentTicket.subtitle) {
+           const storedTicketId = localStorage.getItem('activeTicketId');
+           const storedTicketTitle = localStorage.getItem('activeTicketTitle');
+           
+           if (storedTicketId && storedTicketTitle === recentTicket.subtitle) {
+             setActiveTicketId(storedTicketId);
+             setActiveTicketTitle(storedTicketTitle);
+             setTicketStartTime(startTime);
+             localStorage.setItem('ticketStartTime', startTime.toString());
+           }
+        } else if (activeTicketId && ticketStartTime !== startTime) {
+           // Update start time if it differs
+           setTicketStartTime(startTime);
+           localStorage.setItem('ticketStartTime', startTime.toString());
+        }
+      } else if (recentTicket.status === 'Completed' && recentTicket.title === 'Stopped Ticket') {
+        // Ticket is stopped on backend
+        if (activeTicketId) {
+          setActiveTicketId(null);
+          setActiveTicketTitle(null);
+          setActiveTicketTeamId(null);
+          setTicketStartTime(null);
+          localStorage.removeItem('activeTicketId');
+          localStorage.removeItem('activeTicketTitle');
+          localStorage.removeItem('activeTicketTeamId');
+          localStorage.removeItem('ticketStartTime');
+        }
+      }
+    }
+  }, [activities, user?.id, isSessionActive, sessionStartTime, activeTicketId, ticketStartTime]);
+
 
 
   // Session Timer Effect
@@ -190,6 +261,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
       // Attempt to sync immediately
       await syncManager.syncNow();
+      
+      // Force reload activities to ensure sync
+      window.dispatchEvent(new Event('pull-to-refresh'));
     } else {
       // Clock In Session
       const now = Date.now();
@@ -210,6 +284,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
       // Attempt to sync immediately
       await syncManager.syncNow();
+      
+      // Force reload activities to ensure sync
+      window.dispatchEvent(new Event('pull-to-refresh'));
     }
   };
 
@@ -265,6 +342,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     // Attempt to sync immediately
     await syncManager.syncNow();
+    
+    // Force reload activities to ensure sync
+    window.dispatchEvent(new Event('pull-to-refresh'));
     
     // Reset Modal
     setIsStopTicketModalOpen(false);
@@ -381,8 +461,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Attempt to sync immediately
-    await syncManager.syncNow();
-  };
+    await syncManager.syncNow();    
+    // Force reload activities to ensure sync
+    window.dispatchEvent(new Event('pull-to-refresh'));  };
 
   const getFormattedTotalTime = (ticketId: string) => {
     const totalMs = ticketDurations[ticketId] || 0;
