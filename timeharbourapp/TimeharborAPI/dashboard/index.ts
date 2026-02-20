@@ -1,4 +1,5 @@
 import { db, TimeEvent } from '../db';
+import { getStoredUser } from '../auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -27,6 +28,11 @@ export interface Activity {
 export const getStats = async (teamId?: string): Promise<DashboardStats> => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
   const cacheKey = teamId || 'global';
+  let user: { id: string } | null = null;
+  
+  try {
+     user = await getStoredUser();
+  } catch (e) { console.warn('Failed to load user for cache validation', e); }
 
   try {
     if (!token) throw new Error('No access token found');
@@ -49,20 +55,31 @@ export const getStats = async (teamId?: string): Promise<DashboardStats> => {
     await db.dashboardStats.put({
       teamId: cacheKey,
       data: stats,
-      updatedAt: Date.now()
-    });
+      updatedAt: Date.now(),
+      // @ts-ignore
+      userId: user?.id
+    } as any);
 
     return stats;
   } catch (error) {
     console.warn('Fetching stats failed, loading from offline cache:', error);
 
     // Try to get from cache
-    const cached = await db.dashboardStats.get(cacheKey);
+    const cached: any = await db.dashboardStats.get(cacheKey);
+    
     if (cached) {
-      return cached.data as DashboardStats;
+      // Validate cache ownership to prevent cross-user data leak
+      if (user && cached.userId && cached.userId !== user.id) {
+         console.warn('Cached stats belong to different user, discarding.');
+      } else if (user && !cached.userId) {
+         // Discard legacy cache without userId to fix existing bad data
+         console.warn('Legacy cache found without userId, discarding.');
+      } else {
+         return cached.data as DashboardStats;
+      }
     }
 
-    // If no cache, try to calculate what we can from local DB
+    // If no valid cache, try to calculate what we can from local DB
     let openTickets = 0;
     let teamMembers = 0;
 
