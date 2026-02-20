@@ -5,7 +5,7 @@ import { TicketItem } from './TicketItem';
 import { ClockEventItem } from './ClockEventItem';
 
 export function SessionCard({ session, member }: { session: ActivitySession, member?: any }) {
-  const dateStr = session.startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const dateStr = session.startTime.toFormat('MMM d');
 
   return (
     <div className="mb-8 px-1">

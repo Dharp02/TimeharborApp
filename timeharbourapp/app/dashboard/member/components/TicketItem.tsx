@@ -51,7 +51,7 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
 
           <div className="text-xs text-gray-500 mb-4 font-medium flex items-center gap-1.5 flex-wrap">
               {/* Using timestamp from start of event */}
-              <span>{event.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              <span>{event.timestamp.toFormat('MMM d')}</span>
               
               {/* Use formatted times if available, fallback to basic time string */}
               {(event.startTimeFormatted || event.endTimeFormatted) ? (

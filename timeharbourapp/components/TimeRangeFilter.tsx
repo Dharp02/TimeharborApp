@@ -1,6 +1,7 @@
 'use client';
 
 import { Calendar, ChevronDown } from 'lucide-react';
+import { DateTime } from 'luxon';
 
 export type TimeRange = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
@@ -25,48 +26,34 @@ export default function TimeRangeFilter({ selected, onChange, startDate, endDate
   const selectedOption = timeRangeOptions.find(opt => opt.value === selected) || timeRangeOptions[0];
 
   const getDateDisplay = () => {
-    const today = new Date();
-    const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+    const today = DateTime.now();
     
     switch (selected) {
       case 'today':
-        return formatter.format(today);
+        return today.toFormat('MMM d');
       case 'yesterday': {
-        const prev = new Date(today);
-        prev.setDate(prev.getDate() - 1);
-        return formatter.format(prev);
+        return today.minus({ days: 1 }).toFormat('MMM d');
       }
       case 'week': {
-        const first = new Date(today);
-        // Assuming week starts on Monday for business context, or we can use Sunday.
-        // Let's use simple logic: set to previous Monday (or today if Monday)
-        const day = first.getDay() || 7; // Get current day number, converting Sun (0) to 7
-        if (day !== 1) first.setHours(-24 * (day - 1));
-        
-        const last = new Date(first);
-        last.setDate(last.getDate() + 6);
-        
-        return `${formatter.format(first)} - ${formatter.format(last)}`;
+        const start = today.startOf('week'); // Monday
+        const end = today.endOf('week');
+        return `${start.toFormat('MMM d')} - ${end.toFormat('MMM d')}`;
       }
-      case 'month':
-        return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(today);
-      case 'custom':
+      case 'month': {
+        const start = today.startOf('month');
+        const end = today.endOf('month');
+        return `${start.toFormat('MMM d')} - ${end.toFormat('MMM d')}`;
+      }
+      case 'custom': {
         if (startDate && endDate) {
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            // Adjust for timezone offset if needed, but simple parsing usually suffices for display if input is YYYY-MM-DD
-             // inputs are strings YYYY-MM-DD. When new Date('YYYY-MM-DD') is called, it might be UTC. 
-             // To be safe for display we can just reformat the string or use UTC methods. 
-             // let's stick to simple string formatting or the Intl formatter which handles dates.
-             // Best to just use the formatter on the date objects.
-             // Note: new Date('2023-01-01') is UTC, which might show as Dec 31 in local time.
-             // Better to append T00:00:00 to ensure local time or handle timezone. 
-             // For simplicity, let's assume the user picks dates and we format them.
-             return `${formatter.format(new Date(startDate + 'T00:00:00'))} - ${formatter.format(new Date(endDate + 'T00:00:00'))}`;
+          const start = DateTime.fromISO(startDate);
+          const end = DateTime.fromISO(endDate);
+          return `${start.toFormat('MMM d')} - ${end.toFormat('MMM d')}`;
         }
-        return '';
+        return 'Custom Range';
+      }
       default:
-        return '';
+        return 'Select Range';
     }
   };
 

@@ -5,12 +5,15 @@ import Link from 'next/link';
 import { ChevronLeft, Clock } from 'lucide-react';
 import { useActivityLog } from '@/components/dashboard/ActivityLogContext';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
-import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { DateTime } from 'luxon';
 
 export default function ActivityPage() {
   const { activities } = useActivityLog();
   const [visibleCount, setVisibleCount] = useState(20);
-  const [dateRange, setDateRange] = useState<DateRange>({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+  const [dateRange, setDateRange] = useState<DateRange>({ 
+    from: DateTime.now().startOf('day'), 
+    to: DateTime.now().endOf('day') 
+  });
   const [preset, setPreset] = useState<DateRangePreset>('today');
 
   const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
@@ -20,22 +23,25 @@ export default function ActivityPage() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString([], { month: 'numeric', day: 'numeric', year: 'numeric' });
+    return DateTime.fromISO(dateString).toFormat('M/d/yyyy');
   };
 
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return DateTime.fromISO(dateString).toFormat('h:mm a');
   };
 
   // Filter by date range (client-side)
   const filteredActivities = activities.filter(activity => {
       if (!activity.startTime) return false;
-      const activityDate = new Date(activity.startTime);
+      const activityTime = DateTime.fromISO(activity.startTime).toMillis();
+      
       // Ensure we compare dates correctly
       if (!dateRange.from || !dateRange.to) return true;
-      return isWithinInterval(activityDate, { start: dateRange.from, end: dateRange.to });
+      
+      const start = dateRange.from.toMillis();
+      const end = dateRange.to.toMillis();
+      
+      return activityTime >= start && activityTime <= end;
   });
 
   const displayActivities = filteredActivities.slice(0, visibleCount);

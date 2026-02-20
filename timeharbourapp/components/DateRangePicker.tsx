@@ -1,20 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  format, 
-  subDays, 
-  startOfDay, 
-  endOfDay, 
-  subMonths
-} from 'date-fns';
+import { DateTime } from 'luxon';
 import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react';
 
 export type DateRangePreset = 'today' | 'yesterday' | 'past_week' | 'past_month' | 'custom';
 
 export interface DateRange {
-  from: Date;
-  to: Date;
+  from: DateTime;
+  to: DateTime;
 }
 
 interface DateRangePickerProps {
@@ -32,26 +26,29 @@ export function DateRangePicker({
 }: DateRangePickerProps) {
   const [preset, setPreset] = useState<DateRangePreset>(initialPreset);
   const [customRange, setCustomRange] = useState<DateRange>(
-    initialCustomRange || { from: new Date(), to: new Date() }
+    initialCustomRange || { 
+      from: DateTime.now().startOf('day'), 
+      to: DateTime.now().endOf('day') 
+    }
   );
 
   // Helper to get range from preset
   const getRangeFromPreset = (p: DateRangePreset): DateRange => {
-    const now = new Date();
+    const now = DateTime.now();
     switch (p) {
       case 'today':
-        return { from: startOfDay(now), to: endOfDay(now) };
+        return { from: now.startOf('day'), to: now.endOf('day') };
       case 'yesterday':
-        const yesterday = subDays(now, 1);
-        return { from: startOfDay(yesterday), to: endOfDay(yesterday) };
+        const yesterday = now.minus({ days: 1 });
+        return { from: yesterday.startOf('day'), to: yesterday.endOf('day') };
       case 'past_week':
-        return { from: startOfDay(subDays(now, 7)), to: endOfDay(now) };
+        return { from: now.minus({ days: 7 }).startOf('day'), to: now.endOf('day') };
       case 'past_month':
-        return { from: startOfDay(subMonths(now, 1)), to: endOfDay(now) };
+        return { from: now.minus({ months: 1 }).startOf('day'), to: now.endOf('day') };
       case 'custom':
         return customRange;
       default:
-        return { from: startOfDay(now), to: endOfDay(now) };
+        return { from: now.startOf('day'), to: now.endOf('day') };
     }
   };
 
@@ -72,20 +69,15 @@ export function DateRangePicker({
 
   const handleCustomDateChange = (type: 'from' | 'to', value: string) => {
     if (!value) return;
-    const date = new Date(value); // Input type="date" returns YYYY-MM-DD
-    // Adjust for timezone - input date is usually local YYYY-MM-DD
-    // We want start/end of that day in local time
     
-    // Quick fix for date input causing UTC shifts:
-    // Append T00:00 to keep it local or use manual parsing
-    const parts = value.split('-');
-    const localDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    // value is YYYY-MM-DD
+    const localDate = DateTime.fromISO(value).startOf('day');
 
     const newRange = { ...customRange };
     if (type === 'from') {
-      newRange.from = startOfDay(localDate);
+      newRange.from = localDate;
     } else {
-      newRange.to = endOfDay(localDate);
+      newRange.to = localDate.endOf('day');
     }
     
     setCustomRange(newRange);
@@ -102,8 +94,9 @@ export function DateRangePicker({
 
   // Formatting for display
   const currentRange = getRangeFromPreset(preset);
+  // Using Luxon formatting
   const displayLabel = preset === 'custom' 
-    ? `${format(customRange.from, 'MMM d, yyyy')} - ${format(customRange.to, 'MMM d, yyyy')}`
+    ? `${customRange.from.toFormat('MMM d, yyyy')} - ${customRange.to.toFormat('MMM d, yyyy')}`
     : options.find(o => o.value === preset)?.label;
 
   return (
@@ -140,7 +133,7 @@ export function DateRangePicker({
           <div className="flex items-center gap-2 w-full sm:w-auto">
              <input
               type="date"
-              value={format(customRange.from, 'yyyy-MM-dd')}
+              value={customRange.from.toFormat('yyyy-MM-dd')}
               onChange={(e) => handleCustomDateChange('from', e.target.value)}
               className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               aria-label="Start date"
@@ -148,7 +141,7 @@ export function DateRangePicker({
             <span className="text-gray-400">to</span>
             <input
               type="date"
-              value={format(customRange.to, 'yyyy-MM-dd')}
+              value={customRange.to.toFormat('yyyy-MM-dd')}
               onChange={(e) => handleCustomDateChange('to', e.target.value)}
               className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               aria-label="End date"

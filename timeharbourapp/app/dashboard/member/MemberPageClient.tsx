@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { ActivitySession } from './types';
 import { SessionCard } from './components/SessionCard';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
-import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { DateTime } from 'luxon';
 
 interface MemberPageProps {
   memberId?: string;
@@ -44,13 +44,19 @@ function MemberPageContent({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   
-  const [dateRange, setDateRange] = useState<DateRange>({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+  const [dateRange, setDateRange] = useState<DateRange>({ 
+    from: DateTime.now().startOf('day'), 
+    to: DateTime.now().endOf('day') 
+  });
   const [preset, setPreset] = useState<DateRangePreset>('today');
   const [teamMembers, setTeamMembers] = useState<TeamAPI.Member[]>([]);
 
   const filteredSessions = sessions.filter(session => {
-    const sessionDate = new Date(session.startTime);
-    return isWithinInterval(sessionDate, { start: dateRange.from, end: dateRange.to });
+    if (!dateRange.from || !dateRange.to) return true;
+    // session.startTime is DateTime
+    // dateRange.from/to is DateTime
+    const sessionStart = session.startTime.toMillis();
+    return sessionStart >= dateRange.from.toMillis() && sessionStart <= dateRange.to.toMillis();
   });
 
   const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
@@ -60,11 +66,11 @@ function MemberPageContent({
 
   const calculateTotalDuration = (sessionsToSum: ActivitySession[]) => {
     let totalMs = 0;
-    const now = Date.now();
+    const now = DateTime.now().toMillis();
     
     sessionsToSum.forEach(session => {
-        const start = new Date(session.startTime).getTime();
-        const end = session.endTime ? new Date(session.endTime).getTime() : now;
+        const start = session.startTime.toMillis();
+        const end = session.endTime ? session.endTime.toMillis() : now;
         totalMs += (end - start);
     });
     
@@ -76,8 +82,8 @@ function MemberPageContent({
 
   const mapSessionFromApi = (s: any): ActivitySession => ({
         id: s.id,
-        startTime: new Date(s.startTime),
-        endTime: s.endTime ? new Date(s.endTime) : undefined,
+        startTime: DateTime.fromJSDate(new Date(s.startTime)),
+        endTime: s.endTime ? DateTime.fromJSDate(new Date(s.endTime)) : undefined,
         status: s.status,
         events: s.events
             .filter((e: any) => {
@@ -86,9 +92,9 @@ function MemberPageContent({
             })
             .map((e: any) => ({
                 ...e,
-                timestamp: new Date(e.timestamp),
+                timestamp: DateTime.fromJSDate(new Date(e.timestamp)),
                 original: e.original || {},
-                timeFormatted: e.timeFormatted || new Date(e.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+                timeFormatted: e.timeFormatted || DateTime.fromJSDate(new Date(e.timestamp)).toFormat('HH:mm')
             }))
   });
 

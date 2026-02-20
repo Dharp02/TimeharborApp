@@ -1,6 +1,7 @@
 'use client';
 
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DateTime } from 'luxon';
 
 interface SlidingDateFilterProps {
   selected: string; // 'today', 'last_week', 'last_month', 'custom', or 'YYYY-MM-DD'
@@ -10,13 +11,11 @@ interface SlidingDateFilterProps {
 
 export function SlidingDateFilter({ selected, onSelect, className = '' }: SlidingDateFilterProps) {
   // Helpers
-  const formatDateValue = (date: Date) => {
-      const offset = date.getTimezoneOffset();
-      const localDate = new Date(date.getTime() - (offset*60*1000));
-      return localDate.toISOString().split('T')[0];
+  const formatDateValue = (date: DateTime) => {
+      return date.toFormat('yyyy-MM-dd');
   };
 
-  const todayStr = formatDateValue(new Date());
+  const todayStr = formatDateValue(DateTime.now());
 
   const getDayName = (dateStr: string) => {
       if (dateStr === 'this_week') return 'THIS';
@@ -25,9 +24,8 @@ export function SlidingDateFilter({ selected, onSelect, className = '' }: Slidin
       if (dateStr === 'last_month') return 'LAST';
       if (dateStr === 'custom') return 'CUSTOM';
       
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const dateObj = new Date(y, m - 1, d); 
-      return dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+      const dateObj = DateTime.fromISO(dateStr);
+      return dateObj.toFormat('ccc').toUpperCase();
   };
 
   const getFullDisplayDate = (dateStr: string) => {
@@ -37,9 +35,8 @@ export function SlidingDateFilter({ selected, onSelect, className = '' }: Slidin
        if (dateStr === 'last_month') return 'Month';
        if (dateStr === 'custom') return 'Range';
 
-       const [y, m, d] = dateStr.split('-').map(Number);
-       const dateObj = new Date(y, m - 1, d);
-       return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+       const dateObj = DateTime.fromISO(dateStr);
+       return dateObj.toFormat('MMM d, yyyy');
   };
 
   const handlePrevDay = () => {
@@ -67,10 +64,7 @@ export function SlidingDateFilter({ selected, onSelect, className = '' }: Slidin
       // If date
       // Handle 'today' string case or 'todayStr'
       const dateToUse = (selected === 'today') ? todayStr : selected;
-
-      const [y, m, d] = dateToUse.split('-').map(Number);
-      const date = new Date(y, m - 1, d);
-      date.setDate(date.getDate() - 1);
+      const date = DateTime.fromISO(dateToUse).minus({ days: 1 });
       onSelect(formatDateValue(date));
   };
   
@@ -115,12 +109,8 @@ export function SlidingDateFilter({ selected, onSelect, className = '' }: Slidin
            return;
        }
 
-       const [y, m, d] = selected.split('-').map(Number);
-       const date = new Date(y, m - 1, d);
-       const nextDate = new Date(date);
-       nextDate.setDate(date.getDate() + 1);
-       
-       const nextDateStr = formatDateValue(nextDate);
+       const date = DateTime.fromISO(selected).plus({ days: 1 });
+       const nextDateStr = formatDateValue(date);
        
        // Check if next date is future
        if (nextDateStr > todayStr) {

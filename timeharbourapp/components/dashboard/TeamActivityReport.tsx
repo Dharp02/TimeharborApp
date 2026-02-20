@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Edit2 } from 'lucide-react';
-import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { DateTime } from 'luxon';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
@@ -35,7 +35,10 @@ type DesktopActivity = {
 
 export function TeamActivityReport() {
   const { currentTeam } = useTeam();
-  const [dateRange, setDateRange] = useState<DateRange>({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
+  const [dateRange, setDateRange] = useState<DateRange>({ 
+    from: DateTime.now().startOf('day'), 
+    to: DateTime.now().endOf('day') 
+  });
   const [preset, setPreset] = useState<DateRangePreset>('today');
   
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -75,10 +78,11 @@ export function TeamActivityReport() {
              let action = '';
              const tickets: string[] = [];
 
-             const date = new Date(log.timestamp);
+             const date = DateTime.fromISO(log.timestamp);
              // Format date to include time for better sorting visibility
-             const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-             const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+             // Luxon: MMM d, HH:mm
+             const dateStr = date.toFormat('MMM d');
+             const timeStr = date.toFormat('h:mm a');
              const displayDate = `${dateStr}, ${timeStr}`;
              
              // Determine action text
@@ -159,10 +163,12 @@ export function TeamActivityReport() {
   const filteredActivities = useMemo(() => {
     return activities.filter(activity => {
       // Parse timestamp to date for comparison
-      const activityDate = new Date(activity.timestamp);
+      const activityDate = DateTime.fromISO(activity.timestamp).toMillis();
+      const start = dateRange.from.toMillis();
+      const end = dateRange.to.toMillis();
       
       // Compare ranges
-      const isWithin = isWithinInterval(activityDate, { start: dateRange.from, end: dateRange.to });
+      const isWithin = activityDate >= start && activityDate <= end;
 
       return isWithin && activity.member.toLowerCase().includes(columnFilters.member.toLowerCase());
     });
@@ -172,10 +178,12 @@ export function TeamActivityReport() {
   const filteredDesktopActivities = useMemo(() => {
     return desktopActivities.filter(activity => {
       // Parse timestamp to date for comparison
-      const activityDate = new Date(activity.timestamp);
+      const activityDate = DateTime.fromISO(activity.timestamp).toMillis();
+      const start = dateRange.from.toMillis();
+      const end = dateRange.to.toMillis();
       
       // Compare ranges
-      const isWithin = isWithinInterval(activityDate, { start: dateRange.from, end: dateRange.to });
+      const isWithin = activityDate >= start && activityDate <= end;
 
       return (
         isWithin &&

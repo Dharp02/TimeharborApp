@@ -1,8 +1,10 @@
+import { DateTime } from 'luxon';
+
 export interface SessionEvent {
   id: string;
   type: 'CLOCK' | 'TICKET';
   title: string;
-  timestamp: Date;
+  timestamp: DateTime;
   status?: string;
   original: any;
   references?: any[];
@@ -14,8 +16,8 @@ export interface SessionEvent {
 
 export interface ActivitySession {
   id: string;
-  startTime: Date;
-  endTime?: Date;
+  startTime: DateTime;
+  endTime?: DateTime;
   events: SessionEvent[];
   status: 'active' | 'completed' | 'adhoc';
 }
