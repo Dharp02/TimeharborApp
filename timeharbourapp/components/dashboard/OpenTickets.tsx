@@ -10,6 +10,20 @@ import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
 
+const getUserInitials = (name?: string, email?: string) => {
+  if (name && name.trim()) {
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  if (email) {
+    return email.substring(0, 2).toUpperCase();
+  }
+  return 'U';
+};
+
 export default function OpenTickets() {
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
@@ -224,8 +238,17 @@ export default function OpenTickets() {
                   {ticket.title}
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{ticket.id.substring(0, 8)}</span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
+                  {ticket.creator && (
+                    <>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Created by</span>
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-white dark:ring-gray-700 shrink-0 transform hover:scale-105 transition-transform cursor-help" title={ticket.creator.full_name}>
+                          {getUserInitials(ticket.creator.full_name, ticket.creator.email)}
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
+                    </>
+                  )}
                   <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
                     {getFormattedTotalTime(ticket.id)}
                   </span>

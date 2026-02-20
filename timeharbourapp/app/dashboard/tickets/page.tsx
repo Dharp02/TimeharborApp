@@ -68,7 +68,8 @@ export default function TicketsPage() {
         description: t.description || '',
         reference: t.link || '',
         createdAt: t.createdAt,
-        createdBy: t.createdBy
+        createdBy: t.createdBy,
+        creatorName: t.creator ? t.creator.full_name : 'Unknown'
       }));
       setAllTickets(mappedTickets);
     } catch (error) {
@@ -344,7 +345,7 @@ export default function TicketsPage() {
                 placeholder="Search tickets..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               />
             </div>
             <button className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
@@ -405,6 +406,9 @@ export default function TicketsPage() {
                     <h3 className="text-base font-medium text-gray-900 dark:text-white truncate">
                       {ticket.title}
                     </h3>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Created by <span className="font-medium text-gray-700 dark:text-gray-300">{ticket.creatorName}</span>
+                    </div>
                   </div>
 
                   {/* Meta Info (Hidden on mobile) */}
