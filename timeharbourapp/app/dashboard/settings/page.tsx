@@ -3,15 +3,17 @@
 import { useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
-import { LogOut, User, Mail, FileText, Calendar, ChevronRight, X, Users } from 'lucide-react';
+import { LogOut, User, Mail, FileText, Calendar, ChevronRight, X, Users, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import RecentActivity from '@/components/dashboard/RecentActivity';
+import { db } from '@/TimeharborAPI/db';
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [activeModal, setActiveModal] = useState<'timesheet' | 'calendar' | null>(null);
+  const [isClearingCache, setIsClearingCache] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -19,6 +21,54 @@ export default function SettingsPage() {
       router.push('/login');
     } catch (error) {
       console.error('Sign out error:', error);
+    }
+  };
+
+  const handleClearCache = async () => {
+    if (!window.confirm('Are you sure you want to clear all local data? This will not log you out, but will remove offline data until it syncs again.')) {
+      return;
+    }
+
+    setIsClearingCache(true);
+    try {
+      // 1. Clear IndexedDB (except auth if it was there, but our db is mostly data)
+      await db.transaction('rw', db.activityLogs, db.offlineMutations, async () => {
+        await db.activityLogs.clear();
+        await db.offlineMutations.clear();
+      });
+
+      // 2. Clear LocalStorage (preserve auth tokens)
+      const authKeys = ['supabase.auth.token', 'sb-api-auth-token']; // Add any specific auth keys here
+      const preservedData: Record<string, string> = {};
+      
+      // Save auth data
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('auth') || key.includes('supabase') || key.includes('token'))) {
+          preservedData[key] = localStorage.getItem(key) || '';
+        }
+      }
+
+      // Clear all
+      localStorage.clear();
+
+      // Restore auth data
+      Object.entries(preservedData).forEach(([key, value]) => {
+        localStorage.setItem(key, value);
+      });
+
+      // 3. Clear SessionStorage
+      sessionStorage.clear();
+
+      alert('Cache cleared successfully!');
+      
+      // Reload to re-fetch fresh data
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to clear cache:', error);
+      alert('Failed to clear cache. Please try again.');
+    } finally {
+      setIsClearingCache(false);
     }
   };
 
@@ -96,6 +146,22 @@ export default function SettingsPage() {
           </button>
 
           <button 
+            onClick={handleClearCache}
+            disabled={isClearingCache}
+            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors disabled:opacity-50"
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-0">
+                <Trash2 className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
+              </div>
+              <span className="font-medium text-lg text-gray-900 dark:text-white">
+                {isClearingCache ? 'Clearing...' : 'Clear Cache'}
+              </span>
+            </div>
+            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
+          </button>
+
+          <button 
             onClick={handleSignOut}
             className="w-full flex items-center gap-4 px-6 py-4 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
@@ -132,6 +198,32 @@ export default function SettingsPage() {
                 <p className="font-medium text-gray-900 dark:text-white">{user?.email}</p>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 space-y-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-4">
+            App Data
+          </h2>
+          <div className="space-y-4">
+            <button 
+              onClick={handleClearCache}
+              disabled={isClearingCache}
+              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-xl transition-colors disabled:opacity-50"
+            >
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-full">
+                  <Trash2 className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {isClearingCache ? 'Clearing Cache...' : 'Clear Cache'}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Clear local data and offline storage</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </button>
           </div>
         </div>
       </div>

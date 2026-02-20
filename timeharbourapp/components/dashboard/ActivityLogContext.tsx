@@ -16,6 +16,7 @@ interface ActivityLogContextType {
   updateActivity: (id: string, updates: Partial<Activity>) => void;
   updateActiveSession: (endTime: string, duration: string) => void;
   clearActivities: () => void;
+  fetchActivitiesByDateRange: (startDate: string, endDate: string) => Promise<Activity[]>;
 }
 
 const ActivityLogContext = createContext<ActivityLogContextType | undefined>(undefined);
@@ -263,8 +264,24 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
 
   const clearActivities = () => setActivities([]);
 
+  const fetchActivitiesByDateRange = async (startDate: string, endDate: string): Promise<Activity[]> => {
+    if (!currentTeam?.id) return [];
+    
+    try {
+      const response = await authenticatedFetch(`${API_URL}/teams/${currentTeam.id}/logs?startDate=${startDate}&endDate=${endDate}`);
+      if (response.ok) {
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch activities by date range:', error);
+      return [];
+    }
+  };
+
   return (
-    <ActivityLogContext.Provider value={{ activities, addActivity, updateActivity, updateActiveSession, clearActivities }}>
+    <ActivityLogContext.Provider value={{ activities, addActivity, updateActivity, updateActiveSession, clearActivities, fetchActivitiesByDateRange }}>
       {children}
     </ActivityLogContext.Provider>
   );

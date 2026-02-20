@@ -7,6 +7,7 @@ export const getActivities = async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   try {
     const { teamId } = req.params;
+    const { startDate, endDate } = req.query;
     const userId = authReq.user?.id;
     
     // Filter activities by userId if available, or return all if needed (but user requested filtering)
@@ -15,17 +16,29 @@ export const getActivities = async (req: Request, res: Response) => {
     const whereClause: any = { teamId };
     if (userId) {
       whereClause.userId = userId;
+    }
+
+    // Add date filtering if provided
+    if (startDate && endDate) {
+      whereClause.startTime = {
+        [Op.between]: [new Date(startDate as string), new Date(endDate as string)]
+      };
     } else {
-       // If for some reason userId is missing (shouldn't happen with auth), maybe return empty or handle gracefully
-       // For now, let's allow it to return nothing or all?
-       // If no userId, we can't filter by user, so maybe return empty array to be safe?
-       // But authenticateToken ensures req.user is set.
+      // Default to today if no dates provided
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      whereClause.startTime = {
+        [Op.between]: [today, tomorrow]
+      };
     }
 
     const activities = await ActivityLog.findAll({
       where: whereClause,
       order: [['startTime', 'DESC']],
-      limit: 50 // Limit to latest 50 for performance
+      limit: 100 // Increased limit for date ranges
     });
 
     // Map to frontend interface

@@ -1,20 +1,50 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Clock } from 'lucide-react';
+import { ChevronLeft, Clock, Loader2 } from 'lucide-react';
 import { useActivityLog } from '@/components/dashboard/ActivityLogContext';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
+import { Activity } from '@/TimeharborAPI/dashboard';
 
 export default function ActivityPage() {
-  const { activities } = useActivityLog();
+  const { activities: cachedActivities, fetchActivitiesByDateRange } = useActivityLog();
   const [visibleCount, setVisibleCount] = useState(20);
   const [dateRange, setDateRange] = useState<DateRange>({ 
     from: DateTime.now().startOf('day'), 
     to: DateTime.now().endOf('day') 
   });
   const [preset, setPreset] = useState<DateRangePreset>('today');
+  const [fetchedActivities, setFetchedActivities] = useState<Activity[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchFilteredData = async () => {
+      if (preset === 'today') {
+        // Use cached data for today
+        setFetchedActivities(cachedActivities);
+        return;
+      }
+
+      if (!dateRange.from || !dateRange.to) return;
+
+      setIsLoading(true);
+      try {
+        const data = await fetchActivitiesByDateRange(
+          dateRange.from.toISO() || '',
+          dateRange.to.toISO() || ''
+        );
+        setFetchedActivities(data);
+      } catch (error) {
+        console.error('Failed to fetch activities:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchFilteredData();
+  }, [dateRange, preset, cachedActivities, fetchActivitiesByDateRange]);
 
   const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
     setDateRange(range);
@@ -30,8 +60,8 @@ export default function ActivityPage() {
     return DateTime.fromISO(dateString).toFormat('h:mm a');
   };
 
-  // Filter by date range (client-side)
-  const filteredActivities = activities.filter(activity => {
+  // Filter by date range (client-side for today's cached data, or just use fetched data)
+  const filteredActivities = preset === 'today' ? cachedActivities.filter(activity => {
       if (!activity.startTime) return false;
       const activityTime = DateTime.fromISO(activity.startTime).toMillis();
       
@@ -42,7 +72,7 @@ export default function ActivityPage() {
       const end = dateRange.to.toMillis();
       
       return activityTime >= start && activityTime <= end;
-  });
+  }) : fetchedActivities;
 
   const displayActivities = filteredActivities.slice(0, visibleCount);
   const hasMore = filteredActivities.length > visibleCount;
@@ -52,17 +82,7 @@ export default function ActivityPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
-      <div className="flex items-center gap-4 mb-6">
-        <Link 
-          href="/dashboard" 
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Activity Log</h1>
-      </div>
-
+    <div className="max-w-4xl mx-auto px-0 py-2 md:p-6 space-y-4">
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm">
         <div className="flex-1 w-full md:w-auto">
            <DateRangePicker 
@@ -77,7 +97,12 @@ export default function ActivityPage() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
-        {activities.length === 0 ? (
+        {isLoading ? (
+          <div className="p-12 text-center text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+            <p>Loading activities...</p>
+          </div>
+        ) : cachedActivities.length === 0 && preset === 'today' ? (
           <div className="p-12 text-center text-gray-500 dark:text-gray-400">
             <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
             <p className="text-lg font-medium">No activity recorded yet</p>
