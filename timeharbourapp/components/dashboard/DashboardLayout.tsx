@@ -33,6 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     
     // Settings Routes
     if (pathname === '/dashboard/settings' || pathname === '/dashboard/settings/') return 'Settings';
+    if (pathname.startsWith('/dashboard/settings/timesheet')) return 'My Timesheet';
     if (pathname.startsWith('/dashboard/settings/profile')) return user?.full_name || 'My Profile';
     if (pathname.startsWith('/dashboard/settings/teams')) return 'Team Settings';
     if (pathname.startsWith('/dashboard/settings')) return 'Settings';

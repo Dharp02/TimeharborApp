@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
 import { LogOut, User, Mail, FileText, Calendar, ChevronRight, X, Users, Trash2 } from 'lucide-react';
@@ -12,8 +13,14 @@ import { db } from '@/TimeharborAPI/db';
 export default function SettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [activeModal, setActiveModal] = useState<'timesheet' | 'calendar' | null>(null);
+  const [activeModal, setActiveModal] = useState<'calendar' | null>(null);
   const [isClearingCache, setIsClearingCache] = useState(false);
+
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleSignOut = async () => {
     try {
@@ -72,21 +79,25 @@ export default function SettingsPage() {
     }
   };
 
-  const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl animate-in slide-in-from-bottom-10 duration-300">
-        <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-          <h3 className="font-bold text-lg text-gray-900 dark:text-white">{title}</h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+  const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => {
+    if (!isMounted) return null;
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl animate-in slide-in-from-bottom-10 duration-300">
+          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+            <h3 className="font-bold text-lg text-gray-900 dark:text-white">{title}</h3>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+          <div className="p-4 overflow-y-auto">
+            {children}
+          </div>
         </div>
-        <div className="p-4 overflow-y-auto">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
+      </div>,
+      document.body
+    );
+  };
 
   return (
     <>
@@ -119,9 +130,9 @@ export default function SettingsPage() {
             <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
           </Link>
 
-          <button 
-            onClick={() => setActiveModal('timesheet')}
-            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          <Link 
+            href="/dashboard/settings/timesheet"
+            className="flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
             <div className="flex items-center gap-4">
               <div className="p-0">
@@ -130,7 +141,7 @@ export default function SettingsPage() {
               <span className="font-medium text-lg text-gray-900 dark:text-white">My Timesheet</span>
             </div>
             <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
-          </button>
+          </Link>
 
           <button 
             onClick={() => setActiveModal('calendar')}
@@ -229,12 +240,6 @@ export default function SettingsPage() {
       </div>
 
       {/* Modals */}
-      {activeModal === 'timesheet' && (
-        <Modal title="My Timesheet" onClose={() => setActiveModal(null)}>
-          <RecentActivity />
-        </Modal>
-      )}
-
       {activeModal === 'calendar' && (
         <Modal title="Calendar" onClose={() => setActiveModal(null)}>
           <div className="text-center py-12">
