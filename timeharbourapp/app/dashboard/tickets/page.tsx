@@ -88,6 +88,55 @@ export default function TicketsPage() {
     return matchesSearch && matchesTab;
   });
 
+  const fetchGitHubDescription = async (ticketId: string) => {
+    const ticket = allTickets.find(t => t.id === ticketId);
+    if (!ticket || !currentTeam || ticket.description || !ticket.reference) return;
+
+    // Regex for GitHub PR/Issue URL
+    // https://github.com/owner/repo/pull/123 or issues/123
+    const githubRegex = /github\.com\/([^/]+)\/([^/]+)\/(pull|issues)\/(\d+)/;
+    const match = ticket.reference.match(githubRegex);
+
+    if (match) {
+      try {
+        const [_, owner, repo, type, number] = match;
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/${type === 'pull' ? 'pulls' : 'issues'}/${number}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          const title = data.title;
+          const body = data.body || '';
+          
+          // Construct a description
+          const newDescription = `**${title}**\n\n${body}`;
+          
+          // Update ticket via API
+          await ticketsApi.updateTicket(currentTeam.id, ticket.id, {
+            description: newDescription
+          });
+          
+          // Update local state smoothly
+          setAllTickets(prev => prev.map(t => 
+             t.id === ticket.id ? { ...t, description: newDescription } : t
+          ));
+
+          logger.log('Auto-filled Description', {
+            subtitle: ticket.title,
+            description: `Fetched from GitHub PR/Issue #${number}`
+          });
+        }
+      } catch (error) {
+        console.error("Failed to auto-fill GitHub description", error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (isDetailModalOpen && detailTicketId) {
+       fetchGitHubDescription(detailTicketId);
+    }
+  }, [isDetailModalOpen, detailTicketId]);
+
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
     
@@ -409,6 +458,20 @@ export default function TicketsPage() {
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       Created by <span className="font-medium text-gray-700 dark:text-gray-300">{ticket.creatorName}</span>
                     </div>
+                    {ticket.reference && (
+                      <div className="mt-1">
+                        <a 
+                          href={ticket.reference}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline max-w-full"
+                        >
+                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{ticket.reference}</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   {/* Meta Info (Hidden on mobile) */}
@@ -838,15 +901,15 @@ export default function TicketsPage() {
                 )}
 
                 {ticket.reference && (
-                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
                     <a 
                       href={ticket.reference} 
                       target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                      rel="noopener noreferrer" 
+                      className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline break-all group"
                     >
-                      <ExternalLink className="w-3 h-3" />
-                      Reference Link
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate">{ticket.reference}</span>
                     </a>
                   </div>
                 )}
