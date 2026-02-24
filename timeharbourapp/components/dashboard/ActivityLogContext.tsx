@@ -7,6 +7,7 @@ import { db } from '@/TimeharborAPI/db';
 import { Network, ConnectionStatus } from '@capacitor/network';
 import { authenticatedFetch } from '@/TimeharborAPI/auth';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
+import { useRefresh } from '@/contexts/RefreshContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -23,6 +24,7 @@ const ActivityLogContext = createContext<ActivityLogContextType | undefined>(und
 
 export function ActivityLogProvider({ children }: { children: React.ReactNode }) {
   const { currentTeam } = useTeam();
+  const { register, lastRefreshed } = useRefresh();
   const [activities, setActivities] = useState<Activity[]>([]);
   const isLoadedRef = React.useRef(false);
 
@@ -104,6 +106,13 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
         console.log('Refreshing activity logs due to pull-to-refresh');
         syncWithBackend();
     };
+    
+    // Register with context
+    const unregister = register(async () => {
+        console.log('Context refreshing activity logs...');
+        await syncWithBackend();
+    });
+
     window.addEventListener('pull-to-refresh', handleRefresh);
 
     // Listen for network status changes
@@ -115,10 +124,11 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     });
 
     return () => {
+      unregister();
       window.removeEventListener('pull-to-refresh', handleRefresh);
       handlerPromise.then(handler => handler.remove());
     };
-  }, [currentTeam?.id]);
+  }, [currentTeam?.id, register, lastRefreshed]);
 
   // Load from Dexie when team changes
   useEffect(() => {

@@ -12,6 +12,7 @@ import { useTeam } from './TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import ProfileAvatarMenu from './ProfileAvatarMenu';
 import PullToRefresh from '@/components/ui/PullToRefresh';
+import { RefreshProvider } from '@/contexts/RefreshContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { currentTeam, isLoading } = useTeam();
@@ -93,6 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ClockInProvider>
+        <RefreshProvider>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <TeamSelectionModal 
           isOpen={isTeamModalOpen}
@@ -151,6 +153,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Mobile Bottom Nav */}
         <BottomNav />
       </div>
+      </RefreshProvider>
     </ClockInProvider>
   );
 }

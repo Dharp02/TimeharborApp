@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Clock, User, Calendar, Loader2, Github, Linkedin, ChevronDown } from 'lucide-react';
@@ -11,6 +11,7 @@ import { ActivitySession } from './types';
 import { SessionCard } from './components/SessionCard';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
+import { useRefresh } from '@/contexts/RefreshContext';
 
 interface MemberPageProps {
   memberId?: string;
@@ -34,6 +35,7 @@ function MemberPageContent({
   const shouldShowTickets = true;
   const shouldShowClockEvents = showClockEvents;
 
+  const { register, lastRefreshed } = useRefresh();
   const [memberData, setMemberData] = useState<API.MemberActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,43 +99,55 @@ function MemberPageContent({
                 timeFormatted: e.timeFormatted || DateTime.fromJSDate(new Date(e.timestamp)).toFormat('HH:mm')
             }))
   });
+  const fetchMemberActivity = useCallback(async () => {
+    if (!memberId) return;
+    
+    try {
+      setError(null);
+      const data = await API.getMemberActivity(memberId, teamId, undefined, 5);
+      setMemberData(data);
+      
+      // Add name to URL if missing, for page title header
+      if (!searchParams?.get('name') && data.member?.name) {
+             const newUrl = `/dashboard/member?id=${memberId}${teamId ? `&teamId=${teamId}` : ''}&name=${encodeURIComponent(data.member.name)}`;
+             if (window.history.replaceState) {
+                 window.history.replaceState(null, '', newUrl);
+             }
+      }
+      
+      if (data.sessions) {
+          const mappedSessions = data.sessions.map(mapSessionFromApi);
+          setSessions(mappedSessions);
+          if (data.sessions.length >= 5) {
+              setHasMore(true);
+              setNextCursor(data.sessions[data.sessions.length - 1].startTime);
+          } else {
+              setHasMore(false);
+          }
+      }
+    } catch (err) {
+      console.error('Error fetching member activity:', err);
+      setError('Failed to load member activity');
+    } finally {
+      setLoading(false);
+    }
+  }, [memberId, teamId, shouldShowClockEvents, searchParams]);
 
   useEffect(() => {
-    if (!memberId) return;
-
-    const fetchMemberActivity = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await API.getMemberActivity(memberId, teamId, undefined, 5);
-        setMemberData(data);
-        
-        // Add name to URL if missing, for page title header
-        if (!searchParams?.get('name') && data.member?.name) {
-             const newUrl = `/dashboard/member?id=${memberId}${teamId ? `&teamId=${teamId}` : ''}&name=${encodeURIComponent(data.member.name)}`;
-             router.replace(newUrl);
-        }
-        
-        if (data.sessions) {
-            const mappedSessions = data.sessions.map(mapSessionFromApi);
-            setSessions(mappedSessions);
-            if (data.sessions.length >= 5) {
-                setHasMore(true);
-                setNextCursor(data.sessions[data.sessions.length - 1].startTime);
-            } else {
-                setHasMore(false);
-            }
-        }
-      } catch (err) {
-        console.error('Error fetching member activity:', err);
-        setError('Failed to load member activity');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchMemberActivity();
-  }, [memberId, teamId]);
+
+    const unregister = register(async () => {
+        await fetchMemberActivity();
+    });
+    
+    const handleRefresh = () => fetchMemberActivity();
+    window.addEventListener('pull-to-refresh', handleRefresh);
+
+    return () => {
+        unregister();
+        window.removeEventListener('pull-to-refresh', handleRefresh);
+    };
+  }, [fetchMemberActivity, register, lastRefreshed]);
 
   useEffect(() => {
     const loadTeamMembers = async () => {

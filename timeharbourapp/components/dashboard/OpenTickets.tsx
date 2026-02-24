@@ -9,6 +9,7 @@ import { useTeam } from './TeamContext';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
+import { useRefresh } from '@/contexts/RefreshContext';
 
 const getUserInitials = (name?: string, email?: string) => {
   if (name && name.trim()) {
@@ -28,6 +29,7 @@ export default function OpenTickets() {
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
   const { addActivity } = useActivityLog();
+  const { register, lastRefreshed } = useRefresh();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
@@ -61,14 +63,21 @@ export default function OpenTickets() {
 
     fetchTickets();
     
+    // Register with context for reliable refresh
+    const unregister = register(async () => {
+        await fetchTickets();
+    });
+
+    // Keep legacy listener for now if other things emit it
     const handleRefresh = () => fetchTickets();
     window.addEventListener('pull-to-refresh', handleRefresh);
 
     return () => {
       isMounted = false;
+      unregister();
       window.removeEventListener('pull-to-refresh', handleRefresh);
     };
-  }, [currentTeam?.id]);
+  }, [currentTeam?.id, register, lastRefreshed]);
 
   const loadTickets = async () => {
     if (!currentTeam?.id) return;

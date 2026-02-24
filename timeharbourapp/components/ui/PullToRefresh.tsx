@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRefresh } from '@/contexts/RefreshContext';
 import { Loader2 } from 'lucide-react';
 
 interface PullToRefreshProps {
@@ -10,6 +11,7 @@ interface PullToRefreshProps {
 
 export default function PullToRefresh({ children }: PullToRefreshProps) {
   const router = useRouter();
+  const { refreshAll } = useRefresh();
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Refs for tracking state without re-renders
@@ -53,18 +55,15 @@ export default function PullToRefresh({ children }: PullToRefreshProps) {
     // 1. Minimum duration for UX consistency (so spinner doesn't flash)
     const minDelay = new Promise(resolve => setTimeout(resolve, 800));
     
-    // 2. The actual data refresh
-    const refreshData = new Promise<void>((resolve) => {
-        router.refresh();
-        window.dispatchEvent(new CustomEvent('pull-to-refresh'));
-        resolve();
-    });
+    // 2. The actual data refresh using GLOBAL refresh context
+    // This ensures all pages/tabs update their state
+    const refreshData = refreshAll();
 
     await Promise.all([refreshData, minDelay]);
     
     setIsRefreshing(false);
     resetAnimation();
-  }, [router, resetAnimation]);
+  }, [refreshAll, resetAnimation]);
 
   useEffect(() => {
     if (isRefreshing) {

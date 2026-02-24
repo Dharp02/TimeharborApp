@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Edit2 } from 'lucide-react';
 import { DateTime } from 'luxon';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
 import { getTeamActivity } from '@/TimeharborAPI/teams';
+import { useRefresh } from '@/contexts/RefreshContext';
 
 type Activity = {
   id: string;
@@ -35,6 +36,7 @@ type DesktopActivity = {
 
 export function TeamActivityReport() {
   const { currentTeam } = useTeam();
+  const { register, lastRefreshed } = useRefresh();
   const [dateRange, setDateRange] = useState<DateRange>({ 
     from: DateTime.now().startOf('day'), 
     to: DateTime.now().endOf('day') 
@@ -66,26 +68,20 @@ export function TeamActivityReport() {
     clockOut: ''
   });
 
-  // Fetch activities from backend
-  useEffect(() => {
+  const fetchAttributes = useCallback(async () => {
     if (currentTeam) {
-      const fetchAttributes = async () => {
         try {
           const logs = await getTeamActivity(currentTeam.id);
           
-          // Map to Activity (Mobile List View)
           const mappedActivities: Activity[] = logs.map((log: any) => {
              let action = '';
              const tickets: string[] = [];
 
              const date = DateTime.fromISO(log.timestamp);
-             // Format date to include time for better sorting visibility
-             // Luxon: MMM d, HH:mm
              const dateStr = date.toFormat('MMM d');
              const timeStr = date.toFormat('h:mm a');
              const displayDate = `${dateStr}, ${timeStr}`;
              
-             // Determine action text
              switch(log.type) {
                  case 'CLOCK_IN':
                      action = 'Clocked in';
@@ -134,24 +130,24 @@ export function TeamActivityReport() {
           });
 
           setActivities(mappedActivities);
-
-          // For desktop view, we can aggregation logic or simplified mapping
-          // Group by user and date/session? 
-          // For now, let's just show the last status or keep mock data if aggregation is too complex for this step
-          // Or we can try to map unique users active today
-          
-          // Keeping mock desktop activities for now to avoid breaking the view completely
-          // unless I implement full aggregation. 
-          // The user request specifically mentioned "team activity" and showed the list view.
           
         } catch (error) {
             console.error("Failed to load team activity", error);
         }
-      };
-      
-      fetchAttributes();
     }
-  }, [currentTeam]);
+  }, [currentTeam]); // dependencies
+
+  // Fetch activities from backend
+  useEffect(() => {
+    fetchAttributes();
+    
+    // Register for pull-to-refresh
+    const unregister = register(async () => {
+        await fetchAttributes();
+    });
+    
+    return unregister;
+  }, [fetchAttributes, register, lastRefreshed]);
 
   const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
     setDateRange(range);

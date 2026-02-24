@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useSocket } from '@/contexts/SocketContext';
+import { useRefresh } from '@/contexts/RefreshContext';
 import { 
   fetchMyTeams, 
   createNewTeam, 
@@ -49,6 +50,7 @@ const TeamContext = createContext<TeamContextType | undefined>(undefined);
 export function TeamProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { socket } = useSocket();
+  const { register, lastRefreshed } = useRefresh();
   const [teams, setTeams] = useState<Team[]>([]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -151,9 +153,17 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     const handleRefresh = () => {
       if (user) loadTeams();
     };
+
+    const unregister = register(async () => {
+        if (user) await loadTeams();
+    });
+
     window.addEventListener('pull-to-refresh', handleRefresh);
-    return () => window.removeEventListener('pull-to-refresh', handleRefresh);
-  }, [user]);
+    return () => {
+        unregister();
+        window.removeEventListener('pull-to-refresh', handleRefresh);
+    };
+  }, [user, register, lastRefreshed]);
 
   const selectTeam = (teamId: string) => {
     const team = teams.find(t => t.id === teamId);

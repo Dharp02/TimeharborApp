@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useActivityLog } from '@/components/dashboard/ActivityLogContext';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
 import { Activity } from '@/TimeharborAPI/dashboard';
 import { ChevronRight, Clock, Calendar, CheckCircle2, PauseCircle, PlayCircle, StopCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useRefresh } from '@/contexts/RefreshContext';
 
 export default function TimesheetPage() {
   const { activities: cachedActivities, fetchActivitiesByDateRange } = useActivityLog();
+  const { register, lastRefreshed } = useRefresh();
   const [dateRange, setDateRange] = useState<DateRange>({ 
     from: DateTime.now().startOf('day'),
     to: DateTime.now().endOf('day') 
@@ -18,9 +20,14 @@ export default function TimesheetPage() {
   const [fetchedActivities, setFetchedActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Effect to fetch data when range changes
+  // Ensure fetched data updates when dependencies change
   useEffect(() => {
     const fetchFilteredData = async () => {
+      // If we are looking at "today", we don't necessarily fetch, but context sync might update cachedActivities.
+      // However, if we pull-to-refresh, we might want to re-run this logic?
+      // Actually, if cachedActivities updates, this effect runs anyway. 
+      // But if we are looking at PAST dates, we need to re-fetch if trigger happens.
+      
       if (preset === 'today') {
         // No need to fetch, relying on cached context data
         return;
@@ -46,7 +53,14 @@ export default function TimesheetPage() {
     };
 
     fetchFilteredData();
-  }, [dateRange, preset, cachedActivities, fetchActivitiesByDateRange]);
+
+    // Register refresh
+    const unregister = register(async () => {
+        await fetchFilteredData();
+    });
+    
+    return unregister;
+  }, [dateRange, preset, cachedActivities, fetchActivitiesByDateRange, register, lastRefreshed]);
 
   const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
     setDateRange(range);
@@ -309,9 +323,9 @@ export default function TimesheetPage() {
                           <p className="font-medium text-gray-900 dark:text-white truncate">
                              {getActivityTitle(activity)}
                           </p>
-                          {(activity.ticketTitle || activity.subtitle) && (
+                          {activity.subtitle && (
                              <p className="text-sm text-blue-600 dark:text-blue-400">
-                               {activity.ticketTitle || activity.subtitle}
+                               {activity.subtitle}
                              </p>
                           )}
                            {activity.description && (

@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, Clock, Loader2 } from 'lucide-react';
 import { useActivityLog } from '@/components/dashboard/ActivityLogContext';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
 import { Activity } from '@/TimeharborAPI/dashboard';
+import { useRefresh } from '@/contexts/RefreshContext';
 
 export default function ActivityPage() {
   const { activities: cachedActivities, fetchActivitiesByDateRange } = useActivityLog();
+  const { register, lastRefreshed } = useRefresh();
   const [visibleCount, setVisibleCount] = useState(20);
   const [dateRange, setDateRange] = useState<DateRange>({ 
     from: DateTime.now().startOf('day'), 
@@ -19,8 +21,7 @@ export default function ActivityPage() {
   const [fetchedActivities, setFetchedActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchFilteredData = async () => {
+  const fetchFilteredData = useCallback(async () => {
       if (preset === 'today') {
         // Use cached data for today
         setFetchedActivities(cachedActivities);
@@ -41,10 +42,18 @@ export default function ActivityPage() {
       } finally {
         setIsLoading(false);
       }
-    };
+  }, [preset, cachedActivities, dateRange, fetchActivitiesByDateRange]);
 
+  useEffect(() => {
     fetchFilteredData();
-  }, [dateRange, preset, cachedActivities, fetchActivitiesByDateRange]);
+    
+    // Register so that refreshAll() calls this fetch logic
+    const unregister = register(async () => {
+        await fetchFilteredData();
+    });
+
+    return unregister;
+  }, [fetchFilteredData, register, lastRefreshed]);
 
   const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
     setDateRange(range);
