@@ -245,15 +245,19 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       const durationMs = now - startTimeMs;
       const hours = Math.floor(durationMs / 3600000);
       const minutes = Math.floor((durationMs % 3600000) / 60000);
+      const seconds = Math.floor((durationMs % 60000) / 1000);
 
-      updateActiveSession(new Date().toISOString(), `${hours}h ${minutes}m`);
+      // Store with seconds for accuracy
+      const durationStr = `${hours}h ${minutes}m ${seconds}s`;
+
+      updateActiveSession(new Date().toISOString(), durationStr);
 
       addActivity({
         type: 'SESSION',
         title: 'Session Ended',
-        subtitle: `Duration: ${hours}h ${minutes}m`,
+        subtitle: `Duration: ${durationStr}`,
         status: 'Completed',
-        duration: `${hours}h ${minutes}m`
+        duration: durationStr
       });
       
       // Then clock out
@@ -264,6 +268,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       
       // Force reload activities to ensure sync
       window.dispatchEvent(new Event('pull-to-refresh'));
+
+      // 🔄 FORCE REFRESH DASHBOARD STATS
+      // This event listener should be picked up by DashboardSummary to refetch API
+      window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
     } else {
       // Clock In Session
       const now = Date.now();
@@ -327,15 +335,17 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     const durationMs = now - startTimeMs;
     const hours = Math.floor(durationMs / 3600000);
     const minutes = Math.floor((durationMs % 3600000) / 60000);
+    const seconds = Math.floor((durationMs % 60000) / 1000);
+    const durationStr = `${hours}h ${minutes}m ${seconds}s`;
 
-    updateActiveSession(new Date().toISOString(), `${hours}h ${minutes}m`);
+    updateActiveSession(new Date().toISOString(), durationStr);
 
     addActivity({
         type: 'SESSION',
         title: 'Session Ended',
-        subtitle: `Duration: ${hours}h ${minutes}m`,
+        subtitle: `Duration: ${durationStr}`,
         status: 'Completed',
-        duration: `${hours}h ${minutes}m`
+        duration: durationStr
     });
 
     await localTimeStore.clockOut(user.id, stopTicketComment || null, pendingSessionStopTeamId || null);
@@ -350,6 +360,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setIsStopTicketModalOpen(false);
     setStopTicketComment('');
     setPendingSessionStopTeamId(undefined);
+
+    // 🔄 FORCE REFRESH DASHBOARD STATS
+    // This event listener should be picked up by DashboardSummary to refetch API
+    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
   };
 
   const cancelStopTicketAndSession = () => {
@@ -383,6 +397,8 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         
         const hours = Math.floor(durationMs / 3600000);
         const minutes = Math.floor((durationMs % 3600000) / 60000);
+        const seconds = Math.floor((durationMs % 60000) / 1000);
+        const durationStr = `${hours}h ${minutes}m ${seconds}s`;
         
         addActivity({
             type: 'SESSION',
@@ -390,7 +406,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             subtitle: activeTicketTitle || 'Ticket',
             description: comment, // Description visible
             status: 'Completed',
-            duration: `${hours}h ${minutes}m`
+            duration: durationStr
         });
       }
 
@@ -421,6 +437,8 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         
         const hours = Math.floor(sessionDuration / 3600000);
         const minutes = Math.floor((sessionDuration % 3600000) / 60000);
+        const seconds = Math.floor((sessionDuration % 60000) / 1000);
+        const durationStr = `${hours}h ${minutes}m ${seconds}s`;
 
         addActivity({
             type: 'SESSION',
@@ -428,7 +446,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             subtitle: activeTicketTitle || 'Ticket',
             description: comment || 'Switched task',
             status: 'Completed',
-            duration: `${hours}h ${minutes}m`
+            duration: durationStr
         });
 
         // Stop the previous ticket

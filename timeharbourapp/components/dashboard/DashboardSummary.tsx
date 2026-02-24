@@ -25,21 +25,35 @@ export default function DashboardSummary() {
   // Usually "Team Members Online" includes everyone online in the team.
   const onlineCount = currentTeam?.members?.filter(m => m.status === 'online').length || 0;
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        const data = await API.dashboard.getStats(currentTeam?.id);
-        setStats(data);
-      } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchStats = async () => {
+    try {
+      if (!currentTeam?.id) return;
+      // Don't set full loading spinner for refresh, only initial
+      // setLoading(true); 
+      const data = await API.dashboard.getStats(currentTeam?.id);
+      setStats(data);
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     if (currentTeam?.id) {
       fetchStats();
+    }
+    
+    // Listen for clock-out events to auto-refresh
+    const handleStatsRefresh = () => {
+        console.log('🔄 DashboardStats: Refreshing due to clock event');
+        fetchStats();
+    };
+
+    window.addEventListener('dashboard-stats-refresh', handleStatsRefresh as EventListener);
+    
+    return () => {
+        window.removeEventListener('dashboard-stats-refresh', handleStatsRefresh as EventListener);
     }
   }, [currentTeam?.id]);
 

@@ -319,7 +319,7 @@ export const getUser = async () => {
   try {
     // Use a timeout for the network request to prevent hanging
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(new Error('Request timed out')), 10000); // 10 second timeout
 
     const response = await authenticatedFetch(`${API_URL}/auth/me`, {
       signal: controller.signal

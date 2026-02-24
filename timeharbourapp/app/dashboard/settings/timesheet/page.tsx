@@ -90,28 +90,43 @@ export default function TimesheetPage() {
       const title = (activity.title || '').toLowerCase();
       const type = (activity.type || '').toLowerCase();
       
-      const isStart = title.includes('clock in') || title.includes('session started') || title.includes('ticket started') || title.includes('started ticket');
-      const isStop = title.includes('clock out') || title.includes('session ended') || title.includes('ticket stopped') || title.includes('stopped ticket');
-      const isBreakStart = title.includes('break started');
-      const isBreakEnd = title.includes('break ended');
+      // Note: We intentionally skip reading 'activity.duration' from server events (like Session Ended)
+      // because it can cause double-counting when we also calculate durations manually from timestamps.
+      // The manual calculation (time diffs) provides a more consistent total for mixed ticket/session events.
 
+      const isStart = title.includes('clock in') || title.includes('session started') || title.includes('ticket started') || title.includes('started ticket');
+      const isStop = title.includes('clock out') || title.includes('session ended'); // Remove "Stopped Ticket" from here!
+      const isBreakEnd = title.includes('break ended');
+      
+      // "Stopped Ticket" events should NOT automatically clock you out in the duration calculation
+      // unless followed by a clock out. The dashboard controller considers you "clocked in" 
+      // even after stopping a ticket, until you explicitly clock out.
+      
+      // However, if the user manually stopped a ticket and then went idle, 
+      // we might overcount. But to MATCH DASHBOARD, we must follow its logic:
+      // Dashboard: STOP_TICKET -> isClockedIn = true.
+
+      // NOTE: "START_TICKET" is treated as a start event, but stopping a ticket doesn't stop the clock.
+      // So if you Clock In, then Start Ticket, you have two "Starts".
+      // Dashboard counts the time between Clock In and Start Ticket as valid work time.
+      // So we should NOT treat this as a "Double Start" error unless it's literally two CLOCK_INs or SESSION_STARTEDs.
+
+      // Refine isStart check for "Double Start" logic only
+      const isSessionStart = title.includes('clock in') || title.includes('session started');
+      
       if (isClockedIn && lastTime > 0) {
         // Calculate potential duration
         const duration = (activityTime - lastTime) / 1000; // in seconds
         
-        // SAFETY CHECK: If duration is excessively long (e.g. > 12 hours) 
-        // without any activity, it's likely a stale/forgotten clock-in. 
-        // Also, if we hit another START event while already clocked in, 
-        // it means the modifying logic loop missed a stop, or we have double starts.
-        // In this case, we should probably reset/ignore the gap unless it looks valid.
-        
-        const isDoubleStart = isClockedIn && (isStart || isBreakEnd);
+        // Only consider it a "Double Start" error if we see another SESSION START (Clock In) while already clocked in.
+        // Starting a ticket while clocked in is normal workflow and the gap should be counted.
+        const isDoubleSessionStart = isClockedIn && (isSessionStart || isBreakEnd); // Start Ticket is excluded here
 
-        if (isDoubleStart) {
-             // We found a Start event but thought we were already running.
+        if (isDoubleSessionStart) {
+             // We found a Session Start event but thought we were already running.
              // Assume the gap was NOT work time (e.g. forgot to clock out, then clocked in again).
              // Do NOT add duration.
-             // Reset state is implicitly handled below (isClockedIn = true).
+             // Reset state is implicitly handled below.
         } else if (duration < 14 * 3600) { 
              // Only count if less than 14 hours (safety cap)
              dateDurations[dateKey] += duration;
@@ -121,12 +136,24 @@ export default function TimesheetPage() {
       // Update state
       if (isStart || isBreakEnd) {
         isClockedIn = true;
-      } else if (isStop || isBreakStart) {
+      } else if (isStop || title.includes('break started')) {
         isClockedIn = false;
       }
+      // Note: "Stopped Ticket" does not change isClockedIn status, keeping you clocked in.
       
       lastTime = activityTime;
     });
+
+    // Handle currently active session (if last event left us clocked in)
+    // Only for "Today" preset to match dashboard "real-time" feel
+    if (isClockedIn && lastTime > 0 && preset === 'today') {
+       const now = DateTime.now().toMillis();
+       const duration = (now - lastTime) / 1000;
+       const todayKey = DateTime.now().startOf('day').toISODate();
+       if (todayKey && dateDurations[todayKey]) {
+          dateDurations[todayKey] += duration;
+       }
+    }
 
     sorted.forEach(activity => {
       if (!activity.startTime) return;
@@ -187,8 +214,15 @@ export default function TimesheetPage() {
   }, [groupedActivities]);
 
   const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
+    // Round seconds to nearest integer to align with server calculation which uses milliseconds
+    // Also consider rounding up to next minute if close to boundary, or just standard rounding
+    const totalSeconds = Math.round(seconds);
+    
+    const hours = Math.floor(totalSeconds / 3600);
+    // Use modulo correctly for remaining minutes
+    const remainingSeconds = totalSeconds % 3600;
+    const minutes = Math.floor(remainingSeconds / 60);
+
     return `${hours}h ${minutes}m`;
   };
 
@@ -288,7 +322,10 @@ export default function TimesheetPage() {
                         </div>
                         <div className="text-right">
                             <div className="text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full min-w-[6rem] text-center">
-                                {activity.duration ? activity.duration : '0h 0m'}
+                                {/* Use exact duration if available and not 0, otherwise calculate fallback */}
+                                {activity.duration && activity.duration !== '0m' && activity.duration !== '0h 0m' 
+                                  ? activity.duration 
+                                  : '0h 0m'}
                             </div>
                            <p className="text-xs text-gray-400 mt-1">
                              {formatTime(activity.startTime)}
