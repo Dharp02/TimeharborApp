@@ -8,6 +8,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { Network } from '@capacitor/network';
 import { Modal } from '@/components/ui/Modal';
 import { useActivityLog } from './ActivityLogContext';
+import { DateTime, Duration } from 'luxon';
 
 type ClockInContextType = {
   // Global Session
@@ -168,14 +169,18 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     if (isSessionActive && sessionStartTime) {
       interval = setInterval(() => {
-        const now = Date.now();
-        const diff = now - sessionStartTime;
+        const start = DateTime.fromMillis(sessionStartTime);
+        const now = DateTime.now();
+        const diff = now.diff(start, ['hours', 'minutes', 'seconds']);
         
-        const hours = Math.floor(diff / 3600000);
-        const minutes = Math.floor((diff % 3600000) / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
+        // Remove milliseconds from object for cleaner display
+        const totalDuration = diff.normalize();
 
-        if (diff < 60000) {
+        const hours = Math.floor(totalDuration.hours);
+        const minutes = Math.floor(totalDuration.minutes);
+        const seconds = Math.floor(totalDuration.seconds);
+
+        if (totalDuration.as('minutes') < 60 && hours === 0) {
           setSessionDuration(
             `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
           );
@@ -201,12 +206,14 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     if (activeTicketId && ticketStartTime) {
       interval = setInterval(() => {
-        const now = Date.now();
-        const diff = now - ticketStartTime;
+        const start = DateTime.fromMillis(ticketStartTime);
+        const now = DateTime.now();
+        const diff = now.diff(start, ['hours', 'minutes', 'seconds']);
+        const totalDuration = diff.normalize();
         
-        const hours = Math.floor(diff / 3600000);
-        const minutes = Math.floor((diff % 3600000) / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
+        const hours = Math.floor(totalDuration.hours);
+        const minutes = Math.floor(totalDuration.minutes);
+        const seconds = Math.floor(totalDuration.seconds);
 
         setTicketDuration(
           `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
@@ -240,17 +247,18 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       setSessionStartTime(null);
       localStorage.removeItem('sessionStartTime');
       
-      const now = Date.now();
-      const startTimeMs = sessionStartTime || now;
-      const durationMs = now - startTimeMs;
-      const hours = Math.floor(durationMs / 3600000);
-      const minutes = Math.floor((durationMs % 3600000) / 60000);
-      const seconds = Math.floor((durationMs % 60000) / 1000);
+      const now = DateTime.now();
+      const startTime = sessionStartTime ? DateTime.fromMillis(sessionStartTime) : now;
+      const duration = now.diff(startTime, ['hours', 'minutes', 'seconds']).normalize();
+      
+      const hours = Math.floor(duration.hours);
+      const minutes = Math.floor(duration.minutes);
+      const seconds = Math.floor(duration.seconds);
 
       // Store with seconds for accuracy
-      const durationStr = `${hours}h ${minutes}m ${seconds}s`;
+      const durationStr = `${hours}h ${minutes}m ${seconds}s`; // Luxon seconds are likely floating point, but floor takes care of it
 
-      updateActiveSession(new Date().toISOString(), durationStr);
+      updateActiveSession(now.toISO() || new Date().toISOString(), durationStr);
 
       addActivity({
         type: 'SESSION',
@@ -274,10 +282,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
     } else {
       // Clock In Session
-      const now = Date.now();
+      const now = DateTime.now();
       setIsSessionActive(true);
-      setSessionStartTime(now);
-      localStorage.setItem('sessionStartTime', now.toString());
+      setSessionStartTime(now.toMillis());
+      localStorage.setItem('sessionStartTime', now.toMillis().toString());
 
       addActivity({
         type: 'SESSION',
@@ -285,7 +293,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         subtitle: 'Clocked In',
         status: 'Active',
         duration: '0h 0m',
-        startTime: new Date(now).toISOString()
+        startTime: now.toISO() || new Date().toISOString()
       });
 
       await localTimeStore.clockIn(user.id, teamId || null);
@@ -303,8 +311,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     // First stop the ticket
     if (activeTicketId && ticketStartTime) {
-      const now = Date.now();
-      const sessionDuration = now - ticketStartTime;
+      const now = DateTime.now();
+      const start = DateTime.fromMillis(ticketStartTime);
+      const sessionDuration = now.diff(start).as('milliseconds'); // Keep as ms for ticketDurations arithmetic
+      
       const currentTotal = ticketDurations[activeTicketId] || 0;
       const newTotal = currentTotal + sessionDuration;
       
@@ -330,15 +340,19 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setSessionStartTime(null);
     localStorage.removeItem('sessionStartTime');
 
-    const now = Date.now();
-    const startTimeMs = sessionStartTime || now;
-    const durationMs = now - startTimeMs;
-    const hours = Math.floor(durationMs / 3600000);
-    const minutes = Math.floor((durationMs % 3600000) / 60000);
-    const seconds = Math.floor((durationMs % 60000) / 1000);
+    const now = DateTime.now();
+    const startTimeMs = sessionStartTime || now.toMillis();
+    const startTime = DateTime.fromMillis(startTimeMs);
+    
+    // Use Luxon duration
+    const duration = now.diff(startTime, ['hours', 'minutes', 'seconds']).normalize();
+    
+    const hours = Math.floor(duration.hours);
+    const minutes = Math.floor(duration.minutes);
+    const seconds = Math.floor(duration.seconds);
     const durationStr = `${hours}h ${minutes}m ${seconds}s`;
 
-    updateActiveSession(new Date().toISOString(), durationStr);
+    updateActiveSession(now.toISO() || new Date().toISOString(), durationStr);
 
     addActivity({
         type: 'SESSION',
@@ -384,20 +398,23 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     if (activeTicketId === ticketId) {
       // Stop current ticket (activeTicketId === ticketId)
       
+      const now = DateTime.now();
+
       // Save duration logic
       if (ticketStartTime) {
-        const now = Date.now();
-        const durationMs = now - ticketStartTime;
+        const start = DateTime.fromMillis(ticketStartTime);
+        const duration = now.diff(start, ['hours', 'minutes', 'seconds']).normalize();
+        
         const currentTotal = ticketDurations[ticketId] || 0;
-        const newTotal = currentTotal + durationMs;
+        const newTotal = currentTotal + duration.as('milliseconds'); // Use milliseconds for state storage
         
         const updatedDurations = { ...ticketDurations, [ticketId]: newTotal };
         setTicketDurations(updatedDurations);
         localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
         
-        const hours = Math.floor(durationMs / 3600000);
-        const minutes = Math.floor((durationMs % 3600000) / 60000);
-        const seconds = Math.floor((durationMs % 60000) / 1000);
+        const hours = Math.floor(duration.hours);
+        const minutes = Math.floor(duration.minutes);
+        const seconds = Math.floor(duration.seconds);
         const durationStr = `${hours}h ${minutes}m ${seconds}s`;
         
         addActivity({
@@ -423,21 +440,23 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('ticketStartTime');
     } else {
       // Starting Ticket (activeTicketId !== ticketId)
+      const now = DateTime.now();
       
       // Stop the previous ticket
       if (activeTicketId && ticketStartTime) {
-        const now = Date.now();
-        const sessionDuration = now - ticketStartTime;
+        const start = DateTime.fromMillis(ticketStartTime);
+        const sessionDuration = now.diff(start, ['hours', 'minutes', 'seconds']).normalize();
+        
         const currentTotal = ticketDurations[activeTicketId] || 0;
-        const newTotal = currentTotal + sessionDuration;
+        const newTotal = currentTotal + sessionDuration.as('milliseconds');
         
         const updatedDurations = { ...ticketDurations, [activeTicketId]: newTotal };
         setTicketDurations(updatedDurations);
         localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
         
-        const hours = Math.floor(sessionDuration / 3600000);
-        const minutes = Math.floor((sessionDuration % 3600000) / 60000);
-        const seconds = Math.floor((sessionDuration % 60000) / 1000);
+        const hours = Math.floor(sessionDuration.hours);
+        const minutes = Math.floor(sessionDuration.minutes);
+        const seconds = Math.floor(sessionDuration.seconds);
         const durationStr = `${hours}h ${minutes}m ${seconds}s`;
 
         addActivity({
@@ -463,31 +482,35 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         subtitle: ticketTitle,
         status: 'Active',
         duration: '0m',
-        startTime: new Date().toISOString()
+        startTime: now.toISO() || new Date().toISOString()
       });
 
       // Start new ticket state
-      const now = Date.now();
       setActiveTicketId(ticketId);
       setActiveTicketTitle(ticketTitle);
       setActiveTicketTeamId(teamId || null);
-      setTicketStartTime(now);
+      setTicketStartTime(now.toMillis());
       localStorage.setItem('activeTicketId', ticketId);
       localStorage.setItem('activeTicketTitle', ticketTitle);
       if (teamId) localStorage.setItem('activeTicketTeamId', teamId);
-      localStorage.setItem('ticketStartTime', now.toString());
+      localStorage.setItem('ticketStartTime', now.toMillis().toString());
     }
 
     // Attempt to sync immediately
-    await syncManager.syncNow();    
+    await syncManager.syncNow(); 
     // Force reload activities to ensure sync
     window.dispatchEvent(new Event('pull-to-refresh'));  };
 
   const getFormattedTotalTime = (ticketId: string) => {
     const totalMs = ticketDurations[ticketId] || 0;
-    const hours = Math.floor(totalMs / 3600000);
-    const minutes = Math.floor((totalMs % 3600000) / 60000);
-    const seconds = Math.floor((totalMs % 60000) / 1000);
+    const duration = Duration.fromMillis(totalMs).shiftTo('hours', 'minutes', 'seconds');
+    
+    // Normalize to handle overflows like 61 seconds -> 1 minute 1 second
+    const normalized = duration.normalize();
+
+    const hours = Math.floor(normalized.hours);
+    const minutes = Math.floor(normalized.minutes);
+    const seconds = Math.floor(normalized.seconds);
     
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
