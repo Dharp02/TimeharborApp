@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useRefresh } from '@/contexts/RefreshContext';
+import { useRefresh } from '../../contexts/RefreshContext';
 import { Loader2 } from 'lucide-react';
 
 interface PullToRefreshProps {

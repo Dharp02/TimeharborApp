@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useSocket } from '@/contexts/SocketContext';
-import { useRefresh } from '@/contexts/RefreshContext';
+import { useRefresh } from '../../contexts/RefreshContext';
 import { 
   fetchMyTeams, 
   createNewTeam, 

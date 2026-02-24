@@ -9,7 +9,7 @@ import { useTeam } from './TeamContext';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
-import { useRefresh } from '@/contexts/RefreshContext';
+import { useRefresh } from '../../contexts/RefreshContext';
 
 const getUserInitials = (name?: string, email?: string) => {
   if (name && name.trim()) {

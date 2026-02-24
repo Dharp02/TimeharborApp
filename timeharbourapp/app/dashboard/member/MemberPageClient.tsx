@@ -11,7 +11,7 @@ import { ActivitySession } from './types';
 import { SessionCard } from './components/SessionCard';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
-import { useRefresh } from '@/contexts/RefreshContext';
+import { useRefresh } from '../../../contexts/RefreshContext';
 
 interface MemberPageProps {
   memberId?: string;

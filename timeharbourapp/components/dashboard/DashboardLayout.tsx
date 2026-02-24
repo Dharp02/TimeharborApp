@@ -12,7 +12,7 @@ import { useTeam } from './TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import ProfileAvatarMenu from './ProfileAvatarMenu';
 import PullToRefresh from '@/components/ui/PullToRefresh';
-import { RefreshProvider } from '@/contexts/RefreshContext';
+import { RefreshProvider } from '../../contexts/RefreshContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { currentTeam, isLoading } = useTeam();

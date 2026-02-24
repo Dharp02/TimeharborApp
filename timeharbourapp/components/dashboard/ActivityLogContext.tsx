@@ -7,7 +7,7 @@ import { db } from '@/TimeharborAPI/db';
 import { Network, ConnectionStatus } from '@capacitor/network';
 import { authenticatedFetch } from '@/TimeharborAPI/auth';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
-import { useRefresh } from '@/contexts/RefreshContext';
+import { useRefresh } from '../../contexts/RefreshContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 

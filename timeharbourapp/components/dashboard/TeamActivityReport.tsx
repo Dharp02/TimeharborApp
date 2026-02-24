@@ -7,7 +7,7 @@ import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRa
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
 import { getTeamActivity } from '@/TimeharborAPI/teams';
-import { useRefresh } from '@/contexts/RefreshContext';
+import { useRefresh } from '../../contexts/RefreshContext';
 
 type Activity = {
   id: string;

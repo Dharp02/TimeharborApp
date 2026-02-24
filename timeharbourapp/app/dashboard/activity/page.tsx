@@ -7,7 +7,7 @@ import { useActivityLog } from '@/components/dashboard/ActivityLogContext';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
 import { Activity } from '@/TimeharborAPI/dashboard';
-import { useRefresh } from '@/contexts/RefreshContext';
+import { useRefresh } from '../../../contexts/RefreshContext';
 
 export default function ActivityPage() {
   const { activities: cachedActivities, fetchActivitiesByDateRange } = useActivityLog();
