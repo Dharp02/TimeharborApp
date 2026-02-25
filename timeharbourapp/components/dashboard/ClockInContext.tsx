@@ -322,8 +322,24 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       setTicketDurations(updatedDurations);
       localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
 
+      // NEW: Add activity log for the stopped ticket
+       const durationObj = DateTime.now().diff(DateTime.fromMillis(ticketStartTime), ['hours', 'minutes', 'seconds']).normalize();
+       const hours = Math.floor(durationObj.hours);
+       const minutes = Math.floor(durationObj.minutes);
+       const seconds = Math.floor(durationObj.seconds);
+       const durationStr = `${hours}h ${minutes}m ${seconds}s`;
+
+      addActivity({
+        type: 'SESSION',
+        title: 'Stopped Ticket',
+        subtitle: activeTicketTitle || 'Ticket',
+        description: stopTicketComment,
+        status: 'Completed',
+        duration: durationStr
+      });
+
       // Stop the ticket
-      await localTimeStore.stopTicket(user.id, activeTicketId, '', activeTicketTeamId);
+      await localTimeStore.stopTicket(user.id, activeTicketId, stopTicketComment, activeTicketTeamId);
 
       setActiveTicketId(null);
       setActiveTicketTitle(null);
