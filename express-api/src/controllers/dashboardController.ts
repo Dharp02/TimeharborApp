@@ -23,92 +23,128 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     const startOfWeek = new Date(startOfToday);
     startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
 
-    // Helper to calculate duration
-    const getDurationForPeriod = async (userId: string, startTime: Date, teamId?: string) => {
-       const whereClause: any = {
-         userId,
-         timestamp: { [Op.lt]: startTime }
-       };
-       if (teamId) {
-         whereClause.teamId = teamId;
-       }
+    // --- Optimized Duration Calculation ---
+    
+    // 1. Fetch ALL events for the week in one query
+    const whereClause: any = {
+      userId,
+      timestamp: { [Op.gte]: startOfWeek }
+    };
+    if (teamId) {
+      whereClause.teamId = teamId;
+    }
 
-       // Get last event before period to determine initial state
-       const lastEvent = await WorkLog.findOne({
-         where: whereClause,
-         order: [['timestamp', 'DESC']]
-       });
+    const events = await WorkLog.findAll({
+      where: whereClause,
+      order: [['timestamp', 'ASC']]
+    });
 
-       const eventsWhereClause: any = {
-         userId,
-         timestamp: { [Op.gte]: startTime }
-       };
-       if (teamId) {
-         eventsWhereClause.teamId = teamId;
-       }
+    // 2. Fetch initial state before startOfWeek
+    const preWeekWhereClause: any = {
+      userId,
+      timestamp: { [Op.lt]: startOfWeek }
+    };
+    if (teamId) {
+      preWeekWhereClause.teamId = teamId;
+    }
+    
+    const lastEventBeforeWeek = await WorkLog.findOne({
+      where: preWeekWhereClause,
+      order: [['timestamp', 'DESC']]
+    });
 
-       // Get events in period
-       const events = await WorkLog.findAll({
-         where: eventsWhereClause,
-         order: [['timestamp', 'ASC']]
-       });
+    // Helper to calc duration from a list of events starting with an initial state
+    const calculateDuration = (eventList: WorkLog[], startTime: number, initialClockedIn: boolean) => {
+        let totalMs = 0;
+        let currentTime = startTime;
+        let isClockedIn = initialClockedIn;
 
-       let totalMs = 0;
-       let currentTime = startTime.getTime();
-       let isClockedIn = false;
+        for (const event of eventList) {
+            const eventTime = new Date(event.timestamp).getTime();
+            
+            // If event is before our period start (shouldn't happen with filtering, but safety)
+            if (eventTime < currentTime) continue;
 
-       // Determine initial state
-       if (lastEvent) {
-         if (lastEvent.type === 'CLOCK_IN' || lastEvent.type === 'START_TICKET' || lastEvent.type === 'STOP_TICKET') {
-            // If last event was NOT CLOCK_OUT, we are clocked in
-            isClockedIn = true;
-         }
-         // If last event was CLOCK_OUT, isClockedIn remains false
-       }
+            if (isClockedIn) {
+                totalMs += (eventTime - currentTime);
+            }
 
-       for (const event of events) {
-         const eventTime = new Date(event.timestamp).getTime();
-         
-         if (isClockedIn) {
-           totalMs += (eventTime - currentTime);
-         }
+            currentTime = eventTime;
 
-         currentTime = eventTime;
+            switch (event.type) {
+                case 'CLOCK_IN':
+                case 'START_TICKET':
+                    isClockedIn = true;
+                    break;
+                case 'CLOCK_OUT':
+                    isClockedIn = false;
+                    break;
+                case 'STOP_TICKET':
+                    // Assuming STOP_TICKET keeps you clocked in (just ends ticket)
+                    // If your logic says STOP_TICKET = Clock Out, change this.
+                    // Based on previous code: isClockedIn = true
+                    isClockedIn = true; 
+                    break;
+            }
+        }
 
-         switch (event.type) {
-           case 'CLOCK_IN':
-             isClockedIn = true;
-             break;
-           case 'CLOCK_OUT':
-             isClockedIn = false;
-             break;
-           case 'START_TICKET':
-             isClockedIn = true;
-             break;
-           case 'STOP_TICKET':
-             isClockedIn = true;
-             break;
-         }
-       }
-
-       // If still clocked in, add time until now
-       if (isClockedIn) {
-         const nowMs = new Date().getTime();
-         if (nowMs > currentTime) {
-            totalMs += (nowMs - currentTime);
-         }
-       }
-
-       return totalMs;
+        // If still clocked in, add time until now
+        if (isClockedIn) {
+            const nowMs = new Date().getTime();
+            if (nowMs > currentTime) {
+                totalMs += (nowMs - currentTime);
+            }
+        }
+        return totalMs;
     };
 
-    // 1. Total Hours Today
-    const totalMillisecondsToday = await getDurationForPeriod(userId, startOfToday, teamId as string);
+    // Determine initial state at startOfWeek
+    let isClockedInAtStartOfWeek = false;
+    if (lastEventBeforeWeek) {
+        if (['CLOCK_IN', 'START_TICKET', 'STOP_TICKET'].includes(lastEventBeforeWeek.type)) {
+            isClockedInAtStartOfWeek = true;
+        }
+    }
+
+    // Calculate Week Duration
+    const totalMillisecondsWeek = calculateDuration(events, startOfWeek.getTime(), isClockedInAtStartOfWeek);
+
+    // Calculate Today Duration
+    // We need state at startOfToday.
+    // We can simulate from startOfWeek to startOfToday to get state.
+    
+    let isClockedInAtStartOfToday = isClockedInAtStartOfWeek;
+    const startOfTodayTime = startOfToday.getTime();
+    
+    // Iterate events before today to find state at startOfToday
+    // Also, if a session spans across startOfToday boundary, we need to handle it?
+    // The calculateDuration logic above adds time between events.
+    // If we filter events >= startOfToday, we miss the "currently clocked in" segment that started yesterday.
+    
+    // Better approach for Today:
+    // 1. Find last event before startOfToday (could be inside this week or before)
+    // 2. Filter events >= startOfToday
+    
+    // Find last event before today from our 'events' array OR 'lastEventBeforeWeek'
+    const eventsBeforeToday = events.filter(e => new Date(e.timestamp).getTime() < startOfTodayTime);
+    let lastEventBeforeToday = eventsBeforeToday.length > 0 
+        ? eventsBeforeToday[eventsBeforeToday.length - 1] 
+        : lastEventBeforeWeek;
+
+    let isClockedInAtMorning = false;
+    if (lastEventBeforeToday) {
+         if (['CLOCK_IN', 'START_TICKET', 'STOP_TICKET'].includes(lastEventBeforeToday.type)) {
+            isClockedInAtMorning = true;
+        }
+    }
+    
+    const eventsToday = events.filter(e => new Date(e.timestamp).getTime() >= startOfTodayTime);
+    const totalMillisecondsToday = calculateDuration(eventsToday, startOfTodayTime, isClockedInAtMorning);
+
+
     const totalHoursToday = Math.floor(totalMillisecondsToday / (1000 * 60 * 60));
     const totalMinutesToday = Math.floor((totalMillisecondsToday % (1000 * 60 * 60)) / (1000 * 60));
 
-    // 2. Total Hours This Week
-    const totalMillisecondsWeek = await getDurationForPeriod(userId, startOfWeek, teamId as string);
     const totalHoursWeek = Math.floor(totalMillisecondsWeek / (1000 * 60 * 60));
     const totalMinutesWeek = Math.floor((totalMillisecondsWeek % (1000 * 60 * 60)) / (1000 * 60));
 
