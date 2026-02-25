@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus, Search, X } from 'lucide-react';
+import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus, Search, X, Shield, ShieldAlert } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useTeam, Team, Member } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -13,7 +13,7 @@ import { useLogger } from '@/hooks/useLogger';
 export default function TeamsPage() {
   const logger = useLogger();
   const { user } = useAuth();
-  const { currentTeam, teams, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams, joinTeam, createTeam } = useTeam();
+  const { currentTeam, teams, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, updateMemberRole, refreshTeams, joinTeam, createTeam } = useTeam();
   const [activeTab, setActiveTab] = useState<'teaminfo' | 'teamactivity'>('teaminfo');
 
   useEffect(() => {
@@ -468,17 +468,38 @@ export default function TeamsPage() {
                                     </p>
                                   </div>
                                   {currentTeam.role === 'Leader' && member.id !== user?.id && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        openRemoveMemberModal(member);
-                                      }}
-                                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                      title="Remove Member"
-                                    >
-                                      <UserMinus className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          const newRole = member.role === 'Leader' ? 'Member' : 'Leader';
+                                          const action = newRole === 'Leader' ? 'make admin' : 'remove admin rights';
+                                          if (confirm(`Are you sure you want to ${action} for ${member.name}?`)) {
+                                            updateMemberRole(currentTeam.id, member.id, newRole);
+                                          }
+                                        }}
+                                        className={`p-1.5 rounded-lg transition-colors ${
+                                          member.role === 'Leader'
+                                            ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40'
+                                            : 'text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                                        }`}
+                                        title={member.role === 'Leader' ? "Remove Admin Rights" : "Make Admin"}
+                                      >
+                                        {member.role === 'Leader' ? <ShieldAlert className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          openRemoveMemberModal(member);
+                                        }}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Remove Member"
+                                      >
+                                        <UserMinus className="w-4 h-4" />
+                                      </button>
+                                    </div>
                                   )}
                                 </Link>
                               );

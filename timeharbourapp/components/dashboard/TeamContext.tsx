@@ -11,7 +11,8 @@ import {
   updateTeam as apiUpdateTeam, 
   deleteTeam as apiDeleteTeam,
   addMemberToTeam,
-  removeMemberFromTeam 
+  removeMemberFromTeam,
+  updateMemberRole as apiUpdateMemberRole
 } from '@/TimeharborAPI/teams';
 
 export type Member = {
@@ -40,6 +41,7 @@ interface TeamContextType {
   createTeam: (name: string) => Promise<Team>; // returns entire team object
   deleteTeam: (teamId: string) => Promise<void>;
   updateTeamName: (teamId: string, name: string) => Promise<void>;
+  updateMemberRole: (teamId: string, memberId: string, role: 'Leader' | 'Member') => Promise<void>;
   addMember: (teamId: string, email: string) => Promise<void>;
   removeMember: (teamId: string, userId: string) => Promise<void>;
   refreshTeams: () => Promise<void>;
@@ -241,6 +243,16 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateMemberRole = async (teamId: string, userId: string, role: 'Leader' | 'Member') => {
+    try {
+      await apiUpdateMemberRole(teamId, userId, role);
+      await loadTeams();
+    } catch (error) {
+      console.error('Failed to update member role:', error);
+      throw error;
+    }
+  };
+
   // Memoize the context value to prevent unnecessary re-renders of consumers
   const contextValue = React.useMemo(() => ({
     currentTeam,
@@ -253,6 +265,7 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     updateTeamName,
     addMember,
     removeMember,
+    updateMemberRole,
     refreshTeams: loadTeams
   }), [currentTeam, teams, isLoading]);
 

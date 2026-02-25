@@ -7,7 +7,8 @@ module.exports = {
       args: "run dev",
       env: {
         NODE_ENV: "development",
-        PORT: 3000
+        PORT: 3000,
+        NODE_OPTIONS: "--max-old-space-size=8192"
       }
     },
     {
@@ -17,7 +18,8 @@ module.exports = {
       args: "run dev",
       env: {
         NODE_ENV: "development",
-        PORT: 3001
+        PORT: 3001,
+        NODE_OPTIONS: "--max-old-space-size=4096"
       }
     },
     {

@@ -90,7 +90,7 @@ class SyncManager {
   private async processMutation(mutation: OfflineMutation) {
     const { url, method, body, tempId } = mutation;
     
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.39:3001';
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.8:8080/api';
     
     // Strip /api prefix from mutation URL to avoid duplication or 404s
     // blocked by backend not expecting /api prefix when hitting directly
