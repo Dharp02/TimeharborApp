@@ -105,6 +105,11 @@ export class TimeharborDB extends Dexie {
     this.version(5).stores({
       tickets: 'id, teamId'
     });
+
+    // Version 6: Add 'method' index to offlineMutations to support filtering by method
+    this.version(6).stores({
+      offlineMutations: '++id, timestamp, method'
+    });
   }
 }
 
