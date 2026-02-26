@@ -14,7 +14,7 @@ import { useLogger } from '@/hooks/useLogger';
 export default function TicketsPage() {
   const logger = useLogger();
   const router = useRouter();
-  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
+  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
   const { user } = useAuth();
 
@@ -34,6 +34,7 @@ export default function TicketsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   
+  const [showClockInWarning, setShowClockInWarning] = useState(false);
   const [openMenuTicketId, setOpenMenuTicketId] = useState<string | null>(null);
   const [selectedTicketForAction, setSelectedTicketForAction] = useState<{id: string, title: string} | null>(null);
   const [detailTicketId, setDetailTicketId] = useState<string | null>(null);
@@ -140,7 +141,10 @@ export default function TicketsPage() {
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
     
-    if (!isSessionActive) return;
+    if (!isSessionActive) {
+      setShowClockInWarning(true);
+      return;
+    }
 
     // If stopping the current ticket
     if (activeTicketId === ticketId) {
@@ -353,6 +357,35 @@ export default function TicketsPage() {
   };
 
   return (
+    <>
+      <Modal
+        isOpen={showClockInWarning}
+        onClose={() => setShowClockInWarning(false)}
+        title="Clock In Required"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 dark:text-gray-300">
+            You must be clocked in to start a ticket timer. Would you like to clock in now?
+          </p>
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => setShowClockInWarning(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                toggleSession(currentTeam?.id);
+                setShowClockInWarning(false);
+              }}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Clock In
+            </button>
+          </div>
+        </div>
+      </Modal>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
@@ -422,12 +455,11 @@ export default function TicketsPage() {
                   {/* Status Icon/Action */}
                   <button
                     onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-                    disabled={!isSessionActive}
                     className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                       activeTicketId === ticket.id
                         ? 'bg-blue-600 text-white shadow-md scale-105'
                         : 'bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400'
-                    } ${!isSessionActive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    } cursor-pointer`}
                   >
                     {activeTicketId === ticket.id ? (
                       <Square className="w-4 h-4 fill-current" />
@@ -1036,5 +1068,6 @@ export default function TicketsPage() {
         </div>
       </Modal>
     </div>
+    </>
   );
 }
