@@ -1,22 +1,162 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
-import { WorkLog, Ticket, Team, Member, User } from '../models';
+import { WorkLog, Ticket, Team, Member, User, UserDailyStat } from '../models';
 import sequelize from '../config/sequelize';
 import logger from '../utils/logger';
 import { Op } from 'sequelize';
 import { sendClockInNotification, sendClockOutNotification } from '../services/notificationService';
+import { getIO } from '../socket/socketManager';
+
+// ---------------------------------------------------------------------------
+// Helpers for Item 15: stats recompute after sync
+// ---------------------------------------------------------------------------
+
+/** Format a Date as local YYYY-MM-DD (not UTC) so day boundaries match the server's clock. */
+const localDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Accumulate ms across calendar-day boundaries into dayTotals map. */
+function accumulateMsByDay(
+  dayTotals: Map<string, number>,
+  fromMs: number,
+  toMs: number
+) {
+  let current = fromMs;
+  while (current < toMs) {
+    const d = new Date(current);
+    const dayKey = localDate(d); // local YYYY-MM-DD, not UTC
+    const endOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+    const segEnd = Math.min(endOfDay, toMs);
+    dayTotals.set(dayKey, (dayTotals.get(dayKey) ?? 0) + (segEnd - current));
+    current = segEnd;
+  }
+}
+
+/** Upsert a single (userId, teamId, date) stats row at the app level. */
+async function upsertDailyStat(
+  userId: string,
+  teamId: string | null,
+  date: string,
+  totalMs: number
+) {
+  const [stat, created] = await UserDailyStat.findOrCreate({
+    where: { userId, teamId: teamId ?? null, date },
+    defaults: { userId, teamId: teamId ?? null, date, totalMs },
+  });
+  if (!created) {
+    await stat.update({ totalMs });
+  }
+}
+
+/**
+ * Recompute user_daily_stats for a given (userId, teamId) pair
+ * covering the current week. Called after each successful sync so that
+ * getDashboardStats can read pre-computed totals instead of replaying events.
+ */
+async function recomputeStatsForUser(userId: string, teamId: string | null) {
+  try {
+    const now = new Date();
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday
+
+    const whereClause: any = {
+      userId,
+      timestamp: { [Op.gte]: startOfWeek },
+    };
+    if (teamId) whereClause.teamId = teamId;
+
+    const preWhereClause: any = {
+      userId,
+      timestamp: { [Op.lt]: startOfWeek },
+    };
+    if (teamId) preWhereClause.teamId = teamId;
+
+    const [events, lastPreEvent] = await Promise.all([
+      WorkLog.findAll({
+        where: whereClause,
+        order: [['timestamp', 'ASC']],
+        attributes: ['id', 'type', 'timestamp'],
+      }),
+      WorkLog.findOne({
+        where: preWhereClause,
+        order: [['timestamp', 'DESC']],
+        attributes: ['id', 'type', 'timestamp'],
+      }),
+    ]);
+
+    // Replay events to compute ms per calendar day
+    const dayTotals = new Map<string, number>();
+    let isClockedIn = lastPreEvent
+      ? ['CLOCK_IN', 'START_TICKET', 'STOP_TICKET'].includes(lastPreEvent.type)
+      : false;
+    let segStart = startOfWeek.getTime();
+
+    for (const event of events) {
+      const eventTs = new Date(event.timestamp).getTime();
+      if (isClockedIn && eventTs > segStart) {
+        accumulateMsByDay(dayTotals, segStart, eventTs);
+      }
+      segStart = eventTs;
+      switch (event.type) {
+        case 'CLOCK_IN':
+        case 'START_TICKET':
+        case 'STOP_TICKET':
+          isClockedIn = true;
+          break;
+        case 'CLOCK_OUT':
+          isClockedIn = false;
+          break;
+      }
+    }
+
+    // Don't add live time here — getDashboardStats adds it at read time.
+
+    // Upsert each day's total
+    for (const [date, totalMs] of dayTotals) {
+      await upsertDailyStat(userId, teamId, date, totalMs);
+    }
+
+    // Push updated stats to the user's socket room so the dashboard updates instantly
+    try {
+      const today = localDate(new Date());
+      const startOfWeekDate = localDate(startOfWeek);
+      const updatedRows = await UserDailyStat.findAll({
+        where: { userId, ...(teamId ? { teamId } : {}), date: { [Op.between]: [startOfWeekDate, today] } },
+        attributes: ['date', 'totalMs'],
+      });
+      const toHM = (ms: number) => {
+        const h = Math.floor(ms / 3_600_000);
+        const m = Math.floor((ms % 3_600_000) / 60_000);
+        return `${h}h ${m}m`;
+      };
+      const totalMsToday = updatedRows.filter(r => r.date === today).reduce((a, r) => a + Number(r.totalMs), 0);
+      const totalMsWeek  = updatedRows.reduce((a, r) => a + Number(r.totalMs), 0);
+      getIO().to(userId).emit('stats_updated', {
+        teamId: teamId ?? null,
+        totalHoursToday: toHM(totalMsToday),
+        totalHoursWeek: toHM(totalMsWeek),
+      });
+    } catch (e) {
+      // Non-critical — don't let socket errors break the sync flow
+      logger.warn('[recomputeStatsForUser] Failed to push socket update:', e);
+    }
+  } catch (err) {
+    console.error('[recomputeStatsForUser] Failed:', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 export const syncTimeData = async (req: AuthRequest, res: Response) => {
-  // ... existing syncTimeData implementation (kept for backward compatibility if needed, or we can replace it)
-  // For now, I will keep it but I'll focus on adding syncTimeEvents
   const userId = req.user?.id;
   if (!userId) {
     res.status(401).json({ message: 'Unauthorized' });
     return;
   }
-  // ... (rest of existing function)
   res.status(501).json({ message: 'Use /sync-events endpoint' });
 };
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
   const userId = req.user?.id;
@@ -26,7 +166,7 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
   }
 
   const { events = [] } = req.body;
-  
+
   if (!Array.isArray(events) || events.length === 0) {
     res.status(200).json({ message: 'No events to sync' });
     return;
@@ -35,169 +175,141 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
   // Sort events by timestamp
   events.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
+  // ---------------------------------------------------------------------------
+  // Item 16: Bulk-validate all unique ticketIds and teamIds BEFORE the loop.
+  // Drops N per-event Ticket.findByPk + Team.findByPk queries → 2 queries total.
+  // ---------------------------------------------------------------------------
+  const rawTicketIds = [...new Set(
+    events.map((e: any) => e.ticketId).filter((id: any) => id && UUID_REGEX.test(id))
+  )] as string[];
+  const rawTeamIds = [...new Set(
+    events.map((e: any) => e.teamId).filter((id: any) => id && UUID_REGEX.test(id))
+  )] as string[];
+  const rawEventIds = [...new Set(
+    events.map((e: any) => e.id).filter(Boolean)
+  )] as string[];
+
   const transaction = await sequelize.transaction();
 
   try {
+    // Bulk fetch — 3 queries for the whole batch regardless of batch size
+    const [existingTickets, existingTeams, existingLogs] = await Promise.all([
+      rawTicketIds.length > 0
+        ? Ticket.findAll({ where: { id: rawTicketIds }, attributes: ['id'], transaction })
+        : Promise.resolve([]),
+      rawTeamIds.length > 0
+        ? Team.findAll({ where: { id: rawTeamIds }, attributes: ['id'], transaction })
+        : Promise.resolve([]),
+      rawEventIds.length > 0
+        ? WorkLog.findAll({ where: { id: rawEventIds }, transaction })
+        : Promise.resolve([]),
+    ]);
+
+    const validTicketIds = new Set(existingTickets.map((t: any) => t.id));
+    const validTeamIds = new Set(existingTeams.map((t: any) => t.id));
+    const existingLogMap = new Map(existingLogs.map((l: any) => [l.id, l]));
+
+    // Track unique (userId, teamId) pairs for stats recompute after commit
+    const statsTargets = new Set<string>();
+
     for (const event of events) {
       const { id, type, timestamp, ticketId, teamId, ticketTitle, comment } = event;
-      
-      // Validate Ticket if present
-      let finalTicketId = ticketId || null;
-      if (finalTicketId) {
-         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-         if (!uuidRegex.test(finalTicketId)) {
-           finalTicketId = null;
-         } else {
-             // Check if ticket exists to avoid FK error
-             const ticketExists = await Ticket.findByPk(finalTicketId, { transaction });
-             if (!ticketExists) {
-                 console.warn(`Ticket ${finalTicketId} not found for event ${id}, setting ticketId to null`);
-                 finalTicketId = null;
-             }
-         }
+
+      // Resolve ticketId — O(1) set lookup instead of DB query
+      let finalTicketId: string | null = null;
+      if (ticketId && UUID_REGEX.test(ticketId)) {
+        if (validTicketIds.has(ticketId)) {
+          finalTicketId = ticketId;
+        } else {
+          console.warn(`Ticket ${ticketId} not found for event ${id}, setting ticketId to null`);
+        }
       }
 
-      // Validate Team if present
-      let finalTeamId = teamId || null;
-      if (finalTeamId) {
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (!uuidRegex.test(finalTeamId)) {
-              finalTeamId = null;
-          } else {
-              const teamExists = await Team.findByPk(finalTeamId, { transaction });
-              if (!teamExists) {
-                  console.warn(`Team ${finalTeamId} not found for event ${id}, setting teamId to null`);
-                  finalTeamId = null;
-              }
-          }
+      // Resolve teamId — O(1) set lookup
+      let finalTeamId: string | null = null;
+      if (teamId && UUID_REGEX.test(teamId)) {
+        if (validTeamIds.has(teamId)) {
+          finalTeamId = teamId;
+          statsTargets.add(`${userId}::${finalTeamId}`);
+        } else {
+          console.warn(`Team ${teamId} not found for event ${id}, setting teamId to null`);
+        }
+      } else {
+        statsTargets.add(`${userId}::null`);
       }
 
-      // Check if event already exists
-      const existingLog = id ? await WorkLog.findByPk(id, { transaction }) : null;
+      const existingLog = id ? existingLogMap.get(id) ?? null : null;
 
       if (existingLog) {
-          await existingLog.update({
-            userId,
-            type,
-            timestamp: new Date(timestamp),
-            ticketId: finalTicketId,
-            teamId: finalTeamId,
-            ticketTitle,
-            comment
-          }, { transaction });
+        await existingLog.update({
+          userId,
+          type,
+          timestamp: new Date(timestamp),
+          ticketId: finalTicketId,
+          teamId: finalTeamId,
+          ticketTitle,
+          comment,
+        }, { transaction });
       } else {
-          const newLog = await WorkLog.create({
-            id: id || undefined,
-            userId,
-            type,
-            timestamp: new Date(timestamp),
-            ticketId: finalTicketId,
-            teamId: finalTeamId,
-            ticketTitle,
-            comment
-          }, { transaction });
+        await WorkLog.create({
+          id: id || undefined,
+          userId,
+          type,
+          timestamp: new Date(timestamp),
+          ticketId: finalTicketId,
+          teamId: finalTeamId,
+          ticketTitle,
+          comment,
+        }, { transaction });
 
-          // Send notification to team leaders when someone clocks in
-          if (type.toLowerCase() === 'clock_in' && finalTeamId) {
-            setImmediate(async () => {
-              try {
-                const team = await Team.findByPk(finalTeamId);
-                const user = await User.findByPk(userId);
-                
-                console.log('[CLOCK_IN] Processing notification:', {
-                  timestamp: new Date().toISOString(),
-                  userId,
-                  userName: user?.full_name || user?.email,
-                  teamId: finalTeamId,
-                  teamName: team?.name
-                });
-                
-                if (team && user) {
-                  const leaders = await Member.findAll({
-                    where: { teamId: finalTeamId, role: 'Leader' },
-                    attributes: ['userId']
-                  });
-
-                  const leaderIds = leaders
-                    .map(leader => leader.userId)
-                    .filter(leaderId => leaderId !== userId);
-
-                  console.log('[CLOCK_IN] Leaders found:', {
-                    totalLeaders: leaders.length,
-                    leaderIds: leaders.map(l => l.userId),
-                    filteredLeaderIds: leaderIds,
-                    userIdClockingIn: userId,
-                    note: leaderIds.length === 0 ? 'No leaders to notify (user is leader or no other leaders)' : `Will notify ${leaderIds.length} leader(s)`
-                  });
-
-                  if (leaderIds.length > 0) {
-                    await sendClockInNotification(
-                      leaderIds,
-                      user.full_name || user.email,
-                      team.name,
-                      finalTeamId,
-                      userId
-                    );
-                  }
+        // Push notifications fire in background — unchanged from before
+        if (type.toLowerCase() === 'clock_in' && finalTeamId) {
+          const capturedTeamId = finalTeamId;
+          setImmediate(async () => {
+            try {
+              const [team, user] = await Promise.all([Team.findByPk(capturedTeamId), User.findByPk(userId)]);
+              if (team && user) {
+                const leaders = await Member.findAll({ where: { teamId: capturedTeamId, role: 'Leader' }, attributes: ['userId'] });
+                const leaderIds = leaders.map((l: any) => l.userId).filter((lid: string) => lid !== userId);
+                if (leaderIds.length > 0) {
+                  await sendClockInNotification(leaderIds, user.full_name || user.email, team.name, capturedTeamId, userId);
                 }
-              } catch (error) {
-                console.error('Failed to send clock-in notification:', error);
               }
-            });
-          }
+            } catch (err) { console.error('Failed to send clock-in notification:', err); }
+          });
+        }
 
-          // Send notification to team leaders when someone clocks out
-          if (type.toLowerCase() === 'clock_out' && finalTeamId) {
-            setImmediate(async () => {
-              try {
-                const team = await Team.findByPk(finalTeamId);
-                const user = await User.findByPk(userId);
-                
-                console.log('[CLOCK_OUT] Processing notification:', {
-                  timestamp: new Date().toISOString(),
-                  userId,
-                  userName: user?.full_name || user?.email,
-                  teamId: finalTeamId,
-                  teamName: team?.name
-                });
-                
-                if (team && user) {
-                  const leaders = await Member.findAll({
-                    where: { teamId: finalTeamId, role: 'Leader' },
-                    attributes: ['userId']
-                  });
-
-                  const leaderIds = leaders
-                    .map(leader => leader.userId)
-                    .filter(leaderId => leaderId !== userId);
-
-                  console.log('[CLOCK_OUT] Leaders found:', {
-                    totalLeaders: leaders.length,
-                    leaderIds: leaders.map(l => l.userId),
-                    filteredLeaderIds: leaderIds,
-                    userIdClockingOut: userId,
-                    note: leaderIds.length === 0 ? 'No leaders to notify (user is leader or no other leaders)' : `Will notify ${leaderIds.length} leader(s)`
-                  });
-
-                  if (leaderIds.length > 0) {
-                    await sendClockOutNotification(
-                      leaderIds,
-                      user.full_name || user.email,
-                      team.name,
-                      finalTeamId,
-                      userId
-                    );
-                  }
+        if (type.toLowerCase() === 'clock_out' && finalTeamId) {
+          const capturedTeamId = finalTeamId;
+          setImmediate(async () => {
+            try {
+              const [team, user] = await Promise.all([Team.findByPk(capturedTeamId), User.findByPk(userId)]);
+              if (team && user) {
+                const leaders = await Member.findAll({ where: { teamId: capturedTeamId, role: 'Leader' }, attributes: ['userId'] });
+                const leaderIds = leaders.map((l: any) => l.userId).filter((lid: string) => lid !== userId);
+                if (leaderIds.length > 0) {
+                  await sendClockOutNotification(leaderIds, user.full_name || user.email, team.name, capturedTeamId, userId);
                 }
-              } catch (error) {
-                console.error('Failed to send clock-out notification:', error);
               }
-            });
-          }
+            } catch (err) { console.error('Failed to send clock-out notification:', err); }
+          });
+        }
       }
     }
 
     await transaction.commit();
+
+    // ---------------------------------------------------------------------------
+    // Item 15: Recompute user_daily_stats after commit — background, non-blocking.
+    // Dashboard reads pre-computed totals instead of replaying events on every request.
+    // ---------------------------------------------------------------------------
+    setImmediate(async () => {
+      for (const target of statsTargets) {
+        const [uid, tid] = target.split('::');
+        await recomputeStatsForUser(uid, tid === 'null' ? null : tid);
+      }
+    });
+
     res.status(200).json({ message: 'Events synced successfully' });
 
   } catch (error) {

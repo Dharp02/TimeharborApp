@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useTeam } from './TeamContext';
+import { useSocket } from '@/contexts/SocketContext';
 import * as API from '@/TimeharborAPI';
+import { db } from '@/TimeharborAPI/db';
 import Link from 'next/link';
 
 interface DashboardStats {
@@ -11,51 +13,74 @@ interface DashboardStats {
   teamMembers: number;
 }
 
+const DEFAULT_STATS: DashboardStats = {
+  totalHoursToday: '0h 0m',
+  totalHoursWeek: '0h 0m',
+  teamMembers: 0,
+};
+
 export default function DashboardSummary() {
   const { currentTeam } = useTeam();
-  const [stats, setStats] = useState<DashboardStats>({
-    totalHoursToday: '0h 0m',
-    totalHoursWeek: '0h 0m',
-    teamMembers: 0
-  });
+  const { socket } = useSocket();
+  const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
   const [loading, setLoading] = useState(true);
 
-  // Calculate real-time online members from local state
-  // We subtract 1 if we don't want to count ourselves, or keep it as is depending on requirement.
-  // Usually "Team Members Online" includes everyone online in the team.
   const onlineCount = currentTeam?.members?.filter(m => m.status === 'online').length || 0;
 
-  const fetchStats = async () => {
+  // Fetch fresh stats from backend and update Dexie + state
+  const refreshFromBackend = async (teamId?: string) => {
     try {
-      if (!currentTeam?.id) return;
-      // Don't set full loading spinner for refresh, only initial
-      // setLoading(true); 
-      const data = await API.dashboard.getStats(currentTeam?.id);
+      const data = await API.dashboard.getStats(teamId);
       setStats(data);
     } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error refreshing dashboard stats:', error);
     }
   };
 
   useEffect(() => {
-    if (currentTeam?.id) {
-      fetchStats();
-    }
-    
-    // Listen for clock-out events to auto-refresh
-    const handleStatsRefresh = () => {
-        console.log('🔄 DashboardStats: Refreshing due to clock event');
-        fetchStats();
-    };
+    if (!currentTeam?.id) return;
+    const cacheKey = currentTeam.id;
 
-    window.addEventListener('dashboard-stats-refresh', handleStatsRefresh as EventListener);
-    
-    return () => {
-        window.removeEventListener('dashboard-stats-refresh', handleStatsRefresh as EventListener);
-    }
+    // 1. Read Dexie cache immediately — no spinner if data exists
+    db.dashboardStats.get(cacheKey).then((cached: any) => {
+      if (cached?.data) {
+        setStats(cached.data);
+      }
+      setLoading(false);
+
+      // 2. Always fetch fresh from backend in background
+      refreshFromBackend(currentTeam.id);
+    }).catch(() => {
+      setLoading(false);
+      refreshFromBackend(currentTeam.id);
+    });
+
+    // 3. Re-fetch on clock events (clock-in / clock-out)
+    const handleStatsRefresh = () => refreshFromBackend(currentTeam.id);
+    window.addEventListener('dashboard-stats-refresh', handleStatsRefresh);
+    return () => window.removeEventListener('dashboard-stats-refresh', handleStatsRefresh);
   }, [currentTeam?.id]);
+
+  // 4. Live update via WebSocket — backend pushes fresh totals after each sync
+  useEffect(() => {
+    if (!socket || !currentTeam?.id) return;
+    const handleStatsUpdated = (payload: { teamId: string | null; totalHoursToday: string; totalHoursWeek: string }) => {
+      if (payload.teamId !== currentTeam.id && payload.teamId !== null) return;
+      setStats(prev => ({
+        ...prev,
+        totalHoursToday: payload.totalHoursToday,
+        totalHoursWeek: payload.totalHoursWeek,
+      }));
+      // Also update Dexie cache so next page load is instant
+      db.dashboardStats.get(currentTeam.id).then((cached: any) => {
+        if (cached) {
+          db.dashboardStats.put({ ...cached, data: { ...cached.data, totalHoursToday: payload.totalHoursToday, totalHoursWeek: payload.totalHoursWeek }, updatedAt: Date.now() });
+        }
+      });
+    };
+    socket.on('stats_updated', handleStatsUpdated);
+    return () => { socket.off('stats_updated', handleStatsUpdated); };
+  }, [socket, currentTeam?.id]);
 
   if (loading) {
     return (

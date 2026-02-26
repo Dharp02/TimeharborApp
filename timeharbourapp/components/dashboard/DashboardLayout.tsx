@@ -1,7 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+
+// Isolated component — only this tiny subtree de-opts for useSearchParams.
+// Wrapping it in <Suspense> lets the rest of DashboardLayout stream normally.
+function MemberName() {
+  const searchParams = useSearchParams();
+  return <>{searchParams?.get('name') || 'Member'}</>;
+}
 import Header from './Header';
 import BottomNav from './BottomNav';
 import TeamSelectionModal from './TeamSelectionModal';
@@ -21,7 +28,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const getHeaderTitle = () => {
     if (!pathname) return 'Timeharbor';
@@ -39,8 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname.startsWith('/dashboard/settings')) return 'Settings';
     
     if (pathname.startsWith('/dashboard/member')) {
-      const memberName = searchParams?.get('name');
-      return memberName || 'Member';
+      return null; // rendered via <MemberName> Suspense component below
     }
     return 'Timeharbor';
   };
@@ -117,7 +122,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}
-            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px]">{getHeaderTitle()}</h1>
+            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px]">
+              {pathname?.startsWith('/dashboard/member')
+                ? <Suspense fallback="Member"><MemberName /></Suspense>
+                : getHeaderTitle()}
+            </h1>
           </div>
           <div className="flex items-center gap-2">
             {currentTeam && (

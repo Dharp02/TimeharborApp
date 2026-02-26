@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useClockIn } from './ClockInContext';
@@ -10,6 +10,7 @@ import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
 import { useRefresh } from '../../contexts/RefreshContext';
+import { db } from '@/TimeharborAPI/db';
 
 const getUserInitials = (name?: string, email?: string) => {
   if (name && name.trim()) {
@@ -41,56 +42,59 @@ export default function OpenTickets() {
   const [isLoading, setIsLoading] = useState(false);
   const [showClockInWarning, setShowClockInWarning] = useState(false);
 
+  const isMountedRef = useRef(true);
+
+  const fetchTickets = useCallback(async () => {
+    if (!currentTeam?.id) {
+      setTickets([]);
+      return;
+    }
+    try {
+      const fetchedTickets = await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' });
+      if (isMountedRef.current) {
+        setTickets(fetchedTickets);
+        db.tickets.bulkPut(fetchedTickets as any).catch(() => {});
+      }
+    } catch (error) {
+      console.error('Failed to load tickets:', error);
+    } finally {
+      if (isMountedRef.current) setIsLoading(false);
+    }
+  }, [currentTeam?.id]);
+
   useEffect(() => {
-    let isMounted = true;
-    
-    const fetchTickets = async () => {
-      if (!currentTeam?.id) {
-        if (isMounted) setTickets([]);
-        return;
-      }
-      
-      if (isMounted) setIsLoading(true);
-      try {
-        const fetchedTickets = await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' });
-        if (isMounted) setTickets(fetchedTickets);
-      } catch (error) {
-        console.error('Failed to load tickets:', error);
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
+    isMountedRef.current = true;
+
+    // Read Dexie cache immediately — tickets appear instantly on repeat visits
+    if (currentTeam?.id) {
+      db.tickets
+        .where('teamId').equals(currentTeam.id)
+        .filter(t => t.status === 'Open' || t.status === 'In Progress')
+        .toArray()
+        .then(cached => {
+          if (cached.length > 0 && isMountedRef.current) {
+            setTickets(cached as TicketType[]);
+          } else {
+            setIsLoading(true);
+          }
+        })
+        .catch(() => setIsLoading(true));
+    } else {
+      setTickets([]);
+    }
 
     fetchTickets();
-    
-    // Register with context for reliable refresh
-    const unregister = register(async () => {
-        await fetchTickets();
-    });
 
-    // Keep legacy listener for now if other things emit it
+    const unregister = register(async () => { await fetchTickets(); });
     const handleRefresh = () => fetchTickets();
     window.addEventListener('pull-to-refresh', handleRefresh);
 
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
       unregister();
       window.removeEventListener('pull-to-refresh', handleRefresh);
     };
-  }, [currentTeam?.id, register, lastRefreshed]);
-
-  const loadTickets = async () => {
-    if (!currentTeam?.id) return;
-    setIsLoading(true);
-    try {
-      const fetchedTickets = await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' });
-      setTickets(fetchedTickets);
-    } catch (error) {
-      console.error('Failed to load tickets:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [currentTeam?.id, register, lastRefreshed, fetchTickets]);
 
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
@@ -172,7 +176,7 @@ export default function OpenTickets() {
 
       setIsAddTicketModalOpen(false);
       setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
-      loadTickets();
+      fetchTickets();
     } catch (error) {
       console.error('Failed to create ticket:', error);
     }

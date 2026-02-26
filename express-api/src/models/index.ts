@@ -8,6 +8,7 @@ import WorkLog from './WorkLog';
 import WorkLogReply from './WorkLogReply';
 import Notification from './Notification';
 import { ActivityLog } from './ActivityLog';
+import UserDailyStat from './UserDailyStat';
 
 // Define associations
 User.hasMany(Member, { foreignKey: 'userId', as: 'memberships' });
@@ -49,6 +50,10 @@ Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(ActivityLog, { foreignKey: 'userId', as: 'activities' });
 ActivityLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+// Daily Stats
+User.hasMany(UserDailyStat, { foreignKey: 'userId', as: 'dailyStats' });
+UserDailyStat.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
 // Export all models
 export {
   User,
@@ -59,7 +64,8 @@ export {
   WorkLog,
   WorkLogReply,
   Notification,
-  ActivityLog
+  ActivityLog,
+  UserDailyStat
 };
 
 // Export sequelize instance

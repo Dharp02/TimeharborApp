@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { TeamProvider } from '@/components/dashboard/TeamContext';
 import { ActivityLogProvider } from '@/components/dashboard/ActivityLogContext';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
@@ -8,7 +9,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <RefreshProvider>
       <TeamProvider>
         <ActivityLogProvider>
-          <DashboardLayout>{children}</DashboardLayout>
+          <Suspense fallback={null}>
+            <DashboardLayout>{children}</DashboardLayout>
+          </Suspense>
         </ActivityLogProvider>
       </TeamProvider>
     </RefreshProvider>
