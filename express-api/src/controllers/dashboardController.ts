@@ -2,10 +2,14 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
 import { AuthRequest } from '../middleware/authMiddleware';
-import { Ticket, Member, Team, WorkLog, User, WorkLogReply } from '../models';
+import { Ticket, Member, Team, WorkLog, User, WorkLogReply, UserDailyStat } from '../models';
 import sequelize from '../config/sequelize';
 import { sendNotificationToUser } from '../services/notificationService';
 
+// ---------------------------------------------------------------------------
+// Item 14: getDashboardStats — reads from user_daily_stats (pre-computed).
+// Drops the O(n) event-replay loop → single aggregation query (< 2ms).
+// ---------------------------------------------------------------------------
 export const getDashboardStats = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -17,168 +21,72 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     }
 
     const now = new Date();
+    // Use local date (not UTC) so stats align with the user's calendar day
+    const localDate = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const today = localDate(now);
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    // Calculate start of week (assuming Sunday is 0)
     const startOfWeek = new Date(startOfToday);
     startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+    const startOfWeekDate = localDate(startOfWeek);
 
-    // --- Optimized Duration Calculation ---
-    
-    // 1. Fetch ALL events for the week in one query
-    const whereClause: any = {
+    // 1. Read pre-computed stats for this week in one query
+    const statsWhere: any = {
       userId,
-      timestamp: { [Op.gte]: startOfWeek }
+      date: { [Op.between]: [startOfWeekDate, today] },
     };
-    if (teamId) {
-      whereClause.teamId = teamId;
-    }
+    if (teamId) statsWhere.teamId = teamId as string;
 
-    const events = await WorkLog.findAll({
-      where: whereClause,
-      order: [['timestamp', 'ASC']]
+    const statRows = await UserDailyStat.findAll({ where: statsWhere, attributes: ['date', 'totalMs'] });
+
+    let totalMsToday = statRows
+      .filter(r => r.date === today)
+      .reduce((acc, r) => acc + Number(r.totalMs), 0);
+    let totalMsWeek = statRows.reduce((acc, r) => acc + Number(r.totalMs), 0);
+
+    // 2. Add live time for any currently-active CLOCK_IN session (not yet clocked out)
+    const clockWhere: any = {
+      userId,
+      type: { [Op.in]: ['CLOCK_IN', 'CLOCK_OUT'] },
+    };
+    if (teamId) clockWhere.teamId = teamId as string;
+
+    const lastClockEvent = await WorkLog.findOne({
+      where: clockWhere,
+      order: [['timestamp', 'DESC']],
+      attributes: ['type', 'timestamp'],
     });
 
-    // 2. Fetch initial state before startOfWeek
-    const preWeekWhereClause: any = {
-      userId,
-      timestamp: { [Op.lt]: startOfWeek }
-    };
-    if (teamId) {
-      preWeekWhereClause.teamId = teamId;
-    }
-    
-    const lastEventBeforeWeek = await WorkLog.findOne({
-      where: preWeekWhereClause,
-      order: [['timestamp', 'DESC']]
-    });
-
-    // Helper to calc duration from a list of events starting with an initial state
-    const calculateDuration = (eventList: WorkLog[], startTime: number, initialClockedIn: boolean) => {
-        let totalMs = 0;
-        let currentTime = startTime;
-        let isClockedIn = initialClockedIn;
-
-        for (const event of eventList) {
-            const eventTime = new Date(event.timestamp).getTime();
-            
-            // If event is before our period start (shouldn't happen with filtering, but safety)
-            if (eventTime < currentTime) continue;
-
-            if (isClockedIn) {
-                totalMs += (eventTime - currentTime);
-            }
-
-            currentTime = eventTime;
-
-            switch (event.type) {
-                case 'CLOCK_IN':
-                case 'START_TICKET':
-                    isClockedIn = true;
-                    break;
-                case 'CLOCK_OUT':
-                    isClockedIn = false;
-                    break;
-                case 'STOP_TICKET':
-                    // Assuming STOP_TICKET keeps you clocked in (just ends ticket)
-                    // If your logic says STOP_TICKET = Clock Out, change this.
-                    // Based on previous code: isClockedIn = true
-                    isClockedIn = true; 
-                    break;
-            }
-        }
-
-        // If still clocked in, add time until now
-        if (isClockedIn) {
-            const nowMs = new Date().getTime();
-            if (nowMs > currentTime) {
-                totalMs += (nowMs - currentTime);
-            }
-        }
-        return totalMs;
-    };
-
-    // Determine initial state at startOfWeek
-    let isClockedInAtStartOfWeek = false;
-    if (lastEventBeforeWeek) {
-        if (['CLOCK_IN', 'START_TICKET', 'STOP_TICKET'].includes(lastEventBeforeWeek.type)) {
-            isClockedInAtStartOfWeek = true;
-        }
-    }
-
-    // Calculate Week Duration
-    const totalMillisecondsWeek = calculateDuration(events, startOfWeek.getTime(), isClockedInAtStartOfWeek);
-
-    // Calculate Today Duration
-    // We need state at startOfToday.
-    // We can simulate from startOfWeek to startOfToday to get state.
-    
-    let isClockedInAtStartOfToday = isClockedInAtStartOfWeek;
-    const startOfTodayTime = startOfToday.getTime();
-    
-    // Iterate events before today to find state at startOfToday
-    // Also, if a session spans across startOfToday boundary, we need to handle it?
-    // The calculateDuration logic above adds time between events.
-    // If we filter events >= startOfToday, we miss the "currently clocked in" segment that started yesterday.
-    
-    // Better approach for Today:
-    // 1. Find last event before startOfToday (could be inside this week or before)
-    // 2. Filter events >= startOfToday
-    
-    // Find last event before today from our 'events' array OR 'lastEventBeforeWeek'
-    const eventsBeforeToday = events.filter(e => new Date(e.timestamp).getTime() < startOfTodayTime);
-    let lastEventBeforeToday = eventsBeforeToday.length > 0 
-        ? eventsBeforeToday[eventsBeforeToday.length - 1] 
-        : lastEventBeforeWeek;
-
-    let isClockedInAtMorning = false;
-    if (lastEventBeforeToday) {
-         if (['CLOCK_IN', 'START_TICKET', 'STOP_TICKET'].includes(lastEventBeforeToday.type)) {
-            isClockedInAtMorning = true;
-        }
-    }
-    
-    const eventsToday = events.filter(e => new Date(e.timestamp).getTime() >= startOfTodayTime);
-    const totalMillisecondsToday = calculateDuration(eventsToday, startOfTodayTime, isClockedInAtMorning);
-
-
-    const totalHoursToday = Math.floor(totalMillisecondsToday / (1000 * 60 * 60));
-    const totalMinutesToday = Math.floor((totalMillisecondsToday % (1000 * 60 * 60)) / (1000 * 60));
-
-    const totalHoursWeek = Math.floor(totalMillisecondsWeek / (1000 * 60 * 60));
-    const totalMinutesWeek = Math.floor((totalMillisecondsWeek % (1000 * 60 * 60)) / (1000 * 60));
-
-    // 3. Open Tickets Assigned
-    const ticketWhereClause: any = {
-      assignedTo: userId,
-      status: {
-        [Op.ne]: 'Closed'
+    if (lastClockEvent?.type === 'CLOCK_IN') {
+      const liveMs = now.getTime() - new Date(lastClockEvent.timestamp).getTime();
+      if (liveMs > 0) {
+        // Only add to today's total if the session started today
+        const sessionDate = new Date(lastClockEvent.timestamp).toISOString().slice(0, 10);
+        if (sessionDate === today) totalMsToday += liveMs;
+        totalMsWeek += liveMs;
       }
+    }
+
+    const toHM = (ms: number) => {
+      const h = Math.floor(ms / 3_600_000);
+      const m = Math.floor((ms % 3_600_000) / 60_000);
+      return `${h}h ${m}m`;
     };
 
-    if (teamId) {
-      ticketWhereClause.teamId = teamId;
-    }
+    // 3. Open ticket count + team member count — run in parallel
+    const ticketWhere: any = { assignedTo: userId, status: { [Op.ne]: 'Closed' } };
+    if (teamId) ticketWhere.teamId = teamId;
 
-    const openTicketsCount = await Ticket.count({
-      where: ticketWhereClause
-    });
-
-    // 4. Team Members
-    let teamMembersCount = 0;
-    if (teamId) {
-      teamMembersCount = await Member.count({
-        where: {
-          teamId: teamId as string
-        }
-      });
-    }
+    const [openTicketsCount, teamMembersCount] = await Promise.all([
+      Ticket.count({ where: ticketWhere }),
+      teamId ? Member.count({ where: { teamId: teamId as string } }) : Promise.resolve(0),
+    ]);
 
     res.json({
-      totalHoursToday: `${totalHoursToday}h ${totalMinutesToday}m`,
-      totalHoursWeek: `${totalHoursWeek}h ${totalMinutesWeek}m`,
+      totalHoursToday: toHM(totalMsToday),
+      totalHoursWeek: toHM(totalMsWeek),
       openTickets: openTicketsCount,
-      teamMembers: teamMembersCount
+      teamMembers: teamMembersCount,
     });
 
   } catch (error) {

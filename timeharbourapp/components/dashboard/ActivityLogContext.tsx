@@ -37,12 +37,6 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
       if (!status.connected) return;
 
       try {
-        // Ensure strictly that we push any pending local changes first
-        // This minimizes the chance of "pending > 0" incorrectly preventing a full refresh
-        if (syncManager && typeof syncManager.syncNow === 'function') {
-           await syncManager.syncNow(); 
-        }
-
         const response = await authenticatedFetch(`${API_URL}/teams/${currentTeam.id}/logs`);
         if (response.ok) {
           const remoteLogs = await response.json();

@@ -14,6 +14,7 @@ import {
   removeMemberFromTeam,
   updateMemberRole as apiUpdateMemberRole
 } from '@/TimeharborAPI/teams';
+import { db } from '@/TimeharborAPI/db';
 
 export type Member = {
   id: string;
@@ -88,39 +89,28 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
 
   const loadTeams = async () => {
     try {
-      // Optimistic load from local storage first for instant UI
-      // Use 'timeharbor_teams' directly as it is used in TimeharborAPI/teams/index.ts
-      if (typeof window !== 'undefined') {
-        const cached = localStorage.getItem('timeharbor_teams');
-        if (cached) {
-          try {
-            const parsedTeams = JSON.parse(cached);
-            if (Array.isArray(parsedTeams) && parsedTeams.length > 0) {
-              setTeams(parsedTeams);
-              // Also try to set current team if not set
-              if (!currentTeam) {
-                 const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
-                 if (savedTeamId) {
-                   const team = parsedTeams.find(t => t.id === savedTeamId);
-                   if (team) setCurrentTeam(team);
-                 } else {
-                   setCurrentTeam(parsedTeams[0]);
-                 }
-              }
-              // Data is visible, so we can stop loading spinner even if network sync is pending
-              // But we keep loading true if we want to show a background sync indicator
-              // For UX, "isLoading" usually means "blocking load", so we can set it false.
-              setIsLoading(false);
-            }
-          } catch (e) {
-            console.warn('Failed to parse cached teams', e);
-          }
+      // Fast path: read from Dexie for instant UI (replaces localStorage cache)
+      try {
+        const cachedTeams = await db.teams.toArray();
+        if (cachedTeams.length > 0) {
+          setTeams(cachedTeams);
+          const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
+          const cachedCurrent = savedTeamId
+            ? cachedTeams.find(t => t.id === savedTeamId)
+            : cachedTeams[0];
+          if (cachedCurrent) setCurrentTeam(cachedCurrent);
+          setIsLoading(false);
         }
+      } catch (e) {
+        console.warn('Failed to read cached teams from Dexie', e);
       }
 
       const myTeams = await fetchMyTeams();
       setTeams(myTeams);
-      
+      if (myTeams.length > 0) {
+        await db.teams.bulkPut(myTeams);
+      }
+
       const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
       if (savedTeamId) {
         const team = myTeams.find(t => t.id === savedTeamId);
@@ -179,32 +169,39 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     try {
       const newTeam = await joinTeamByCode(code);
       localStorage.setItem('timeharbor-current-team-id', newTeam.id);
-      await loadTeams();
+      setTeams(prev => [...prev, newTeam]);
+      setCurrentTeam(newTeam);
+      db.teams.put(newTeam).catch(() => {});
       return { success: true, teamId: newTeam.id };
     } catch (error: any) {
-      // console.error('Error joining team:', error);
       return { success: false, error: error.message || 'Failed to join team' };
     }
   };
 
   const createTeam = async (name: string) => {
-    const newTeam = await createNewTeam(name); // returns { id, name, code, members, role }
+    const newTeam = await createNewTeam(name);
     localStorage.setItem('timeharbor-current-team-id', newTeam.id);
-    
-    await loadTeams();
+    setTeams(prev => [...prev, newTeam]);
+    setCurrentTeam(newTeam);
+    db.teams.put(newTeam).catch(() => {});
     return newTeam;
   };
 
   const deleteTeam = async (teamId: string) => {
     try {
-      const teamNames = teams.find(t => t.id === teamId)?.name || 'Team';
       await apiDeleteTeam(teamId);
-      
+      const nextTeams = teams.filter(t => t.id !== teamId);
+      setTeams(nextTeams);
+      db.teams.delete(teamId).catch(() => {});
       if (currentTeam?.id === teamId) {
-        localStorage.removeItem('timeharbor-current-team-id');
-        setCurrentTeam(null);
+        const next = nextTeams[0] ?? null;
+        setCurrentTeam(next);
+        if (next) {
+          localStorage.setItem('timeharbor-current-team-id', next.id);
+        } else {
+          localStorage.removeItem('timeharbor-current-team-id');
+        }
       }
-      await loadTeams();
     } catch (error) {
       console.error('Failed to delete team:', error);
       throw error;
@@ -213,10 +210,10 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
 
   const updateTeamName = async (teamId: string, name: string) => {
     try {
-      const oldName = teams.find(t => t.id === teamId)?.name;
       await apiUpdateTeam(teamId, name);
-      
-      await loadTeams();
+      setTeams(prev => prev.map(t => t.id === teamId ? { ...t, name } : t));
+      if (currentTeam?.id === teamId) setCurrentTeam(prev => prev ? { ...prev, name } : prev);
+      db.teams.update(teamId, { name }).catch(() => {});
     } catch (error) {
       console.error('Failed to update team:', error);
       throw error;
@@ -225,8 +222,14 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
 
   const addMember = async (teamId: string, email: string) => {
     try {
-      await addMemberToTeam(teamId, email);
-      await loadTeams();
+      const newMember = await addMemberToTeam(teamId, email);
+      setTeams(prev => prev.map(t =>
+        t.id === teamId ? { ...t, members: [...t.members, newMember] } : t
+      ));
+      if (currentTeam?.id === teamId)
+        setCurrentTeam(prev => prev ? { ...prev, members: [...prev.members, newMember] } : prev);
+      const existing = teams.find(t => t.id === teamId);
+      if (existing) db.teams.put({ ...existing, members: [...existing.members, newMember] }).catch(() => {});
     } catch (error) {
       console.error('Failed to add member:', error);
       throw error;
@@ -236,7 +239,13 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   const removeMember = async (teamId: string, userId: string) => {
     try {
       await removeMemberFromTeam(teamId, userId);
-      await loadTeams();
+      setTeams(prev => prev.map(t =>
+        t.id === teamId ? { ...t, members: t.members.filter(m => m.id !== userId) } : t
+      ));
+      if (currentTeam?.id === teamId)
+        setCurrentTeam(prev => prev ? { ...prev, members: prev.members.filter(m => m.id !== userId) } : prev);
+      const existing = teams.find(t => t.id === teamId);
+      if (existing) db.teams.put({ ...existing, members: existing.members.filter(m => m.id !== userId) }).catch(() => {});
     } catch (error) {
       console.error('Failed to remove member:', error);
       throw error;
@@ -246,7 +255,17 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   const updateMemberRole = async (teamId: string, userId: string, role: 'Leader' | 'Member') => {
     try {
       await apiUpdateMemberRole(teamId, userId, role);
-      await loadTeams();
+      setTeams(prev => prev.map(t =>
+        t.id === teamId
+          ? { ...t, members: t.members.map(m => m.id === userId ? { ...m, role } : m) }
+          : t
+      ));
+      if (currentTeam?.id === teamId)
+        setCurrentTeam(prev => prev
+          ? { ...prev, members: prev.members.map(m => m.id === userId ? { ...m, role } : m) }
+          : prev);
+      const existing = teams.find(t => t.id === teamId);
+      if (existing) db.teams.put({ ...existing, members: existing.members.map(m => m.id === userId ? { ...m, role } : m) }).catch(() => {});
     } catch (error) {
       console.error('Failed to update member role:', error);
       throw error;

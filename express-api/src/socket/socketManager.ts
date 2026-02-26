@@ -32,6 +32,8 @@ const handleConnection = async (socket: Socket) => {
   const userId = socket.handshake.query.userId as string;
   
   if (userId) {
+    // Join a personal room so we can emit directly to this user
+    socket.join(userId);
     logger.info(`User connected: ${userId} (${socket.id})`);
     
     // Update user status to online
