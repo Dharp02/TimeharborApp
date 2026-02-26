@@ -10,6 +10,7 @@ export class ActivityLog extends Model {
   public title!: string;
   public subtitle?: string;
   public description?: string;
+  public link?: string;
   public status?: string;
   public startTime!: Date;
   public endTime?: Date;
@@ -55,6 +56,10 @@ ActivityLog.init({
   },
   description: {
     type: DataTypes.STRING,
+    allowNull: true,
+  },
+  link: {
+    type: DataTypes.TEXT,
     allowNull: true,
   },
   status: {

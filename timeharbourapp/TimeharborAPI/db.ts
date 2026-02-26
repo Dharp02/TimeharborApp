@@ -26,6 +26,7 @@ export interface TimeEvent {
   teamId?: string | null;
   ticketTitle?: string | null;
   comment?: string | null;
+  link?: string | null;
   synced: number; // 0 for false, 1 for true
 }
 

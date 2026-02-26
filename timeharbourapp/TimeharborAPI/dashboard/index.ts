@@ -18,6 +18,7 @@ export interface Activity {
   title: string;
   subtitle?: string;
   description?: string;
+  link?: string;
   startTime: string;
   endTime?: string;
   status?: 'Active' | 'Completed' | 'Pending' | 'Failed';

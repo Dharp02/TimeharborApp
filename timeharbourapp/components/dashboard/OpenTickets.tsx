@@ -36,6 +36,7 @@ export default function OpenTickets() {
   const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
+  const [link, setLink] = useState('');
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
   const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
   const [tickets, setTickets] = useState<TicketType[]>([]);
@@ -134,6 +135,7 @@ export default function OpenTickets() {
         setIsModalOpen(false);
         setPendingTicket(null);
         setComment('');
+        setLink('');
         toggleSession(currentTeam?.id);
         return;
       }
@@ -142,17 +144,19 @@ export default function OpenTickets() {
         setIsModalOpen(false);
         setPendingTicket(null);
         setComment('');
+        setLink('');
         toggleSession(currentTeam?.id);
         return;
       }
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment, link || undefined);
     } else {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment, link || undefined);
     }
 
     setIsModalOpen(false);
     setPendingTicket(null);
     setComment('');
+    setLink('');
   };
 
   const handleAddTicket = async () => {
@@ -311,7 +315,7 @@ export default function OpenTickets() {
 
     <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => { setIsModalOpen(false); setLink(''); }}
         title={modalType === 'stop' ? 'Stop Timer?' : 'Switching Tasks'}
       >
         <div className="space-y-4">
@@ -327,6 +331,16 @@ export default function OpenTickets() {
             className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             autoFocus
           />
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
+            <input
+              type="url"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder="Paste a YouTube or Pulse link..."
+              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setIsModalOpen(false)}

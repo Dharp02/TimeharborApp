@@ -4,7 +4,7 @@ import { WorkLog, Ticket, Team, Member, User, UserDailyStat } from '../models';
 import sequelize from '../config/sequelize';
 import logger from '../utils/logger';
 import { Op } from 'sequelize';
-import { sendClockInNotification, sendClockOutNotification } from '../services/notificationService';
+import { sendClockInNotification, sendClockOutNotification, sendStopTicketNotification } from '../services/notificationService';
 import { getIO } from '../socket/socketManager';
 
 // ---------------------------------------------------------------------------
@@ -213,7 +213,12 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
     const statsTargets = new Set<string>();
 
     for (const event of events) {
-      const { id, type, timestamp, ticketId, teamId, ticketTitle, comment } = event;
+      const { id, type, timestamp, ticketId, teamId, ticketTitle, comment, link } = event;
+
+      // Combine comment + link into a single stored value (no schema migration needed)
+      const storedComment = comment && link
+        ? `${comment}\n${link}`
+        : (link || comment || null);
 
       // Resolve ticketId — O(1) set lookup instead of DB query
       let finalTicketId: string | null = null;
@@ -248,7 +253,7 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
           ticketId: finalTicketId,
           teamId: finalTeamId,
           ticketTitle,
-          comment,
+          comment: storedComment,
         }, { transaction });
       } else {
         await WorkLog.create({
@@ -259,7 +264,7 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
           ticketId: finalTicketId,
           teamId: finalTeamId,
           ticketTitle,
-          comment,
+          comment: storedComment,
         }, { transaction });
 
         // Push notifications fire in background — unchanged from before
@@ -292,6 +297,27 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
                 }
               }
             } catch (err) { console.error('Failed to send clock-out notification:', err); }
+          });
+        }
+
+        if (type.toLowerCase() === 'stop_ticket' && finalTeamId && finalTicketId) {
+          const capturedTeamId = finalTeamId;
+          const capturedTicketTitle = ticketTitle || 'Ticket';
+          const capturedComment = comment || null;
+          const capturedLink = link || null;
+          setImmediate(async () => {
+            try {
+              const [leaders, user] = await Promise.all([
+                Member.findAll({ where: { teamId: capturedTeamId, role: 'Leader' }, attributes: ['userId'] }),
+                User.findByPk(userId),
+              ]);
+              if (user) {
+                const leaderIds = leaders.map((l: any) => l.userId).filter((lid: string) => lid !== userId);
+                if (leaderIds.length > 0) {
+                  await sendStopTicketNotification(leaderIds, user.full_name || user.email, capturedTicketTitle, capturedTeamId, userId, capturedComment, capturedLink);
+                }
+              }
+            } catch (err) { console.error('Failed to send stop-ticket notification:', err); }
           });
         }
       }

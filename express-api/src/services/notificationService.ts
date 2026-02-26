@@ -416,3 +416,29 @@ export const sendClockOutNotification = async (
     },
   });
 };
+
+// Send notification when team member stops a ticket (with optional link)
+export const sendStopTicketNotification = async (
+  leaderIds: string[],
+  memberName: string,
+  ticketTitle: string,
+  teamId: string,
+  memberId: string,
+  comment?: string | null,
+  link?: string | null
+) => {
+  const bodyParts = [`${memberName} stopped ticket: ${ticketTitle}`];
+  if (comment) bodyParts.push(comment);
+  if (link) bodyParts.push(link);
+
+  return sendNotificationToUsers(leaderIds, {
+    title: `Ticket Update — ${ticketTitle}`,
+    body: bodyParts.join('\n'),
+    data: {
+      type: 'stop_ticket',
+      teamId,
+      memberId,
+      ...(link ? { url: link } : {}),
+    },
+  });
+};

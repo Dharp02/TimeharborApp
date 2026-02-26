@@ -16,6 +16,7 @@ type Activity = {
   member: string;
   action: string; // e.g., "Clocked in with T-101, T-102", "Clocked out", "Started timer on T-101"
   description?: string;
+  link?: string;
   tickets?: string[];
   role: string;
 };
@@ -115,7 +116,18 @@ export function TeamActivityReport() {
                  tickets.push(log.ticketTitle);
              }
 
-             const description = (log.comment && (log.type === 'CLOCK_OUT' || log.type === 'STOP_TICKET')) ? log.comment : undefined;
+             let description: string | undefined;
+             let link: string | undefined;
+             if (log.comment && (log.type === 'CLOCK_OUT' || log.type === 'STOP_TICKET')) {
+               const urlMatch = log.comment.match(/(https?:\/\/[^\s]+)$/);
+               if (urlMatch) {
+                 link = urlMatch[1];
+                 const text = log.comment.replace(urlMatch[0], '').trim();
+                 description = text || undefined;
+               } else {
+                 description = log.comment;
+               }
+             }
 
              return {
                  id: log.id,
@@ -126,6 +138,7 @@ export function TeamActivityReport() {
                  tickets: tickets,
                  role: log.user?.memberships?.[0]?.role || 'Member',
                  description: description,
+                 link: link,
              };
           });
 
@@ -272,6 +285,16 @@ export function TeamActivityReport() {
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">{activity.action}</p>
                         {activity.description && (
                           <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mt-0.5 break-words">&quot;{activity.description}&quot;</p>
+                        )}
+                        {activity.link && (
+                          <a
+                            href={activity.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+                          >
+                            🔗 {activity.link}
+                          </a>
                         )}
                       </div>
                     </div>

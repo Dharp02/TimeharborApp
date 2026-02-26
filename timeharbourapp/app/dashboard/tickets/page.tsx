@@ -27,6 +27,7 @@ export default function TicketsPage() {
   
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
+  const [link, setLink] = useState('');
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
   const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', priority: 'Medium', reference: '' });
   const [isEditing, setIsEditing] = useState(false);
@@ -171,14 +172,15 @@ export default function TicketsPage() {
     if (!pendingTicket) return;
 
     if (modalType === 'stop') {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment, link || undefined);
     } else {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment, link || undefined);
     }
 
     setIsModalOpen(false);
     setPendingTicket(null);
     setComment('');
+    setLink('');
   };
 
   const handleAddTicket = async () => {
@@ -615,7 +617,7 @@ export default function TicketsPage() {
       {/* Modal for Stopping/Switching Tickets */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => { setIsModalOpen(false); setLink(''); }}
         title={modalType === 'stop' ? 'Stop Working' : 'Switch Ticket'}
       >
         <div className="space-y-4">
@@ -635,6 +637,19 @@ export default function TicketsPage() {
               placeholder="What did you work on?"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               rows={3}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Link (optional)
+            </label>
+            <input
+              type="url"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder="Paste a YouTube or Pulse link..."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
             />
           </div>
 

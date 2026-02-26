@@ -71,6 +71,16 @@ export default function RecentActivity() {
                         "{activity.description}"
                       </p>
                     )}
+                    {activity.link && (
+                      <a
+                        href={activity.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+                      >
+                        🔗 {activity.link}
+                      </a>
+                    )}
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       {formatDate(activity.startTime)}, {formatTime(activity.startTime)}
                       {activity.endTime ? ` - ${formatTime(activity.endTime)}` : ''}

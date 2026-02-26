@@ -28,7 +28,7 @@ type ClockInContextType = {
 
   // Actions
   toggleSession: (teamId?: string) => void;
-  toggleTicketTimer: (ticketId: string, ticketTitle: string, teamId?: string, comment?: string) => void;
+  toggleTicketTimer: (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string) => void;
   getFormattedTotalTime: (ticketId: string) => string;
 };
 
@@ -47,6 +47,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   // Ticket Stop Modal State
   const [isStopTicketModalOpen, setIsStopTicketModalOpen] = useState(false);
   const [stopTicketComment, setStopTicketComment] = useState('');
+  const [stopTicketLink, setStopTicketLink] = useState('');
   const [pendingSessionStopTeamId, setPendingSessionStopTeamId] = useState<string | undefined>(undefined);
 
   // Ticket State
@@ -334,12 +335,13 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         title: 'Stopped Ticket',
         subtitle: activeTicketTitle || 'Ticket',
         description: stopTicketComment,
+        link: stopTicketLink || undefined,
         status: 'Completed',
         duration: durationStr
       });
 
       // Stop the ticket
-      await localTimeStore.stopTicket(user.id, activeTicketId, stopTicketComment, activeTicketTeamId);
+      await localTimeStore.stopTicket(user.id, activeTicketId, stopTicketComment, activeTicketTeamId, stopTicketLink || null);
 
       setActiveTicketId(null);
       setActiveTicketTitle(null);
@@ -389,6 +391,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     // Reset Modal
     setIsStopTicketModalOpen(false);
     setStopTicketComment('');
+    setStopTicketLink('');
     setPendingSessionStopTeamId(undefined);
 
     // 🔄 FORCE REFRESH DASHBOARD STATS
@@ -399,12 +402,13 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const cancelStopTicketAndSession = () => {
     setIsStopTicketModalOpen(false);
     setStopTicketComment('');
+    setStopTicketLink('');
     setPendingSessionStopTeamId(undefined);
   };
 
 
 
-  const toggleTicketTimer = async (ticketId: string, ticketTitle: string, teamId?: string, comment?: string) => {
+  const toggleTicketTimer = async (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string) => {
     if (!isSessionActive) return; // Cannot start ticket timer if session is not active
     if (!user?.id) {
       console.error('Cannot toggle ticket: Missing user');
@@ -438,12 +442,13 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             title: 'Stopped Ticket',
             subtitle: activeTicketTitle || 'Ticket',
             description: comment, // Description visible
+            link: link || undefined,
             status: 'Completed',
             duration: durationStr
         });
       }
 
-      await localTimeStore.stopTicket(user.id, ticketId, comment, activeTicketTeamId);
+      await localTimeStore.stopTicket(user.id, ticketId, comment, activeTicketTeamId, link || null);
 
       // Clear active ticket state
       setActiveTicketId(null);
@@ -480,14 +485,15 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             title: 'Stopped Ticket',
             subtitle: activeTicketTitle || 'Ticket',
             description: comment || 'Switched task',
+            link: link || undefined,
             status: 'Completed',
             duration: durationStr
         });
 
         // Stop the previous ticket
-        await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId);
+        await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId, link || null);
       } else if (activeTicketId) {
-        await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId);
+        await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId, link || null);
       }
 
       await localTimeStore.startTicket(user.id, ticketId, ticketTitle, teamId || null);
@@ -571,6 +577,16 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             autoFocus
           />
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
+            <input
+              type="url"
+              value={stopTicketLink}
+              onChange={(e) => setStopTicketLink(e.target.value)}
+              placeholder="Paste a YouTube or Pulse link..."
+              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
           <div className="flex justify-end gap-3">
             <button
               onClick={cancelStopTicketAndSession}
