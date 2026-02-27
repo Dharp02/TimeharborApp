@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { localTimeStore } from '@/TimeharborAPI/time/LocalTimeStore';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { TimeService } from '@/TimeharborAPI/time/TimeService';
@@ -9,6 +10,9 @@ import { Network } from '@capacitor/network';
 import { Modal } from '@/components/ui/Modal';
 import { useActivityLog } from './ActivityLogContext';
 import { DateTime, Duration } from 'luxon';
+import { tickets as ticketsApi } from '@/TimeharborAPI';
+import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
+import { Plus, Play, Ticket } from 'lucide-react';
 
 type ClockInContextType = {
   // Global Session
@@ -37,6 +41,7 @@ const ClockInContext = createContext<ClockInContextType | undefined>(undefined);
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { addActivity, updateActiveSession } = useActivityLog();
+  const router = useRouter();
   
   // Session State
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -49,6 +54,12 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [stopTicketComment, setStopTicketComment] = useState('');
   const [stopTicketLink, setStopTicketLink] = useState('');
   const [pendingSessionStopTeamId, setPendingSessionStopTeamId] = useState<string | undefined>(undefined);
+
+  // Clock-In Ticket Prompt State
+  const [isClockInPromptOpen, setIsClockInPromptOpen] = useState(false);
+  const [clockInPromptTeamId, setClockInPromptTeamId] = useState<string | undefined>(undefined);
+  const [clockInTickets, setClockInTickets] = useState<TicketType[]>([]);
+  const [clockInTicketsLoading, setClockInTicketsLoading] = useState(false);
 
   // Ticket State
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
@@ -304,7 +315,35 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       
       // Force reload activities to ensure sync
       window.dispatchEvent(new Event('pull-to-refresh'));
+
+      // Prompt user to start or create a ticket
+      setClockInPromptTeamId(teamId);
+      setIsClockInPromptOpen(true);
+      if (teamId) {
+        fetchClockInTickets(teamId);
+      }
     }
+  };
+
+  const fetchClockInTickets = async (teamId: string) => {
+    setClockInTicketsLoading(true);
+    try {
+      const fetched = await ticketsApi.getTickets(teamId, { sort: 'recent', status: 'open' });
+      setClockInTickets(fetched);
+    } catch {
+      setClockInTickets([]);
+    } finally {
+      setClockInTicketsLoading(false);
+    }
+  };
+
+  const handleClockInTicketSelect = (ticketId: string, ticketTitle: string) => {
+    setIsClockInPromptOpen(false);
+    toggleTicketTimer(ticketId, ticketTitle, clockInPromptTeamId);
+  };
+
+  const dismissClockInPrompt = () => {
+    setIsClockInPromptOpen(false);
   };
 
   const confirmStopTicketAndSession = async () => {
@@ -561,6 +600,60 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       getFormattedTotalTime
     }}>
       {children}
+      {/* Clock-In Ticket Prompt Modal */}
+      <Modal
+        isOpen={isClockInPromptOpen}
+        onClose={dismissClockInPrompt}
+        title="You're clocked in! What are you working on?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Start tracking time on an open ticket or create a new one.
+          </p>
+
+          {clockInTicketsLoading ? (
+            <div className="text-center py-6 text-sm text-gray-400">Loading tickets…</div>
+          ) : clockInTickets.length === 0 ? (
+            <div className="text-center py-4 text-sm text-gray-400">
+              {clockInPromptTeamId ? 'No open tickets found.' : 'Select a team to see tickets.'}
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {clockInTickets.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => handleClockInTicketSelect(t.id, t.title)}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left group"
+                  aria-label={`Start timer for ${t.title}`}
+                >
+                  <div className="shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md">
+                    <Ticket className="w-4 h-4" />
+                  </div>
+                  <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{t.title}</span>
+                  <Play className="w-4 h-4 shrink-0 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700">
+            <button
+              onClick={dismissClockInPrompt}
+              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              Skip for now
+            </button>
+            <button
+              onClick={() => { dismissClockInPrompt(); router.push('/dashboard/tickets/create'); }}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              New Ticket
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal
         isOpen={isStopTicketModalOpen}
         onClose={cancelStopTicketAndSession}
