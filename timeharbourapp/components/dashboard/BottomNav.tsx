@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, Users, Clock, Ticket, Menu, StopCircle } from 'lucide-react';
+import { Home, Users, Clock, Ticket, Menu, Coffee } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useClockIn } from './ClockInContext';
@@ -8,7 +8,7 @@ import { useTeam } from './TeamContext';
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const { isSessionActive, sessionDuration, sessionFormat, toggleSession } = useClockIn();
+  const { isSessionActive, isOnBreak, sessionDuration, sessionFormat, toggleSession, resumeFromBreak } = useClockIn();
   const { refreshTeams, currentTeam } = useTeam();
 
   const isActive = (path: string) => {
@@ -54,14 +54,18 @@ export default function BottomNav() {
 
         <div className="relative -top-5">
           <button 
-            onClick={() => toggleSession(currentTeam?.id)}
+            onClick={() => isOnBreak ? resumeFromBreak() : toggleSession(currentTeam?.id)}
             className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-white dark:ring-gray-800 ${
-              isSessionActive 
+              isOnBreak
+                ? 'bg-amber-400 hover:bg-amber-500 w-16 h-16'
+                : isSessionActive 
                 ? 'bg-red-500 hover:bg-red-600 animate-pulse w-17 h-17' 
                 : 'bg-blue-600 hover:bg-blue-700 w-16 h-16'
             }`}
           >
-            {isSessionActive ? (
+            {isOnBreak ? (
+              <Coffee className="w-7 h-7" />
+            ) : isSessionActive ? (
               <>
                 <span className="text-xs font-bold font-mono leading-none">{sessionDuration}</span>
                 <span className="text-[8px] font-medium opacity-80 leading-none mt-0.5">{sessionFormat}</span>
@@ -71,9 +75,9 @@ export default function BottomNav() {
             )}
           </button>
           <span className={`absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap ${
-            isSessionActive ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
+            isOnBreak ? 'text-amber-500' : isSessionActive ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
           }`}>
-            {isSessionActive ? 'Clock Out' : 'Clock In'}
+            {isOnBreak ? 'On Break' : isSessionActive ? 'Clock Out' : 'Clock In'}
           </span>
         </div>
 
