@@ -6,6 +6,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 export interface DashboardStats {
   totalHoursToday: string;
   totalHoursWeek: string;
+  /** Raw milliseconds — use formatDurationMs() from lib/formatDuration to display */
+  totalMsToday?: number;
+  totalMsWeek?: number;
   openTickets: number;
   teamMembers: number;
 }
@@ -23,6 +26,8 @@ export interface Activity {
   endTime?: string;
   status?: 'Active' | 'Completed' | 'Pending' | 'Failed';
   duration?: string;
+  /** Raw milliseconds computed by backend — use formatDurationMs() to display */
+  durationMs?: number;
   metadata?: Record<string, any>;
 }
 
@@ -239,13 +244,17 @@ export interface MemberActivityData {
   timeTracking: {
     today: {
       duration: string;
+      /** Raw ms, break-excluded, computed by backend */
+      totalMs: number;
       clockEvents: ClockEvent[];
     };
     week: {
       duration: string;
+      totalMs: number;
     };
     month: {
       duration: string;
+      totalMs: number;
     };
   };
   recentTickets: Array<{
@@ -258,6 +267,8 @@ export interface MemberActivityData {
     startTime: string;
     endTime?: string | null;
     status: 'active' | 'completed' | 'adhoc';
+    /** Raw ms, break-excluded, computed by backend */
+    durationMs: number;
     events: Array<{
       id: string;
       type: string;
@@ -336,4 +347,35 @@ export const addWorkLogReply = async (workLogId: string, message: string): Promi
     console.error('Error sending reply:', error);
     throw error;
   }
+};
+
+// ---------------------------------------------------------------------------
+// Timesheet totals — backend returns raw ms per day; frontend formats with Luxon
+// ---------------------------------------------------------------------------
+
+export interface TimesheetDayTotal {
+  date: string;     // "YYYY-MM-DD"
+  totalMs: number;  // Break-excluded work milliseconds, computed by backend
+}
+
+export const getTimesheetTotals = async (
+  from: string,
+  to: string,
+  teamId?: string,
+): Promise<TimesheetDayTotal[]> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  if (!token) throw new Error('No access token found');
+
+  const params = new URLSearchParams({ from, to });
+  if (teamId) params.append('teamId', teamId);
+
+  const response = await fetch(`${API_URL}/dashboard/timesheet?${params}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) throw new Error('Failed to fetch timesheet totals');
+  return response.json();
 };

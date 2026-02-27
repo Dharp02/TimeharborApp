@@ -137,6 +137,8 @@ async function recomputeStatsForUser(userId: string, teamId: string | null) {
         teamId: teamId ?? null,
         totalHoursToday: toHM(totalMsToday),
         totalHoursWeek: toHM(totalMsWeek),
+        totalMsToday,
+        totalMsWeek,
       });
     } catch (e) {
       // Non-critical — don't let socket errors break the sync flow

@@ -113,6 +113,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     res.json({
       totalHoursToday: toHM(totalMsToday),
       totalHoursWeek: toHM(totalMsWeek),
+      totalMsToday,
+      totalMsWeek,
       openTickets: openTicketsCount,
       teamMembers: teamMembersCount,
     });
@@ -172,7 +174,9 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
           startTime: event.timestamp,
           endTime: null,
           tickets: new Set<string>(),
-          status: 'Active'
+          status: 'Active',
+          breakMs: 0,
+          pendingBreakStart: null,
         };
         sessions.push(currentSession);
       } else if (event.type === 'CLOCK_OUT') {
@@ -195,7 +199,9 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
             startTime: event.timestamp,
             endTime: null,
             tickets: new Set<string>(),
-            status: 'Active'
+            status: 'Active',
+            breakMs: 0,
+            pendingBreakStart: null,
           };
           sessions.push(currentSession);
         }
@@ -206,6 +212,16 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
 
         if (event.comment) {
           currentSession.comment = event.comment;
+        }
+      } else if (event.type === 'BREAK_START') {
+        if (currentSession) {
+          currentSession.pendingBreakStart = new Date(event.timestamp).getTime();
+        }
+      } else if (event.type === 'BREAK_END') {
+        if (currentSession && currentSession.pendingBreakStart != null) {
+          currentSession.breakMs = (currentSession.breakMs || 0) +
+            (new Date(event.timestamp).getTime() - currentSession.pendingBreakStart);
+          currentSession.pendingBreakStart = null;
         }
       }
     }
@@ -225,20 +241,18 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
         subtitle = session.status === 'Active' ? 'Session in progress' : 'No tickets recorded';
       }
 
-      // Calculate duration
-      let duration = '';
+      // Calculate duration — subtract accumulated break time
       const start = new Date(session.startTime);
       const end = session.endTime ? new Date(session.endTime) : new Date();
-      const diffMs = end.getTime() - start.getTime();
-      
-      const hours = Math.floor(diffMs / (1000 * 60 * 60));
-      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-      
-      if (hours > 0) {
-        duration = `${hours}h ${minutes}m`;
-      } else {
-        duration = `${minutes}m`;
-      }
+      // If session is still active and a break is ongoing, count that break up to now
+      const ongoingBreakMs = session.pendingBreakStart != null
+        ? end.getTime() - session.pendingBreakStart
+        : 0;
+      const durationMs = Math.max(0, end.getTime() - start.getTime() - (session.breakMs || 0) - ongoingBreakMs);
+
+      const hours = Math.floor(durationMs / (1000 * 60 * 60));
+      const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+      const duration = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 
       return {
         id: session.id,
@@ -249,7 +263,8 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
         startTime: session.startTime,
         endTime: session.endTime,
         status: session.status,
-        duration
+        duration,
+        durationMs,
       };
     });
 
@@ -383,9 +398,11 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
 
         switch (event.type) {
           case 'CLOCK_IN':
+          case 'BREAK_END':
             isClockedIn = true;
             break;
           case 'CLOCK_OUT':
+          case 'BREAK_START':
             isClockedIn = false;
             break;
           case 'START_TICKET':
@@ -428,6 +445,26 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
       const hours = Math.floor(ms / (1000 * 60 * 60));
       const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
       return `${hours}h ${minutes}m`;
+    };
+
+    // Compute session work-ms by replaying raw events, excluding break time.
+    const computeSessionMs = (events: any[]): number => {
+      let ms = 0;
+      let clockedIn = false;
+      let lastTs = 0;
+      for (const e of events) {
+        const ts = new Date(e.timestamp).getTime();
+        if (clockedIn && ts > lastTs) ms += ts - lastTs;
+        lastTs = ts;
+        switch (e.type) {
+          case 'CLOCK_IN': case 'BREAK_END': case 'START_TICKET': case 'STOP_TICKET':
+            clockedIn = true; break;
+          case 'CLOCK_OUT': case 'BREAK_START':
+            clockedIn = false; break;
+        }
+      }
+      if (clockedIn && lastTs > 0) ms += Date.now() - lastTs;
+      return ms;
     };
 
     // Get recent tickets worked on
@@ -623,6 +660,7 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
 
     // Map to simplified structure for frontend
     const formattedSessions = paginatedSessions.map(session => {
+        const sessionDurationMs = computeSessionMs(session.events);
         const groupedEvents: any[] = [];
         let pendingTicket: any = null;
 
@@ -726,6 +764,7 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
 
         return {
             ...session,
+            durationMs: sessionDurationMs,
             events: groupedEvents
         };
     });
@@ -741,13 +780,16 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
       timeTracking: {
         today: {
             duration: formatDuration(todayDuration),
+            totalMs: todayDuration,
             clockEvents: clockTimes
         },
         week: {
-            duration: formatDuration(weekDuration)
+            duration: formatDuration(weekDuration),
+            totalMs: weekDuration,
         },
         month: {
-            duration: formatDuration(monthDuration)
+            duration: formatDuration(monthDuration),
+            totalMs: monthDuration,
         }
       },
       recentTickets: uniqueTickets.map((ticket: any) => ({
@@ -761,6 +803,90 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error fetching member activity:', error);
     res.status(500).json({ message: 'Error fetching member activity' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Timesheet totals — per-day totalMs from UserDailyStat for a date range.
+// Returns raw milliseconds so the frontend (Luxon) handles formatting.
+// ---------------------------------------------------------------------------
+export const getTimesheetTotals = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) { res.status(401).json({ message: 'Unauthorized' }); return; }
+
+    const { from, to, teamId } = req.query;
+    if (!from || !to) { res.status(400).json({ message: 'from and to query params are required' }); return; }
+
+    const whereClause: any = {
+      userId,
+      date: { [Op.between]: [from as string, to as string] },
+    };
+    if (teamId) whereClause.teamId = teamId as string;
+
+    const rows = await UserDailyStat.findAll({
+      where: whereClause,
+      attributes: ['date', 'totalMs'],
+      order: [['date', 'ASC']],
+    });
+
+    const totalsMap = new Map<string, number>();
+    rows.forEach(r => totalsMap.set(r.date, Number(r.totalMs)));
+
+    // If today is in the requested range, inject live session time (same logic as getDashboardStats)
+    const now = new Date();
+    const localDate = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const today = localDate(now);
+
+    if (today >= (from as string) && today <= (to as string)) {
+      const lastClockEventWhere: any = { userId, type: { [Op.in]: ['CLOCK_IN', 'CLOCK_OUT'] } };
+      if (teamId) lastClockEventWhere.teamId = teamId as string;
+
+      const lastClockEvent = await WorkLog.findOne({
+        where: lastClockEventWhere,
+        order: [['timestamp', 'DESC']],
+        attributes: ['type', 'timestamp'],
+      });
+
+      if (lastClockEvent?.type === 'CLOCK_IN') {
+        const sessionStartMs = new Date(lastClockEvent.timestamp).getTime();
+        const breakEventsWhere: any = {
+          userId,
+          type: { [Op.in]: ['BREAK_START', 'BREAK_END'] },
+          timestamp: { [Op.gte]: lastClockEvent.timestamp },
+        };
+        if (teamId) breakEventsWhere.teamId = teamId as string;
+
+        const breakEvents = await WorkLog.findAll({
+          where: breakEventsWhere,
+          order: [['timestamp', 'ASC']],
+          attributes: ['type', 'timestamp'],
+        });
+
+        let totalBreakMs = 0;
+        let breakSegStart: number | null = null;
+        for (const be of breakEvents) {
+          if (be.type === 'BREAK_START') breakSegStart = new Date(be.timestamp).getTime();
+          else if (be.type === 'BREAK_END' && breakSegStart !== null) {
+            totalBreakMs += new Date(be.timestamp).getTime() - breakSegStart;
+            breakSegStart = null;
+          }
+        }
+        if (breakSegStart !== null) totalBreakMs += now.getTime() - breakSegStart;
+
+        const liveMs = Math.max(0, now.getTime() - sessionStartMs - totalBreakMs);
+        if (liveMs > 0) {
+          totalsMap.set(today, (totalsMap.get(today) || 0) + liveMs);
+        }
+      }
+    }
+
+    const result = Array.from(totalsMap.entries()).map(([date, totalMs]) => ({ date, totalMs }));
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching timesheet totals:', error);
+    res.status(500).json({ message: 'Error fetching timesheet totals' });
   }
 };
 
