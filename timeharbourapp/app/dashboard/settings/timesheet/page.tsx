@@ -183,10 +183,38 @@ export default function TimesheetPage() {
     return (
       title.includes('session ended') ||
       title.includes('clock out') ||
-      title.includes('stopped ticket') ||
-      title.includes('ticket stopped') ||
       title.includes('break ended')
     );
+  };
+
+  /**
+   * Computes a human-readable "Xh Ym Zs" string from the activity's own
+   * startTime → endTime. Returns null if there's no endTime or the span is < 1s.
+   * This is purely informational and does NOT affect any totals.
+   */
+  const getTimeSpent = (activity: Activity): string | null => {
+    if (!activity.endTime) return null;
+    const title = (activity.title || '').toLowerCase();
+    // Skip break periods — idle time, not work time
+    if (title.includes('on break') || title.includes('break started') || title.includes('session paused')) return null;
+    // Skip start events — their endTime is the session end, not their own transition,
+    // so the span always includes any subsequent breaks and is misleading.
+    if (
+      title.includes('work session started') ||
+      title.includes('clocked in') ||
+      title.includes('clock in') ||
+      title.includes('started ticket') ||
+      title.includes('ticket started')
+    ) return null;
+    const ms = DateTime.fromISO(activity.endTime).toMillis() - DateTime.fromISO(activity.startTime).toMillis();
+    if (ms < 1000) return null;
+    const totalSeconds = Math.floor(ms / 1000);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
   };
 
   return (
@@ -252,6 +280,14 @@ export default function TimesheetPage() {
                               &quot;{activity.description}&quot;
                             </p>
                           )}
+                          {(() => {
+                            const spent = getTimeSpent(activity);
+                            return spent ? (
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                Time spent: <span className="font-medium text-gray-500 dark:text-gray-400">{spent}</span>
+                              </p>
+                            ) : null;
+                          })()}
                         </div>
                         <div className="text-right">
                             {shouldShowDuration(activity) && (

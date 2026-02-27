@@ -42,8 +42,9 @@ const ClockInContext = createContext<ClockInContextType | undefined>(undefined);
 
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const { addActivity, updateActiveSession } = useActivityLog();
+  const { addActivity, updateActivity, updateActiveSession } = useActivityLog();
   const router = useRouter();
+  const isSwitchingTicketRef = useRef(false); // Prevents activity-sync useEffect from clearing ticket during handoff
   
   // Session State
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -55,6 +56,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [breakStartTime, setBreakStartTime] = useState<number | null>(null);
   const [totalBreakMs, setTotalBreakMs] = useState(0);
+  const [breakActivityId, setBreakActivityId] = useState<string | null>(null);
 
   // Session Options Modal State (Take a Break / Clock Out)
   const [isSessionOptionsOpen, setIsSessionOptionsOpen] = useState(false);
@@ -161,31 +163,34 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     
     if (recentTicket) {
       if (recentTicket.status === 'Active' && recentTicket.title === 'Started Ticket') {
-        // Ticket is active on backend
+        // Ticket is active on backend — only apply if it matches what we're currently tracking
         const startTime = new Date(recentTicket.startTime).getTime();
-        
-        // If we don't have an active ticket locally, but backend says we do,
-        // we try to restore it. We need the ticket ID, which we might have to guess
-        // or extract if it was saved in the activity. For now, we'll just set the start time
-        // if the local storage has the matching title.
-        if (!activeTicketId && recentTicket.subtitle) {
-           const storedTicketId = localStorage.getItem('activeTicketId');
-           const storedTicketTitle = localStorage.getItem('activeTicketTitle');
-           
-           if (storedTicketId && storedTicketTitle === recentTicket.subtitle) {
-             setActiveTicketId(storedTicketId);
-             setActiveTicketTitle(storedTicketTitle);
-             setTicketStartTime(startTime);
-             localStorage.setItem('ticketStartTime', startTime.toString());
-           }
-        } else if (activeTicketId && ticketStartTime !== startTime) {
-           // Update start time if it differs
-           setTicketStartTime(startTime);
-           localStorage.setItem('ticketStartTime', startTime.toString());
+        const serverTicketTitle = recentTicket.subtitle;
+
+        if (!activeTicketId && serverTicketTitle) {
+          // No local ticket — try to restore from localStorage if titles match
+          const storedTicketId = localStorage.getItem('activeTicketId');
+          const storedTicketTitle = localStorage.getItem('activeTicketTitle');
+
+          if (storedTicketId && storedTicketTitle === serverTicketTitle) {
+            setActiveTicketId(storedTicketId);
+            setActiveTicketTitle(storedTicketTitle);
+            setTicketStartTime(startTime);
+            localStorage.setItem('ticketStartTime', startTime.toString());
+          }
+        } else if (activeTicketId && activeTicketTitle === serverTicketTitle && ticketStartTime !== startTime) {
+          // Only update startTime if the server entry matches the ticket we're currently on.
+          // Stale "Started Ticket" entries for old tickets (still Active on server) must not
+          // overwrite the startTime of the new ticket after a switch.
+          setTicketStartTime(startTime);
+          localStorage.setItem('ticketStartTime', startTime.toString());
         }
       } else if (recentTicket.status === 'Completed' && recentTicket.title === 'Stopped Ticket') {
-        // Ticket is stopped on backend
-        if (activeTicketId) {
+        // Only clear local ticket state if the stopped ticket is the one we're currently tracking.
+        // If subtitle doesn't match activeTicketTitle, we already switched to a new ticket — leave it.
+        const stoppedTitle = recentTicket.subtitle;
+        const isCurrentTicketStopped = !activeTicketTitle || stoppedTitle === activeTicketTitle;
+        if (activeTicketId && isCurrentTicketStopped && !isSwitchingTicketRef.current) {
           setActiveTicketId(null);
           setActiveTicketTitle(null);
           setActiveTicketTeamId(null);
@@ -273,18 +278,18 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setBreakStartTime(now);
     setIsSessionOptionsOpen(false);
     localStorage.setItem('breakStartTime', now.toString());
-    addActivity({
+    const breakId = addActivity({
       type: 'SESSION',
       title: 'On Break',
       subtitle: 'Session paused',
       status: 'Active',
       duration: '0m',
     });
+    setBreakActivityId(breakId);
     if (user?.id) {
       // Use the team from the active ticket or the pending stop team
       const teamId = activeTicketTeamId || pendingSessionStopTeamId || null;
       await localTimeStore.breakStart(user.id, teamId);
-      await syncManager.syncNow();
     }
   };
 
@@ -307,6 +312,16 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setBreakStartTime(null);
     localStorage.setItem('totalBreakMs', newTotal.toString());
     localStorage.removeItem('breakStartTime');
+
+    // Close out the "On Break" entry with the correct end time (now, not session-end)
+    if (breakActivityId) {
+      updateActivity(breakActivityId, {
+        endTime: new Date(breakEndMs).toISOString(),
+        status: 'Completed',
+      });
+      setBreakActivityId(null);
+    }
+
     addActivity({
       type: 'SESSION',
       title: 'Resumed',
@@ -317,9 +332,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     if (user?.id) {
       const teamId = activeTicketTeamId || null;
       await localTimeStore.breakEnd(user.id, teamId);
-      await syncManager.syncNow();
-      window.dispatchEvent(new Event('pull-to-refresh'));
-      window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
     }
   };
 
@@ -601,6 +613,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('ticketBreakMs');
     } else {
       // Starting Ticket (activeTicketId !== ticketId)
+      isSwitchingTicketRef.current = true; // Guard: suppress useEffect clearing during handoff
       const now = DateTime.now();
       
       // Stop the previous ticket
@@ -658,6 +671,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       if (teamId) localStorage.setItem('activeTicketTeamId', teamId);
       localStorage.setItem('ticketStartTime', now.toMillis().toString());
       localStorage.removeItem('ticketBreakMs');
+      isSwitchingTicketRef.current = false; // Handoff complete, allow useEffect again
     }
 
     // Attempt to sync immediately
