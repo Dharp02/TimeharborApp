@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
+import { db } from '@/TimeharborAPI/db';
 
 type AuthContextType = {
   user: any | null;
@@ -23,24 +24,33 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!isMounted.current) {
       const checkSession = async () => {
+        // Item 11: Skip network call when offline — avoids "Failed to fetch" crashes
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          try {
+            const cached = await db.profile.get('user');
+            if (cached?.data) setUser(cached.data);
+          } catch (_) {}
+          setLoading(false);
+          return;
+        }
+
+        // Item 10: Seed from Dexie before network resolves — UI unblocks in ~1ms
         try {
-          // Try to get stored user first for immediate UI feedback
-          // The getUser function in API is now optimized to return stored user on network failure
-          // but we can also check local storage directly here if needed.
-          // For now, we rely on the optimized getUser()
-          
-          const { user, error } = await auth.getUser();
-          if (error) {
-            throw error;
+          const cached = await db.profile.get('user');
+          if (cached?.data) {
+            setUser(cached.data);
+            setLoading(false);
           }
+        } catch (_) {}
+
+        try {
+          const { user, error } = await auth.getUser();
+          if (error) throw error;
           setUser(user);
         } catch (error: any) {
-          // Only log real errors, not session expiration
           if (error?.message !== 'Session expired') {
             console.error('Error checking session:', error);
           }
-          // Don't overwrite an existing user (e.g. from immediate signup) with null
-          // If checkSession fails, we just leave the user as is (null or set by signup)
         } finally {
           setLoading(false);
         }
@@ -61,16 +71,28 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
     });
 
+    // Item 12: Auto-recover session when network returns after being offline
+    const handleOnline = () => {
+      auth.getUser().then(({ user, error }) => {
+        if (!error && user) setUser(user);
+      });
+    };
+    window.addEventListener('online', handleOnline);
+
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener('online', handleOnline);
     };
   }, [router]);
 
   useEffect(() => {
     if (loading) return;
 
-    const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password' || pathname === '/';
-    const isDashboardPage = pathname?.startsWith('/dashboard');
+    // Normalize pathname by removing trailing slash if present (except for root)
+    const normalizedPath = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
+    
+    const isAuthPage = ['/login', '/signup', '/forgot-password', '/'].includes(normalizedPath);
+    const isDashboardPage = normalizedPath.startsWith('/dashboard');
 
     if (user && isAuthPage) {
       router.replace('/dashboard');
@@ -78,14 +100,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       router.replace('/login');
     }
   }, [user, loading, pathname, router]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
 
   return (
     <AuthContext.Provider value={{ user, loading }}>

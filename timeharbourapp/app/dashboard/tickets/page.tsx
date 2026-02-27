@@ -1,16 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User, ArrowRightLeft, Check, Edit2, ExternalLink, AlignLeft } from 'lucide-react';
+import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User, ArrowRightLeft, Check, Edit2, ExternalLink, AlignLeft, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useClockIn } from '@/components/dashboard/ClockInContext';
 import { useTeam } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Modal } from '@/components/ui/Modal';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType, CreateTicketData, UpdateTicketData } from '@/TimeharborAPI/tickets';
+import { useLogger } from '@/hooks/useLogger';
 
 export default function TicketsPage() {
-  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
+  const logger = useLogger();
+  const router = useRouter();
+  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
   const { user } = useAuth();
 
@@ -23,6 +27,7 @@ export default function TicketsPage() {
   
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
+  const [link, setLink] = useState('');
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
   const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', priority: 'Medium', reference: '' });
   const [isEditing, setIsEditing] = useState(false);
@@ -30,6 +35,7 @@ export default function TicketsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   
+  const [showClockInWarning, setShowClockInWarning] = useState(false);
   const [openMenuTicketId, setOpenMenuTicketId] = useState<string | null>(null);
   const [selectedTicketForAction, setSelectedTicketForAction] = useState<{id: string, title: string} | null>(null);
   const [detailTicketId, setDetailTicketId] = useState<string | null>(null);
@@ -64,7 +70,8 @@ export default function TicketsPage() {
         description: t.description || '',
         reference: t.link || '',
         createdAt: t.createdAt,
-        createdBy: t.createdBy
+        createdBy: t.createdBy,
+        creatorName: t.creator ? t.creator.full_name : 'Unknown'
       }));
       setAllTickets(mappedTickets);
     } catch (error) {
@@ -83,10 +90,62 @@ export default function TicketsPage() {
     return matchesSearch && matchesTab;
   });
 
+  const fetchGitHubDescription = async (ticketId: string) => {
+    const ticket = allTickets.find(t => t.id === ticketId);
+    if (!ticket || !currentTeam || ticket.description || !ticket.reference) return;
+
+    // Regex for GitHub PR/Issue URL
+    // https://github.com/owner/repo/pull/123 or issues/123
+    const githubRegex = /github\.com\/([^/]+)\/([^/]+)\/(pull|issues)\/(\d+)/;
+    const match = ticket.reference.match(githubRegex);
+
+    if (match) {
+      try {
+        const [_, owner, repo, type, number] = match;
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/${type === 'pull' ? 'pulls' : 'issues'}/${number}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          const title = data.title;
+          const body = data.body || '';
+          
+          // Construct a description
+          const newDescription = `**${title}**\n\n${body}`;
+          
+          // Update ticket via API
+          await ticketsApi.updateTicket(currentTeam.id, ticket.id, {
+            description: newDescription
+          });
+          
+          // Update local state smoothly
+          setAllTickets(prev => prev.map(t => 
+             t.id === ticket.id ? { ...t, description: newDescription } : t
+          ));
+
+          logger.log('Auto-filled Description', {
+            subtitle: ticket.title,
+            description: `Fetched from GitHub PR/Issue #${number}`
+          });
+        }
+      } catch (error) {
+        console.error("Failed to auto-fill GitHub description", error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (isDetailModalOpen && detailTicketId) {
+       fetchGitHubDescription(detailTicketId);
+    }
+  }, [isDetailModalOpen, detailTicketId]);
+
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
     
-    if (!isSessionActive) return;
+    if (!isSessionActive) {
+      setShowClockInWarning(true);
+      return;
+    }
 
     // If stopping the current ticket
     if (activeTicketId === ticketId) {
@@ -113,14 +172,15 @@ export default function TicketsPage() {
     if (!pendingTicket) return;
 
     if (modalType === 'stop') {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment, link || undefined);
     } else {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment, link || undefined);
     }
 
     setIsModalOpen(false);
     setPendingTicket(null);
     setComment('');
+    setLink('');
   };
 
   const handleAddTicket = async () => {
@@ -137,6 +197,12 @@ export default function TicketsPage() {
           link: newTicket.reference
         };
         await ticketsApi.updateTicket(currentTeam.id, editingTicketId, updateData);
+        
+        logger.log('Updated Ticket', {
+          subtitle: newTicket.title,
+          description: `Ticket updated by ${user?.full_name || 'User'}`
+        });
+
       } else {
         // Create new ticket
         const ticketData: CreateTicketData = {
@@ -147,6 +213,11 @@ export default function TicketsPage() {
           link: newTicket.reference
         };
         await ticketsApi.createTicket(currentTeam.id, ticketData);
+        
+        logger.log('Created Ticket', {
+          subtitle: newTicket.title,
+          description: `Ticket created by ${user?.full_name || 'User'}`
+        });
       }
       
       setIsAddTicketModalOpen(false);
@@ -186,6 +257,12 @@ export default function TicketsPage() {
         await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
           assignedTo: memberId
         });
+        
+        logger.log('Assigned Ticket', {
+          subtitle: selectedTicketForAction.title,
+          description: `Assigned to ${memberName}`
+        });
+
         setIsAssignModalOpen(false);
         setSelectedTicketForAction(null);
         setOpenMenuTicketId(null);
@@ -203,6 +280,12 @@ export default function TicketsPage() {
         await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
           status: newStatus as any
         });
+        
+        logger.log('Status Updated', {
+          subtitle: selectedTicketForAction.title,
+          description: `Status changed to ${newStatus}`
+        });
+
         setIsStatusModalOpen(false);
         setSelectedTicketForAction(null);
         setOpenMenuTicketId(null);
@@ -218,6 +301,12 @@ export default function TicketsPage() {
     if (selectedTicketForAction && currentTeam) {
       try {
         await ticketsApi.deleteTicket(currentTeam.id, selectedTicketForAction.id);
+        
+        logger.log('Deleted Ticket', {
+          subtitle: selectedTicketForAction.title,
+          description: `Ticket deleted by ${user?.full_name || 'User'}`
+        });
+
         setIsDeleteModalOpen(false);
         setSelectedTicketForAction(null);
         setOpenMenuTicketId(null);
@@ -270,15 +359,40 @@ export default function TicketsPage() {
   };
 
   return (
+    <>
+      <Modal
+        isOpen={showClockInWarning}
+        onClose={() => setShowClockInWarning(false)}
+        title="Clock In Required"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 dark:text-gray-300">
+            You must be clocked in to start a ticket timer. Would you like to clock in now?
+          </p>
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => setShowClockInWarning(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                toggleSession(currentTeam?.id);
+                setShowClockInWarning(false);
+              }}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Clock In
+            </button>
+          </div>
+        </div>
+      </Modal>
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tickets</h1>
-          <p className="text-gray-500 dark:text-gray-400">Manage and track your tasks</p>
-        </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         <button 
-          onClick={() => setIsAddTicketModalOpen(true)}
+          onClick={() => router.push('/dashboard/tickets/create')}
           className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
         >
           <Plus className="w-5 h-5" />
@@ -315,7 +429,7 @@ export default function TicketsPage() {
                 placeholder="Search tickets..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               />
             </div>
             <button className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
@@ -343,12 +457,11 @@ export default function TicketsPage() {
                   {/* Status Icon/Action */}
                   <button
                     onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-                    disabled={!isSessionActive}
                     className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                       activeTicketId === ticket.id
                         ? 'bg-blue-600 text-white shadow-md scale-105'
                         : 'bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400'
-                    } ${!isSessionActive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    } cursor-pointer`}
                   >
                     {activeTicketId === ticket.id ? (
                       <Square className="w-4 h-4 fill-current" />
@@ -376,6 +489,23 @@ export default function TicketsPage() {
                     <h3 className="text-base font-medium text-gray-900 dark:text-white truncate">
                       {ticket.title}
                     </h3>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Created by <span className="font-medium text-gray-700 dark:text-gray-300">{ticket.creatorName}</span>
+                    </div>
+                    {ticket.reference && (
+                      <div className="mt-1">
+                        <a 
+                          href={ticket.reference}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline max-w-full"
+                        >
+                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{ticket.reference}</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   {/* Meta Info (Hidden on mobile) */}
@@ -487,7 +617,7 @@ export default function TicketsPage() {
       {/* Modal for Stopping/Switching Tickets */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => { setIsModalOpen(false); setLink(''); }}
         title={modalType === 'stop' ? 'Stop Working' : 'Switch Ticket'}
       >
         <div className="space-y-4">
@@ -507,6 +637,19 @@ export default function TicketsPage() {
               placeholder="What did you work on?"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               rows={3}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Link (optional)
+            </label>
+            <input
+              type="url"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder="Paste a YouTube or Pulse link..."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
             />
           </div>
 
@@ -611,19 +754,40 @@ export default function TicketsPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 mt-6">
-            <button
-              onClick={handleAddTicket}
-              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
-            >
-              {isEditing ? "Update Ticket" : "Create Ticket"}
-            </button>
-            <button
-              onClick={() => setIsAddTicketModalOpen(false)}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              Cancel
-            </button>
+          <div className="mt-6">
+            {/* Desktop Actions */}
+            <div className="hidden md:flex flex-col gap-3">
+              <button
+                onClick={handleAddTicket}
+                className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+              >
+                {isEditing ? "Update Ticket" : "Create Ticket"}
+              </button>
+              <button
+                onClick={() => setIsAddTicketModalOpen(false)}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Mobile Actions - Icon based */}
+            <div className="flex -mx-4 -mb-4 border-t border-gray-100 dark:border-gray-700 md:hidden">
+              <button
+                onClick={() => setIsAddTicketModalOpen(false)}
+                className="flex-1 p-4 flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 active:bg-gray-50 dark:active:bg-gray-750"
+              >
+                <X className="w-5 h-5" />
+                <span className="font-medium">Cancel</span>
+              </button>
+              <button
+                onClick={handleAddTicket}
+                className="flex-1 p-4 flex items-center justify-center gap-2 text-green-600 dark:text-green-400 active:bg-green-50 dark:active:bg-green-900/10"
+              >
+                <Check className="w-5 h-5" />
+                <span className="font-medium">{isEditing ? "Update" : "Create"}</span>
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
@@ -751,38 +915,72 @@ export default function TicketsPage() {
               </div>
 
               {/* Description */}
-              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Description</h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {ticket.description || "No description provided."}
-                </p>
+              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700 relative group">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</h4>
+                  {user && ticket.createdBy === user.id && (
+                    <button
+                      onClick={() => openEditModal(ticket)}
+                      className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      title="Edit Description"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                
+                {ticket.description ? (
+                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                    {ticket.description}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                    No description provided.
+                    {user && ticket.createdBy === user.id && (
+                      <button 
+                        onClick={() => openEditModal(ticket)}
+                        className="ml-2 text-blue-600 dark:text-blue-400 hover:underline not-italic font-medium"
+                      >
+                        Add description
+                      </button>
+                    )}
+                  </p>
+                )}
+
                 {ticket.reference && (
-                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
                     <a 
                       href={ticket.reference} 
                       target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                      rel="noopener noreferrer" 
+                      className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline break-all group"
                     >
-                      <ExternalLink className="w-3 h-3" />
-                      Reference Link
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate">{ticket.reference}</span>
                     </a>
                   </div>
                 )}
               </div>
 
-              {/* Assignee */}
+              {/* Assignee / Assigner Info */}
               <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300">
-                    {ticket.assignee}
+                    {/* If current user created the ticket, show assignee. If someone else created it, show creator. */}
+                    {user && ticket.createdBy === user.id 
+                      ? ticket.assignee 
+                      : (ticket.creatorName ? ticket.creatorName.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) : 'CN')}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{ticket.assigneeName}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Currently assigned</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {user && ticket.createdBy === user.id ? ticket.assigneeName : ticket.creatorName}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {user && ticket.createdBy === user.id ? 'Assigned To' : 'Assigned By'} 
+                    </p>
                   </div>
                 </div>
-                {user && ticket.createdBy === user.id && (
+                {user && (ticket.createdBy === user.id || ticket.assigneeName === 'Unassigned') && (
                   <button 
                     onClick={(e) => {
                       setIsDetailModalOpen(false);
@@ -793,6 +991,24 @@ export default function TicketsPage() {
                     <UserPlus className="w-5 h-5" />
                   </button>
                 )}
+              </div>
+
+              {/* Creator Info */}
+              <div className="flex items-center justify-between px-1 text-sm text-gray-500 dark:text-gray-400 border-t border-b border-gray-100 dark:border-gray-700 py-3">
+                 <div className="flex flex-col">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-0.5">Created By</span>
+                    <span className="text-gray-900 dark:text-white font-medium">{ticket.creatorName}</span>
+                 </div>
+                 <div className="flex flex-col items-end">
+                    <span className="text-xs uppercase tracking-wider font-semibold mb-0.5">Created On</span>
+                    <span className="text-gray-900 dark:text-white font-medium">
+                        {new Date(ticket.createdAt).toLocaleDateString(undefined, { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric'
+                        })}
+                    </span>
+                 </div>
               </div>
 
               {/* Actions Grid */}
@@ -867,5 +1083,6 @@ export default function TicketsPage() {
         </div>
       </Modal>
     </div>
+    </>
   );
 }

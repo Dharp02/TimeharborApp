@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -8,14 +9,18 @@ import authRoutes from './routes/authRoutes';
 import teamRoutes from './routes/teamRoutes';
 import timeRoutes from './routes/timeRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
 import { startCleanupJob } from './jobs/cleanupTokens';
 import { initializeFirebase, initializeAPNs } from './services/notificationService';
+import { initializeSocket } from './socket/socketManager';
 
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+
 const PORT = Number(process.env.PORT) || 3001;
 
 // Security middleware
@@ -39,6 +44,7 @@ app.use('/auth', authRoutes);
 app.use('/teams', teamRoutes);
 app.use('/time', timeRoutes);
 app.use('/dashboard', dashboardRoutes);
+app.use('/notifications', notificationRoutes);
 
 // Health check
 app.get('/', (req, res) => {
@@ -78,8 +84,11 @@ const startServer = async () => {
     // Start token cleanup job
     startCleanupJob();
 
+    // Initialize Socket.IO
+    initializeSocket(httpServer);
+
     // Start server
-    app.listen(PORT, '0.0.0.0', () => {
+    httpServer.listen(PORT, '0.0.0.0', () => {
       console.log('\n═══════════════════════════════════════════════════════════');
       console.log('🚀 SERVER STARTED SUCCESSFULLY');
       console.log('═══════════════════════════════════════════════════════════');

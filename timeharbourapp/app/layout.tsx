@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import AuthProvider from "@/components/auth/AuthProvider";
 import SyncInitializer from "@/components/SyncInitializer";
+import { NotificationProvider } from "@/contexts/NotificationContext";
+import SocketLayout from "@/components/SocketLayout";
 
 // const geistSans = Geist({
 //   variable: "--font-geist-sans",
@@ -28,9 +30,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <SyncInitializer />
         <AuthProvider>
-          {children}
+          <NotificationProvider>
+            <SocketLayout>
+              <SyncInitializer />
+              {children}
+            </SocketLayout>
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

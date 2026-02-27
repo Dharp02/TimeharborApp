@@ -1,96 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, CheckCircle, LogIn, LogOut, Clock } from 'lucide-react';
-import { useTeam } from './TeamContext';
-import { useClockIn } from './ClockInContext';
-import * as API from '@/TimeharborAPI';
-import { Activity } from '@/TimeharborAPI/dashboard';
+import { ChevronRight, Clock } from 'lucide-react';
+import { useActivityLog } from './ActivityLogContext';
 
 export default function RecentActivity() {
-  const { currentTeam } = useTeam();
-  const { isSessionActive, activeTicketTitle, sessionStartTime, sessionDuration } = useClockIn();
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  useEffect(() => {
-    const fetchActivity = async () => {
-      try {
-        if (activities.length === 0) {
-          setLoading(true);
-        } else {
-          setIsRefreshing(true);
-        }
-        
-        const data = await API.dashboard.getActivity(currentTeam?.id);
-        setActivities(data);
-      } catch (error) {
-        console.error('Error fetching recent activity:', error);
-      } finally {
-        setLoading(false);
-        setIsRefreshing(false);
-      }
-    };
-
-    // If session just ended, wait a bit for sync to complete before fetching
-    if (!isSessionActive) {
-      const timer = setTimeout(() => {
-        fetchActivity();
-      }, 1000); // Wait 1 second for sync
-      return () => clearTimeout(timer);
-    } else {
-      fetchActivity();
-    }
-  }, [currentTeam?.id, isSessionActive]); // Re-fetch when session state changes
-
-  // Combine API activities with local active session
-  let displayActivities = [...activities];
-  
-  // If there's an active session locally, ensure it's displayed at the top
-  // We check if the API already returned an active session to avoid duplicates
-  const apiHasActiveSession = activities.some(a => a.status === 'Active');
-  
-  if (isSessionActive && !apiHasActiveSession) {
-    const now = new Date();
-    const startTime = sessionStartTime ? new Date(sessionStartTime).toISOString() : now.toISOString();
-    
-    const activeActivity: Activity = {
-      id: 'local-active-session',
-      type: 'SESSION',
-      title: 'Work Session',
-      subtitle: activeTicketTitle ? `Working on: ${activeTicketTitle}` : 'Clocked In',
-      startTime: startTime,
-      status: 'Active',
-      duration: sessionDuration
-    };
-    
-    displayActivities.unshift(activeActivity);
-  } else if (isSessionActive && apiHasActiveSession) {
-    // If API has active session, update its duration and subtitle from local state for better responsiveness
-    const index = displayActivities.findIndex(a => a.status === 'Active');
-    if (index !== -1) {
-      displayActivities[index] = {
-        ...displayActivities[index],
-        subtitle: activeTicketTitle ? `Working on: ${activeTicketTitle}` : displayActivities[index].subtitle,
-        duration: sessionDuration
-      };
-    }
-  } else if (!isSessionActive && apiHasActiveSession) {
-    // Optimistic update: If we are not active locally, but API says active, 
-    // it means we just clocked out and are waiting for the server to update.
-    // Show it as completed optimistically to prevent "vanishing" or "flashing".
-    const index = displayActivities.findIndex(a => a.status === 'Active');
-    if (index !== -1) {
-      displayActivities[index] = {
-        ...displayActivities[index],
-        status: 'Completed',
-        endTime: new Date().toISOString(),
-        subtitle: displayActivities[index].subtitle || 'Session ended'
-      };
-    }
-  }
+  const { activities } = useActivityLog();
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -102,32 +17,26 @@ export default function RecentActivity() {
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   };
 
-  if (loading) {
-    return <div className="h-64 bg-white dark:bg-gray-800 rounded-2xl shadow-sm animate-pulse" />;
-  }
+  // Helper to format duration if needed, though most activities might pre-calculate it
+  const formatDuration = (ms: number) => {
+      const hours = Math.floor(ms / (1000 * 60 * 60));
+      const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+      return `${hours}h ${minutes}m`;
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
           Recent Activity
-          {isRefreshing && (
-            <div className="w-3 h-3 md:w-4 md:h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          )}
         </h2>
-        <Link 
-          href="/dashboard/activity" 
-          className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
-        >
-          See All <ChevronRight className="w-4 h-4" />
-        </Link>
       </div>
 
       <div className="space-y-3 md:space-y-4">
-        {displayActivities.length === 0 ? (
+        {activities.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400 text-center py-4">No recent activity</p>
         ) : (
-          displayActivities.map((activity) => (
+          activities.slice(0, 10).map((activity) => (
             <div 
               key={activity.id}
               className={`p-3 md:p-4 rounded-xl border transition-colors ${
@@ -157,9 +66,24 @@ export default function RecentActivity() {
                     <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                       {activity.subtitle}
                     </p>
+                    {activity.description && (
+                      <p className="text-sm md:text-base font-bold text-gray-700 dark:text-gray-200 mt-0.5">
+                        "{activity.description}"
+                      </p>
+                    )}
+                    {activity.link && (
+                      <a
+                        href={activity.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+                      >
+                        🔗 {activity.link}
+                      </a>
+                    )}
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       {formatDate(activity.startTime)}, {formatTime(activity.startTime)}
-                      {activity.endTime ? ` - ${formatTime(activity.endTime)}` : ' - Now'}
+                      {activity.endTime ? ` - ${formatTime(activity.endTime)}` : ''}
                     </p>
                   </div>
                 </div>
@@ -177,6 +101,15 @@ export default function RecentActivity() {
             </div>
           ))
         )}
+      </div>
+      
+      <div className="mt-4 flex justify-end">
+        <Link 
+          href="/dashboard/activity" 
+          className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
+        >
+          See All <ChevronRight className="w-4 h-4" />
+        </Link>
       </div>
     </div>
   );

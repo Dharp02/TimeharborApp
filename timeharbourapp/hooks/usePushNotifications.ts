@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { onAuthStateChange } from '@/TimeharborAPI/auth';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export function usePushNotifications() {
   const initialized = useRef(false);
   const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const { addNotification } = useNotifications();
 
   useEffect(() => {
     // Only run on native platforms
@@ -134,33 +136,72 @@ export function usePushNotifications() {
       // Listener: Notification received when app is in foreground
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('📬 Push notification received (foreground):', notification);
-        // You can show a custom UI here or handle the notification
-        // For now, we'll just log it
+        // Add to notification context history
+        addNotification({
+          title: notification.title || 'New Notification',
+          message: notification.body || '',
+          data: notification.data
+        });
       });
 
       // Listener: User tapped on a notification
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-        console.log('👆 Push notification tapped:', notification);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('👆 [NOTIFICATION TAP] User tapped notification');
+        
+        // Add to notification history if not already present
+        addNotification({
+          title: notification.notification.title || 'New Notification',
+          message: notification.notification.body || '',
+          data: notification.notification.data
+        });
+
+        console.log('📋 [NOTIFICATION TAP] Full notification:', JSON.stringify(notification, null, 2));
+        console.log('📋 [NOTIFICATION TAP] Data:', JSON.stringify(notification.notification.data, null, 2));
         
         const data = notification.notification.data;
+        console.log('🔍 [NOTIFICATION TAP] Type:', data?.type);
+        console.log('🔍 [NOTIFICATION TAP] Member ID:', data?.memberId);
+        console.log('🔍 [NOTIFICATION TAP] Team ID:', data?.teamId);
+        
+        let targetUrl = '/dashboard'; // default
         
         // Handle navigation based on notification type
         if (data?.type === 'ticket_assigned' && data?.ticketId) {
-          // Navigate to ticket detail
-          window.location.href = `/dashboard/tickets/${data.ticketId}`;
+          targetUrl = `/dashboard/tickets/${data.ticketId}`;
+          console.log('🎯 [NOTIFICATION TAP] Navigating to ticket:', targetUrl);
         } else if (data?.type === 'team_invitation' && data?.teamId) {
-          // Navigate to team detail
-          window.location.href = `/dashboard/teams/${data.teamId}`;
+          targetUrl = `/dashboard/teams/${data.teamId}`;
+          console.log('🎯 [NOTIFICATION TAP] Navigating to team:', targetUrl);
         } else if (data?.type === 'new_team_member' && data?.teamId) {
-          // Navigate to team detail
-          window.location.href = `/dashboard/teams/${data.teamId}`;
-        } else if (data?.type === 'clock_in' && data?.teamId) {
-          // Navigate to activity page to see team member activity
-          window.location.href = `/dashboard/activity`;
+          targetUrl = `/dashboard/teams/${data.teamId}`;
+          console.log('🎯 [NOTIFICATION TAP] Navigating to team (new member):', targetUrl);
+        } else if ((data?.type === 'clock_in' || data?.type === 'clock_out') && data?.memberId && data?.teamId) {
+          targetUrl = `/dashboard/member?id=${data.memberId}&teamId=${data.teamId}`;
+          console.log('🎯 [NOTIFICATION TAP] Navigating to member page:', targetUrl);
         } else {
-          // Default: navigate to dashboard
-          window.location.href = '/dashboard';
+          console.log('⚠️  [NOTIFICATION TAP] No specific route, using default dashboard');
         }
+        
+        console.log('🚀 [NOTIFICATION TAP] Final target URL:', targetUrl);
+        
+        // Store navigation intent for the app to handle
+        try {
+          // Prevent race conditions by checking if we're already handling this navigation
+          const currentPending = localStorage.getItem('pendingNavigation');
+          if (currentPending !== targetUrl) {
+             localStorage.setItem('pendingNavigation', targetUrl);
+          }
+        } catch (e) {
+          console.error('Error handling navigation storage:', e);
+        }
+        
+        // Try to navigate
+        if (typeof window !== 'undefined') {
+          window.location.href = targetUrl;
+        }
+        
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       });
 
       console.log('👂 [LISTENERS] All listeners registered');

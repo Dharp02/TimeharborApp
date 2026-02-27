@@ -70,6 +70,17 @@ class SyncManager {
           break;
         }
 
+        // If it's a client error (4xx), the request is invalid and retrying won't help. 
+        // We should delete it to unblock the queue.
+        if (error.message.startsWith('CLIENT_ERROR')) {
+           console.warn(`Mutation ${mutation.id} failed with client error, removing from queue:`, error.message);
+           if (mutation.id) {
+             await db.offlineMutations.delete(mutation.id);
+           }
+           // Continue to next mutation
+           continue;
+        }
+
         // Stop processing to maintain order
         break; 
       }
@@ -79,8 +90,16 @@ class SyncManager {
   private async processMutation(mutation: OfflineMutation) {
     const { url, method, body, tempId } = mutation;
     
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.39:3001';
-    const fullUrl = url.startsWith('http') ? url : `${backendUrl}${url}`;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.8:8080/api';
+    
+    // Strip /api prefix from mutation URL to avoid duplication or 404s
+    // blocked by backend not expecting /api prefix when hitting directly
+    let relativeUrl = url;
+    if (relativeUrl.startsWith('/api/')) {
+      relativeUrl = relativeUrl.substring(4); 
+    }
+    
+    const fullUrl = url.startsWith('http') ? url : `${backendUrl}${relativeUrl}`;
 
     const response = await authenticatedFetch(fullUrl, {
       method,
@@ -91,7 +110,15 @@ class SyncManager {
       if (response.status === 401) {
         throw new Error('Session expired. Please sign in again.');
       }
-      throw new Error(`HTTP error! status: ${response.status}`);
+      
+      // If client error (4xx), throw a specific error that we can catch and handle (delete mutation)
+      if (response.status >= 400 && response.status < 500) {
+        const text = await response.text();
+        throw new Error(`CLIENT_ERROR: ${response.status} - ${text}`);
+      }
+
+      const responseText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
     }
 
     // Handle ID updates if the server returns a new ID
@@ -198,4 +225,8 @@ class SyncManager {
   }
 }
 
-export const syncManager = SyncManager.getInstance();
+// Create the sync manager instance only in browser environments
+// This prevents initialization errors during Server-Side Rendering (SSR)
+export const syncManager = typeof window !== 'undefined' 
+  ? SyncManager.getInstance() 
+  : {} as SyncManager;

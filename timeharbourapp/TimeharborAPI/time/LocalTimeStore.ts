@@ -9,7 +9,8 @@ export class LocalTimeStore {
     ticketId: string | null = null, 
     ticketTitle: string | null = null,
     comment: string | null = null,
-    teamId: string | null = null
+    teamId: string | null = null,
+    link: string | null = null
   ): Promise<void> {
     await db.events.add({
       id: uuidv4(),
@@ -20,6 +21,7 @@ export class LocalTimeStore {
       teamId,
       ticketTitle,
       comment,
+      link,
       synced: 0
     });
   }
@@ -36,8 +38,8 @@ export class LocalTimeStore {
     return this.logEvent(userId, 'START_TICKET', ticketId, ticketTitle, null, teamId);
   }
 
-  async stopTicket(userId: string, ticketId: string, comment: string | null = null, teamId: string | null = null) {
-    return this.logEvent(userId, 'STOP_TICKET', ticketId, null, comment, teamId);
+  async stopTicket(userId: string, ticketId: string, comment: string | null = null, teamId: string | null = null, link: string | null = null) {
+    return this.logEvent(userId, 'STOP_TICKET', ticketId, null, comment, teamId, link);
   }
 
   async getPendingEvents() {

@@ -1,41 +1,85 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus, Search, X, Shield, ShieldAlert } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useTeam, Team, Member } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { TeamActivityReport } from '@/components/dashboard/TeamActivityReport';
 import { copyText } from '@/lib/utils';
+import { useLogger } from '@/hooks/useLogger';
 
 export default function TeamsPage() {
+  const logger = useLogger();
   const { user } = useAuth();
-  const { currentTeam, teams, joinTeam, createTeam, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, refreshTeams } = useTeam();
-  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { currentTeam, teams, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, updateMemberRole, refreshTeams, joinTeam, createTeam } = useTeam();
+  const [activeTab, setActiveTab] = useState<'teaminfo' | 'teamactivity'>('teaminfo');
 
   useEffect(() => {
     refreshTeams();
   }, []);
 
+  // When team changes, set default tab based on role
+  useEffect(() => {
+    if (currentTeam) {
+      setEditTeamName(currentTeam.name);
+      if (currentTeam.role === 'Leader') {
+        setActiveTab('teamactivity');
+      } else {
+        setActiveTab('teaminfo');
+      }
+    }
+  }, [currentTeam?.id]); // Only run when team ID changes
+
+  // Ensure non-leaders can't see team activity if role changes while on that tab
+  useEffect(() => {
+    if (currentTeam && currentTeam.role !== 'Leader' && activeTab === 'teamactivity') {
+      setActiveTab('teaminfo');
+    }
+  }, [currentTeam?.role, activeTab]);
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [isRemoveMemberModalOpen, setIsRemoveMemberModalOpen] = useState(false);
-  const [selectedTeamForAction, setSelectedTeamForAction] = useState<Team | null>(null);
-  const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
-  
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [createdTeamCode, setCreatedTeamCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
-  const [newTeamName, setNewTeamName] = useState('');
+  const [selectedTeamForAction, setSelectedTeamForAction] = useState<Team | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<Member | null>(null);
+  
   const [editTeamName, setEditTeamName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [addMemberError, setAddMemberError] = useState<string | null>(null);
   const [isAddingMember, setIsAddingMember] = useState(false);
-  const [createdTeamCode, setCreatedTeamCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [headerCopied, setHeaderCopied] = useState(false);
+  
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  
+  const [teamActionsOpen, setTeamActionsOpen] = useState(false);
+  const teamActionsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (teamActionsRef.current && !teamActionsRef.current.contains(event.target as Node)) {
+        setTeamActionsOpen(false);
+      }
+    };
+
+    if (teamActionsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [teamActionsOpen]);
 
   const handleJoinTeam = async () => {
     if (!joinCode.trim()) return;
@@ -46,6 +90,11 @@ export default function TeamsPage() {
     const result = await joinTeam(joinCode);
     
     if (result.success) {
+      logger.log('Joined Team', { 
+        subtitle: joinCode, 
+        description: 'Joined via code',
+        teamId: result.teamId // Ensure we log to the new team activity log
+      });
       setIsJoinModalOpen(false);
       setJoinCode('');
     } else {
@@ -56,15 +105,25 @@ export default function TeamsPage() {
   };
 
   const handleCreateTeam = async () => {
-    const code = await createTeam(newTeamName);
-    setCreatedTeamCode(code);
+    try {
+      const newTeam = await createTeam(newTeamName);
+      // Log ensuring it goes to the NEW team storage
+      logger.log('Created Team', { 
+        subtitle: newTeamName, 
+        description: 'Created new team',
+        teamId: newTeam.id 
+      });
+      setCreatedTeamCode(newTeam.code);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const closeCreateModal = () => {
     setIsCreateModalOpen(false);
     setNewTeamName('');
     setCreatedTeamCode(null);
-    setCopied(false);
+    setHeaderCopied(false);
   };
 
   const openEditModal = (team: Team) => {
@@ -73,9 +132,10 @@ export default function TeamsPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleEditTeam = () => {
+  const handleEditTeam = async () => {
     if (selectedTeamForAction && editTeamName.trim()) {
-      updateTeamName(selectedTeamForAction.id, editTeamName);
+      await updateTeamName(selectedTeamForAction.id, editTeamName);
+      logger.log('Updated Team', { subtitle: `${selectedTeamForAction.name} -> ${editTeamName}` });
       setIsEditModalOpen(false);
       setSelectedTeamForAction(null);
       setEditTeamName('');
@@ -87,9 +147,10 @@ export default function TeamsPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteTeam = () => {
+  const handleDeleteTeam = async () => {
     if (selectedTeamForAction) {
-      deleteTeam(selectedTeamForAction.id);
+      await deleteTeam(selectedTeamForAction.id);
+      logger.log('Deleted Team', { subtitle: selectedTeamForAction.name });
       setIsDeleteModalOpen(false);
       setSelectedTeamForAction(null);
     }
@@ -128,16 +189,6 @@ export default function TeamsPage() {
     }
   };
 
-  const copyToClipboard = async () => {
-    if (createdTeamCode) {
-      const success = await copyText(createdTeamCode);
-      if (success) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
-    }
-  };
-
   const copyHeaderCode = async () => {
     if (currentTeam?.code) {
       const success = await copyText(currentTeam.code);
@@ -149,321 +200,335 @@ export default function TeamsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Teams</h1>
-          {currentTeam && (
-            <div className="flex items-center gap-2 px-2 md:px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-              <span className="text-xs md:text-sm font-mono text-gray-600 dark:text-gray-300">
-                Code: {currentTeam.code}
-              </span>
+    <div className="pt-0 pb-4 md:p-6 space-y-4">
+      <div className="mt-0">
+        {!currentTeam ? (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400 mx-4 md:mx-0 flex flex-col items-center gap-4">
+            <p>Please select or join a team to view members.</p>
+            <div className="flex gap-4">
               <button
-                onClick={copyHeaderCode}
-                className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                title="Copy Team Code"
+                 onClick={() => setIsJoinModalOpen(true)}
+                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                {headerCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                 Join Team
+              </button>
+              <button
+                 onClick={() => setIsCreateModalOpen(true)}
+                 className="px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              >
+                 Create Team
               </button>
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 md:gap-4">
-        <button 
-          onClick={() => setIsJoinModalOpen(true)}
-          className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 p-4 md:p-6 rounded-xl border-2 border-blue-100 dark:border-blue-900 hover:border-blue-500 dark:hover:border-blue-500 bg-blue-50 dark:bg-blue-900/20 transition-all group"
-        >
-          <div className="p-2 md:p-3 bg-blue-100 dark:bg-blue-800 rounded-full group-hover:bg-blue-200 dark:group-hover:bg-blue-700 transition-colors">
-            <Users className="w-5 h-5 md:w-6 md:h-6 text-blue-600 dark:text-blue-300" />
-          </div>
-          <div className="text-center md:text-left">
-            <h3 className="text-sm md:text-base font-semibold text-gray-900 dark:text-white">Join a Team</h3>
-            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 hidden md:block">Find your team and start collaborating</p>
-            <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 md:hidden">Find & join</p>
-          </div>
-        </button>
-
-        <button 
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 p-4 md:p-6 rounded-xl border-2 border-purple-100 dark:border-purple-900 hover:border-purple-500 dark:hover:border-purple-500 bg-purple-50 dark:bg-purple-900/20 transition-all group"
-        >
-          <div className="p-2 md:p-3 bg-purple-100 dark:bg-purple-800 rounded-full group-hover:bg-purple-200 dark:group-hover:bg-purple-700 transition-colors">
-            <Plus className="w-5 h-5 md:w-6 md:h-6 text-purple-600 dark:text-purple-300" />
-          </div>
-          <div className="text-center md:text-left">
-            <h3 className="text-sm md:text-base font-semibold text-gray-900 dark:text-white">Create a Team</h3>
-            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 hidden md:block">Set up a new workspace for your team</p>
-            <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 md:hidden">New workspace</p>
-          </div>
-        </button>
-      </div>
-
-      <div className="mt-6 md:mt-8">
-        <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3 md:mb-4">Your Team</h2>
-        
-        {!currentTeam ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400">
-            <p>Please select or join a team to view members.</p>
           </div>
         ) : (
-          <div className="space-y-6">
-              <div 
-                key={currentTeam.id} 
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border-2 border-blue-500 dark:border-blue-500 transition-all"
-              >
-                <div className="p-4 md:p-6">
-                  <div className="flex justify-between items-start mb-4 md:mb-6">
-                    <div className="flex-1 min-w-0 mr-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white truncate">
-                          {currentTeam.name}
-                        </h3>
-                        {currentTeam.role === 'Leader' && (
-                          <span className="px-2 py-0.5 text-xs md:text-sm font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
-                            Leader
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-1 md:mt-2 break-words">
-                        {currentTeam.members.length} members
-                      </p>
-                    </div>
-                    
+          <>
+            {/* Tabs */}
+            <div className="flex mb-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
                     {currentTeam.role === 'Leader' && (
-                      <div className="flex items-center gap-1 md:gap-2 shrink-0">
+                      <>
                         <button
-                          onClick={() => openEditModal(currentTeam)}
-                          className="p-1.5 md:p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="Edit Team"
+                          onClick={() => setActiveTab('teamactivity')}
+                          className={`flex-1 px-3 py-3 text-sm md:text-base font-medium transition-all ${
+                            activeTab === 'teamactivity'
+                              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                          }`}
                         >
-                          <Edit2 className="w-4 h-4 md:w-5 md:h-5" />
+                          Team Activity
                         </button>
-                        <button
-                          onClick={() => openDeleteModal(currentTeam)}
-                          className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Delete Team"
-                        >
-                          <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
-                        </button>
+                        <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
+                      </>
+                    )}
+                    <button
+                      onClick={() => setActiveTab('teaminfo')}
+                      className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
+                        activeTab === 'teaminfo'
+                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                      }`}
+                    >
+                      Team Info
+                    </button>
+                  </div>
+
+                  {/* Tab Content */}
+                  <div>
+                    {activeTab === 'teaminfo' && (
+                      <div className="space-y-4">
+                        {/* Team Name & Code Section */}
+                        <div className="relative pt-2">
+                          {/* Team Name with Dropdown */}
+                          <div className="relative inline-block" ref={teamActionsRef}>
+                            <h3 
+                              onClick={() => {
+                                if (currentTeam.role === 'Leader') {
+                                  setTeamActionsOpen(!teamActionsOpen);
+                                }
+                              }}
+                              className={`text-2xl font-bold text-gray-900 dark:text-white ${
+                                currentTeam.role === 'Leader' 
+                                  ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors' 
+                                  : ''
+                              }`}
+                            >
+                              {currentTeam.name}
+                            </h3>
+
+                            {/* Dropdown Menu */}
+                            {teamActionsOpen && currentTeam.role === 'Leader' && (
+                              <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 animate-in fade-in zoom-in duration-200">
+                                <button
+                                  onClick={() => {
+                                    setEditTeamName(currentTeam.name);
+                                    setIsEditModalOpen(true);
+                                    setTeamActionsOpen(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                  Edit Name
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedTeamForAction(currentTeam);
+                                    setIsDeleteModalOpen(true);
+                                    setTeamActionsOpen(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Delete Team
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Team Code Below Name */}
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Code:</span>
+                            <span className="text-sm font-mono font-medium text-gray-900 dark:text-white">
+                              {currentTeam.code}
+                            </span>
+                            <button
+                              onClick={copyHeaderCode}
+                              className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                              title="Copy team code"
+                            >
+                              {headerCopied ? (
+                                <Check className="w-3 h-3" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="pt-1 md:pt-1">
+                          <div className="flex justify-between items-center mb-2 md:mb-3">
+                            <div>
+                              <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
+                                Collaborators
+                              </h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {currentTeam.members.length} members
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {/* Search Component */}
+                              <div className={`flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg transition-all duration-300 ${isSearchOpen ? 'w-48 px-2 py-1' : 'w-8 h-8 md:w-9 md:h-9 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 justify-center'}`}>
+                                {isSearchOpen ? (
+                                   <>
+                                     <Search className="w-4 h-4 text-gray-500 flex-shrink-0 mr-2" />
+                                     <input 
+                                        autoFocus
+                                        type="text"
+                                        placeholder="Search members..."
+                                        value={memberSearchQuery}
+                                        onChange={(e) => setMemberSearchQuery(e.target.value)}
+                                        className="bg-transparent border-none outline-none text-sm w-full text-gray-900 dark:text-gray-100 placeholder-gray-500"
+                                        onBlur={() => {
+                                           if (!memberSearchQuery) setIsSearchOpen(false);
+                                        }}
+                                     />
+                                     <button 
+                                        onClick={() => {
+                                           setMemberSearchQuery('');
+                                           setIsSearchOpen(false);
+                                        }}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                   </>
+                                ) : (
+                                   <button onClick={() => setIsSearchOpen(true)} className="flex items-center justify-center w-full h-full text-gray-500 dark:text-gray-400">
+                                      <Search className="w-4 h-4" />
+                                   </button>
+                                )}
+                              </div>
+
+                              {currentTeam.role === 'Leader' && (
+                                <button
+                                  onClick={() => setIsAddMemberModalOpen(true)}
+                                  className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                                  title="Add Member"
+                                >
+                                  <Plus className="w-5 h-5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {[...currentTeam.members]
+                              .filter(member => 
+                                 (member.name || '').toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
+                                 (member.email || '').toLowerCase().includes(memberSearchQuery.toLowerCase())
+                              )
+                              .sort((a, b) => {
+                                if (a.role === 'Leader' && b.role !== 'Leader') return -1;
+                                if (a.role !== 'Leader' && b.role === 'Leader') return 1;
+                                  return 0;
+                              })
+                              .map((member) => {
+                              const isLeader = currentTeam.role === 'Leader';
+                              const isSelf = user?.id === member.id;
+
+                              if (!isLeader || isSelf) {
+                                return (
+                                  <div 
+                                    key={member.id}
+                                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
+                                  >
+                                    <div className="relative">
+                                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm ${member.status === 'online' ? 'ring-2 ring-green-500 ring-offset-2 dark:ring-offset-gray-900' : ''}`}>
+                                        {member.name.charAt(0)}
+                                      </div>
+                                      {member.status === 'online' && (
+                                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full z-10"></div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900 dark:text-white truncate">
+                                          {member.name}
+                                        </p>
+                                        {member.role === 'Leader' && (
+                                          <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                            Leader
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                        {member.email}
+                                      </p>
+                                    </div>
+                                    {isLeader && !isSelf && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          openRemoveMemberModal(member);
+                                        }}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Remove Member"
+                                      >
+                                        <UserMinus className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <Link 
+                                  href={`/dashboard/member?id=${member.id}&teamId=${currentTeam.id}&name=${encodeURIComponent(member.name)}`}
+                                  key={member.id}
+                                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                                >
+                                  <div className="relative">
+                                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm ${member.status === 'online' ? 'ring-2 ring-green-500 ring-offset-2 dark:ring-offset-gray-900' : ''}`}>
+                                      {member.name.charAt(0)}
+                                    </div>
+                                    {member.status === 'online' && (
+                                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full z-10"></div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-medium text-gray-900 dark:text-white truncate">
+                                        {member.name}
+                                      </p>
+                                      {member.role === 'Leader' && (
+                                        <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                          Leader
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                      {member.email}
+                                    </p>
+                                  </div>
+                                  {currentTeam.role === 'Leader' && member.id !== user?.id && (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          const newRole = member.role === 'Leader' ? 'Member' : 'Leader';
+                                          const action = newRole === 'Leader' ? 'make admin' : 'remove admin rights';
+                                          if (confirm(`Are you sure you want to ${action} for ${member.name}?`)) {
+                                            updateMemberRole(currentTeam.id, member.id, newRole);
+                                          }
+                                        }}
+                                        className={`p-1.5 rounded-lg transition-colors ${
+                                          member.role === 'Leader'
+                                            ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40'
+                                            : 'text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                                        }`}
+                                        title={member.role === 'Leader' ? "Remove Admin Rights" : "Make Admin"}
+                                      >
+                                        {member.role === 'Leader' ? <ShieldAlert className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          openRemoveMemberModal(member);
+                                        }}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Remove Member"
+                                      >
+                                        <UserMinus className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'teamactivity' && (
+                      <div className="space-y-4">
+                        <TeamActivityReport />
                       </div>
                     )}
                   </div>
-
-                  <div className="border-t border-gray-100 dark:border-gray-700 pt-4 md:pt-6">
-                    <div className="flex justify-between items-center mb-3 md:mb-4">
-                      <h4 className="text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300">
-                        Collaborators
-                      </h4>
-                      {currentTeam.role === 'Leader' && (
-                        <button
-                          onClick={() => setIsAddMemberModalOpen(true)}
-                          className="flex items-center gap-1.5 md:gap-2 px-2.5 py-1.5 text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
-                        >
-                          <UserPlus className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                          Add Member
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {currentTeam.members.map((member) => (
-                        <div 
-                          key={member.id}
-                          className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
-                        >
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm">
-                            {member.name.charAt(0)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-white truncate">
-                              {member.name}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                              {member.email}
-                            </p>
-                          </div>
-                          {currentTeam.role === 'Leader' && member.id !== user?.id && (
-                            <button
-                              onClick={() => openRemoveMemberModal(member)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="Remove Member"
-                            >
-                              <UserMinus className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-          </div>
+          </>
         )}
       </div>
-
-      {/* Team Activity Report */}
-      {currentTeam && (
-        <div className="mt-8">
-          <TeamActivityReport />
-        </div>
-      )}
-
-      {/* Join Team Modal */}
-      <Modal
-        isOpen={isJoinModalOpen}
-        onClose={() => {
-          setIsJoinModalOpen(false);
-          setJoinError(null);
-          setJoinCode('');
-        }}
-        title="Join a Team"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Enter the 6-digit code provided by your team admin to join.
-          </p>
-          
-          {joinError && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800 animate-in fade-in slide-in-from-top-2">
-              {joinError}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Team Code
-            </label>
-            <input
-              type="text"
-              value={joinCode}
-              onChange={(e) => {
-                setJoinCode(e.target.value.toUpperCase());
-                setJoinError(null);
-              }}
-              placeholder="e.g. 123456"
-              maxLength={6}
-              disabled={isJoining}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono text-center tracking-widest text-lg uppercase disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={() => {
-                setIsJoinModalOpen(false);
-                setJoinError(null);
-                setJoinCode('');
-              }}
-              disabled={isJoining}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleJoinTeam}
-              disabled={joinCode.length < 6 || isJoining}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isJoining ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Joining...
-                </>
-              ) : (
-                'Join Team'
-              )}
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Create Team Modal */}
-      <Modal
-        isOpen={isCreateModalOpen}
-        onClose={closeCreateModal}
-        title="Create a Team"
-      >
-        <div className="space-y-4">
-          {!createdTeamCode ? (
-            <>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Give your new team a name. You'll get a code to share with your members.
-              </p>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Team Name
-                </label>
-                <input
-                  type="text"
-                  value={newTeamName}
-                  onChange={(e) => setNewTeamName(e.target.value)}
-                  placeholder="e.g. Engineering Team"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={closeCreateModal}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateTeam}
-                  disabled={!newTeamName.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Create Team
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="text-center space-y-6 py-4">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
-                <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Team Created!</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Share this code with your team members
-                </p>
-              </div>
-
-              <div className="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between gap-4">
-                <span className="font-mono text-2xl font-bold tracking-widest text-gray-900 dark:text-white">
-                  {createdTeamCode}
-                </span>
-                <button
-                  onClick={copyToClipboard}
-                  className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                  title="Copy Code"
-                >
-                  {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                </button>
-              </div>
-
-              <button
-                onClick={closeCreateModal}
-                className="w-full px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:opacity-90 transition-opacity"
-              >
-                Done
-              </button>
-            </div>
-          )}
-        </div>
-      </Modal>
 
       {/* Edit Team Modal */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit Team"
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditTeamName(currentTeam?.name || '');
+        }}
+        title="Edit Team Name"
       >
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Team Name
@@ -473,19 +538,28 @@ export default function TeamsPage() {
               value={editTeamName}
               onChange={(e) => setEditTeamName(e.target.value)}
               placeholder="e.g. Engineering Team"
+              autoFocus
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
             <button
-              onClick={() => setIsEditModalOpen(false)}
+              onClick={() => {
+                setIsEditModalOpen(false);
+                setEditTeamName(currentTeam?.name || '');
+              }}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
-              onClick={handleEditTeam}
+              onClick={() => {
+                if (currentTeam && editTeamName.trim()) {
+                  updateTeamName(currentTeam.id, editTeamName);
+                  setIsEditModalOpen(false);
+                }
+              }}
               disabled={!editTeamName.trim()}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -607,6 +681,153 @@ export default function TeamsPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Join Team Modal */}
+      <Modal
+        isOpen={isJoinModalOpen}
+        onClose={() => {
+          setIsJoinModalOpen(false);
+          setJoinCode('');
+          setJoinError(null);
+        }}
+        title="Join a Team"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Team Code
+            </label>
+            <input
+              type="text"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              placeholder="Enter team code"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+            {joinError && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                {joinError}
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => {
+                setIsJoinModalOpen(false);
+                setJoinCode('');
+                setJoinError(null);
+              }}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleJoinTeam}
+              disabled={!joinCode.trim() || isJoining}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isJoining ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Joining...
+                </>
+              ) : (
+                'Join Team'
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Create Team Modal */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setNewTeamName('');
+          setCreatedTeamCode(null);
+        }}
+        title="Create New Team"
+      >
+        {createdTeamCode ? (
+          <div className="text-center py-4">
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600 dark:text-green-400">
+              <Check className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Team Created Successfully!</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+              Share this code with your team members to invite them.
+            </p>
+            
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 mb-6">
+              <code className="flex-1 font-mono text-lg font-bold text-center tracking-wider text-gray-800 dark:text-gray-200">
+                {createdTeamCode}
+              </code>
+              <button
+                onClick={async () => {
+                  if (createdTeamCode) {
+                    await copyText(createdTeamCode);
+                    setHeaderCopied(true);
+                    setTimeout(() => setHeaderCopied(false), 2000);
+                  }
+                }}
+                className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+                title="Copy Code"
+              >
+                {headerCopied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+              </button>
+            </div>
+            
+            <button
+              onClick={() => {
+                setIsCreateModalOpen(false);
+                setNewTeamName('');
+                setCreatedTeamCode(null);
+                refreshTeams();
+              }}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Team Name
+              </label>
+              <input
+                type="text"
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+                placeholder="e.g. Design Team"
+                autoFocus
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  setNewTeamName('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTeam}
+                disabled={!newTeamName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Create Team
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

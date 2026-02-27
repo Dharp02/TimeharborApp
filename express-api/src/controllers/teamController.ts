@@ -1,5 +1,6 @@
 import { Response } from 'express';
-import { Team, Member } from '../models';
+import { Op } from 'sequelize';
+import { Team, Member, WorkLog, Ticket } from '../models';
 import { AuthRequest } from '../middleware/authMiddleware';
 import logger from '../utils/logger';
 import User from '../models/User';
@@ -333,5 +334,143 @@ export const removeMember = async (req: AuthRequest, res: Response): Promise<voi
   } catch (error) {
     logger.error('Error removing member:', error);
     res.status(500).json({ error: 'Failed to remove member' });
+  }
+};
+
+export const getTeamActivity = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    // Check if user is member of the team
+    const member = await Member.findOne({
+      where: {
+        userId,
+        teamId: id
+      }
+    });
+
+    if (!member) {
+      res.status(403).json({ error: 'You are not a member of this team' });
+      return;
+    }
+
+    const activities = await WorkLog.findAll({
+      where: { 
+        teamId: id,
+        userId: { [Op.ne]: userId as string }
+      },
+      order: [['timestamp', 'DESC']],
+      limit,
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'full_name', 'email'],
+          include: [
+            {
+               model: Member,
+               as: 'memberships',
+               where: { teamId: id },
+               required: false,
+               attributes: ['role']
+            }
+          ]
+        },
+        {
+          model: Ticket,
+          as: 'ticket',
+          attributes: ['id', 'title']
+        }
+      ]
+    });
+
+    res.status(200).json(activities);
+  } catch (error) {
+    logger.error('Error fetching team activity:', error);
+    res.status(500).json({ error: 'Failed to fetch team activity' });
+  }
+};
+
+export const updateMemberRole = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id, userId: targetUserId } = req.params;
+    const { role } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    if (!targetUserId || !role) {
+      res.status(400).json({ error: 'Target user ID and role are required' });
+      return;
+    }
+
+    if (!['Leader', 'Member'].includes(role)) {
+      res.status(400).json({ error: 'Invalid role. Must be "Leader" or "Member".' });
+      return;
+    }
+
+    // Check if requester is a Leader of the team
+    const requester = await Member.findOne({
+      where: {
+        userId,
+        teamId: id,
+        role: 'Leader'
+      }
+    });
+
+    if (!requester) {
+      res.status(403).json({ error: 'Only team leaders can update member roles' });
+      return;
+    }
+  
+    // Find the member to update
+    const memberToUpdate = await Member.findOne({
+      where: {
+        userId: targetUserId,
+        teamId: id
+      }
+    });
+  
+    if (!memberToUpdate) {
+      // It might be possible the member exists but not in this team, check strictly
+      // But query includes teamId, so if not found, he's not in team.
+      res.status(404).json({ error: 'Member not found in this team' });
+      return;
+    }
+    
+    // Check if trying to demote self (only remaining leader check?)
+    if (requester.userId === memberToUpdate.userId && role === 'Member') {
+       // Check if there are other leaders
+       const leaderCount = await Member.count({
+         where: {
+           teamId: id,
+           role: 'Leader'
+         }
+       });
+       
+       if (leaderCount <= 1) {
+         res.status(400).json({ error: 'Cannot demote the last remaining leader. Promote someone else first.' });
+         return;
+       }
+    }
+
+    memberToUpdate.role = role;
+    await memberToUpdate.save();
+
+    res.status(200).json({ message: 'Member role updated successfully', member: memberToUpdate });
+
+  } catch (error) {
+    logger.error('Error updating member role:', error);
+    res.status(500).json({ error: 'Failed to update member role' });
   }
 };

@@ -105,7 +105,16 @@ export class TimeharborDB extends Dexie {
     this.version(5).stores({
       tickets: 'id, teamId'
     });
+
+    // Version 6: Add 'method' index to offlineMutations to support filtering by method
+    this.version(6).stores({
+      offlineMutations: '++id, timestamp, method'
+    });
   }
 }
 
-export const db = new TimeharborDB();
+// Create the database instance only in browser environments
+// This prevents Dexie initialization errors during Server-Side Rendering (SSR)
+export const db = typeof window !== 'undefined' 
+  ? new TimeharborDB() 
+  : {} as TimeharborDB;

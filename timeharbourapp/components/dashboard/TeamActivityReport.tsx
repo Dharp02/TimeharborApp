@@ -1,13 +1,30 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Calendar, ChevronDown, Download, Filter, MoreHorizontal, Edit2, Check, X, Search } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Edit2 } from 'lucide-react';
+import { DateTime } from 'luxon';
+import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
+import { getTeamActivity } from '@/TimeharborAPI/teams';
+import { useRefresh } from '../../contexts/RefreshContext';
 
 type Activity = {
   id: string;
   date: string;
+  timestamp: string; // Add timestamp for filtering
+  member: string;
+  action: string; // e.g., "Clocked in with T-101, T-102", "Clocked out", "Started timer on T-101"
+  description?: string;
+  link?: string;
+  tickets?: string[];
+  role: string;
+};
+
+type DesktopActivity = {
+  id: string;
+  date: string;
+  timestamp: string; // Added timestamp
   member: string;
   email: string;
   hours: string;
@@ -20,10 +37,16 @@ type Activity = {
 
 export function TeamActivityReport() {
   const { currentTeam } = useTeam();
-  const [dateRange, setDateRange] = useState('Today');
-  const [customStartDate, setCustomStartDate] = useState('2025-12-26');
-  const [customEndDate, setCustomEndDate] = useState('2025-12-26');
+  const { register, lastRefreshed } = useRefresh();
+  const [dateRange, setDateRange] = useState<DateRange>({ 
+    from: DateTime.now().startOf('day'), 
+    to: DateTime.now().endOf('day') 
+  });
+  const [preset, setPreset] = useState<DateRangePreset>('today');
+  
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [desktopActivities, setDesktopActivities] = useState<DesktopActivity[]>([]);
+  const [visibleCount, setVisibleCount] = useState(5);
   
   // Column Filters State
   const [columnFilters, setColumnFilters] = useState({
@@ -39,40 +62,140 @@ export function TeamActivityReport() {
 
   // Edit state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [editingActivity, setEditingActivity] = useState<DesktopActivity | null>(null);
   const [editForm, setEditForm] = useState({
     date: '',
     clockIn: '',
     clockOut: ''
   });
 
-  // Generate mock data based on current team members
-  useEffect(() => {
+  const fetchAttributes = useCallback(async () => {
     if (currentTeam) {
-      const mockActivities = currentTeam.members
-        .filter(member => member.role !== 'Leader') // Filter out leaders
-        .map((member, index) => ({
-          id: `act-${index}`,
-          date: '2025-12-26',
-          member: member.name,
-          email: `${member.name.toLowerCase().replace(' ', '.')}@example.com`,
-          hours: '7h 30m',
-          clockIn: '09:00',
-          clockOut: member.status === 'online' ? '-' : '17:30',
-          status: member.status === 'online' ? 'Active' : 'Completed',
-          tickets: ['T-101', 'T-102'],
-          role: member.role
-        }));
-      setActivities(mockActivities);
+        try {
+          const logs = await getTeamActivity(currentTeam.id);
+          
+          const mappedActivities: Activity[] = logs.map((log: any) => {
+             let action = '';
+             const tickets: string[] = [];
+
+             const date = DateTime.fromISO(log.timestamp);
+             const dateStr = date.toFormat('MMM d');
+             const timeStr = date.toFormat('h:mm a');
+             const displayDate = `${dateStr}, ${timeStr}`;
+             
+             switch(log.type) {
+                 case 'CLOCK_IN':
+                     action = 'Clocked in';
+                     break;
+                 case 'CLOCK_OUT':
+                     action = 'Clocked out';
+                     break;
+                 case 'START_TICKET':
+                     action = 'Started timer';
+                     break;
+                 case 'STOP_TICKET':
+                     action = 'Stopped timer';
+                     break;
+                 default:
+                     action = log.type;
+             }
+
+             if (log.ticket) {
+                 if (log.type === 'CLOCK_IN') {
+                    action += ` with ${log.ticket.title}`;
+                 } else {
+                    action += ` on ${log.ticket.title}`;
+                 }
+                 tickets.push(log.ticket.title);
+             } else if (log.ticketTitle) {
+                 if (log.type === 'CLOCK_IN') {
+                    action += ` with ${log.ticketTitle}`;
+                 } else {
+                    action += ` on ${log.ticketTitle}`;
+                 }
+                 tickets.push(log.ticketTitle);
+             }
+
+             let description: string | undefined;
+             let link: string | undefined;
+             if (log.comment && (log.type === 'CLOCK_OUT' || log.type === 'STOP_TICKET')) {
+               const urlMatch = log.comment.match(/(https?:\/\/[^\s]+)$/);
+               if (urlMatch) {
+                 link = urlMatch[1];
+                 const text = log.comment.replace(urlMatch[0], '').trim();
+                 description = text || undefined;
+               } else {
+                 description = log.comment;
+               }
+             }
+
+             return {
+                 id: log.id,
+                 date: displayDate,
+                 timestamp: log.timestamp,
+                 member: log.user?.full_name || 'Unknown',
+                 action: action,
+                 tickets: tickets,
+                 role: log.user?.memberships?.[0]?.role || 'Member',
+                 description: description,
+                 link: link,
+             };
+          });
+
+          setActivities(mappedActivities);
+          
+        } catch (error) {
+            console.error("Failed to load team activity", error);
+        }
     }
-  }, [currentTeam]);
+  }, [currentTeam]); // dependencies
 
-  const filters = ['Today', 'Yesterday', 'Last 7 Days', 'This Week', 'Last 14 Days'];
+  // Fetch activities from backend
+  useEffect(() => {
+    fetchAttributes();
+    
+    // Register for pull-to-refresh
+    const unregister = register(async () => {
+        await fetchAttributes();
+    });
+    
+    return unregister;
+  }, [fetchAttributes, register, lastRefreshed]);
 
-  // Filtered activities based on column filters
+  const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
+    setDateRange(range);
+    setPreset(newPreset);
+    setVisibleCount(20); 
+  };
+
+  // Filtered activities for mobile (event-based)
   const filteredActivities = useMemo(() => {
     return activities.filter(activity => {
+      // Parse timestamp to date for comparison
+      const activityDate = DateTime.fromISO(activity.timestamp).toMillis();
+      const start = dateRange.from.toMillis();
+      const end = dateRange.to.toMillis();
+      
+      // Compare ranges
+      const isWithin = activityDate >= start && activityDate <= end;
+
+      return isWithin && activity.member.toLowerCase().includes(columnFilters.member.toLowerCase());
+    });
+  }, [activities, columnFilters, dateRange]);
+
+  // Filtered activities for desktop (table-based)
+  const filteredDesktopActivities = useMemo(() => {
+    return desktopActivities.filter(activity => {
+      // Parse timestamp to date for comparison
+      const activityDate = DateTime.fromISO(activity.timestamp).toMillis();
+      const start = dateRange.from.toMillis();
+      const end = dateRange.to.toMillis();
+      
+      // Compare ranges
+      const isWithin = activityDate >= start && activityDate <= end;
+
       return (
+        isWithin &&
         activity.date.toLowerCase().includes(columnFilters.date.toLowerCase()) &&
         activity.member.toLowerCase().includes(columnFilters.member.toLowerCase()) &&
         activity.email.toLowerCase().includes(columnFilters.email.toLowerCase()) &&
@@ -83,13 +206,13 @@ export function TeamActivityReport() {
         activity.tickets.some(t => t.toLowerCase().includes(columnFilters.tickets.toLowerCase()))
       );
     });
-  }, [activities, columnFilters]);
+  }, [desktopActivities, columnFilters, dateRange]);
 
   const handleFilterChange = (column: keyof typeof columnFilters, value: string) => {
     setColumnFilters(prev => ({ ...prev, [column]: value }));
   };
 
-  const handleEditClick = (activity: Activity) => {
+  const handleEditClick = (activity: DesktopActivity) => {
     setEditingActivity(activity);
     setEditForm({
       date: activity.date,
@@ -101,7 +224,7 @@ export function TeamActivityReport() {
 
   const handleSaveEdit = () => {
     if (editingActivity) {
-      setActivities(activities.map(act => 
+      setDesktopActivities(desktopActivities.map(act => 
         act.id === editingActivity.id 
           ? { 
               ...act, 
@@ -116,12 +239,91 @@ export function TeamActivityReport() {
     }
   };
 
+  const handleShowMore = () => {
+    setVisibleCount(prev => prev + 5);
+  };
+
   if (!currentTeam) return null;
 
   // Check if current user is a leader to show edit actions
   const isLeader = currentTeam.role === 'Leader';
 
   return (
+    <>
+      {/* Mobile View */}
+      <div className="md:hidden space-y-3">
+        <DateRangePicker 
+            initialPreset={preset}
+            onRangeChange={handleRangeChange}
+            className="w-full px-0"
+        />
+
+        {/* Compact Filter Row - Name Filter */}
+        <div className="mx-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Filter by name"
+            value={columnFilters.member}
+            onChange={(e) => handleFilterChange('member', e.target.value)}
+            className="flex-1 text-base bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
+          />
+        </div>
+
+        {/* Mobile Activity List */}
+        <div className="px-0">
+          {filteredActivities.length > 0 ? (
+            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredActivities.slice(0, visibleCount).map((activity) => (
+                <div key={activity.id} className="py-3">
+                  <div className="flex items-start justify-between min-w-0">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-base font-medium flex-shrink-0">
+                        {activity.member.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0 pr-2">
+                        <p className="text-base font-medium text-gray-900 dark:text-white truncate">{activity.member}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">{activity.action}</p>
+                        {activity.description && (
+                          <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mt-0.5 break-words">&quot;{activity.description}&quot;</p>
+                        )}
+                        {activity.link && (
+                          <a
+                            href={activity.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+                          >
+                            🔗 {activity.link}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
+                      {activity.date}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {filteredActivities.length > visibleCount && (
+                <div className="py-2 text-center">
+                  <button 
+                    onClick={handleShowMore}
+                    className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                  >
+                    Show more
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-6 text-center text-gray-500 dark:text-gray-400 text-sm">
+              No activity found
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop View */}
     <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
@@ -134,47 +336,11 @@ export function TeamActivityReport() {
             Team Activity Report
           </h2>
           
-          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-            {filters.map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setDateRange(filter)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  dateRange === filter
-                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span className="font-medium">Custom Date Range:</span>
-            <div className="relative">
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="pl-3 pr-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-            <span>to</span>
-            <div className="relative">
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="pl-3 pr-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-            <button className="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors">
-              Apply
-            </button>
-          </div>
+          <DateRangePicker 
+            initialPreset={preset}
+            onRangeChange={handleRangeChange}
+            className="w-auto"
+          />
         </div>
       </div>
 
@@ -272,8 +438,8 @@ export function TeamActivityReport() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredActivities.length > 0 ? (
-              filteredActivities.map((activity) => (
+            {filteredDesktopActivities.length > 0 ? (
+              filteredDesktopActivities.map((activity) => (
                 <tr key={activity.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-900 dark:text-white whitespace-nowrap">
                     {activity.date}
@@ -339,6 +505,7 @@ export function TeamActivityReport() {
           </tbody>
         </table>
       </div>
+    </div>
 
       {/* Edit Activity Modal */}
       <Modal
@@ -410,6 +577,8 @@ export function TeamActivityReport() {
           </div>
         </div>
       </Modal>
-    </div>
+
+
+    </>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useClockIn } from './ClockInContext';
@@ -8,45 +8,102 @@ import { Modal } from '@/components/ui/Modal';
 import { useTeam } from './TeamContext';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
+import { useActivityLog } from './ActivityLogContext';
+import { useRefresh } from '../../contexts/RefreshContext';
+import { db } from '@/TimeharborAPI/db';
+
+const getUserInitials = (name?: string, email?: string) => {
+  if (name && name.trim()) {
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  if (email) {
+    return email.substring(0, 2).toUpperCase();
+  }
+  return 'U';
+};
 
 export default function OpenTickets() {
-  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime } = useClockIn();
+  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
+  const { addActivity } = useActivityLog();
+  const { register, lastRefreshed } = useRefresh();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
+  const [link, setLink] = useState('');
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
   const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showClockInWarning, setShowClockInWarning] = useState(false);
 
-  useEffect(() => {
-    if (currentTeam) {
-      loadTickets();
-    } else {
+  const isMountedRef = useRef(true);
+
+  const fetchTickets = useCallback(async () => {
+    if (!currentTeam?.id) {
       setTickets([]);
+      return;
     }
-  }, [currentTeam]);
-
-  const loadTickets = async () => {
-    if (!currentTeam) return;
-    setIsLoading(true);
     try {
       const fetchedTickets = await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' });
-      setTickets(fetchedTickets);
+      if (isMountedRef.current) {
+        setTickets(fetchedTickets);
+        db.tickets.bulkPut(fetchedTickets as any).catch(() => {});
+      }
     } catch (error) {
       console.error('Failed to load tickets:', error);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) setIsLoading(false);
     }
-  };
+  }, [currentTeam?.id]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    // Read Dexie cache immediately — tickets appear instantly on repeat visits
+    if (currentTeam?.id) {
+      db.tickets
+        .where('teamId').equals(currentTeam.id)
+        .filter(t => t.status === 'Open' || t.status === 'In Progress')
+        .toArray()
+        .then(cached => {
+          if (cached.length > 0 && isMountedRef.current) {
+            setTickets(cached as TicketType[]);
+          } else {
+            setIsLoading(true);
+          }
+        })
+        .catch(() => setIsLoading(true));
+    } else {
+      setTickets([]);
+    }
+
+    fetchTickets();
+
+    const unregister = register(async () => { await fetchTickets(); });
+    const handleRefresh = () => fetchTickets();
+    window.addEventListener('pull-to-refresh', handleRefresh);
+
+    return () => {
+      isMountedRef.current = false;
+      unregister();
+      window.removeEventListener('pull-to-refresh', handleRefresh);
+    };
+  }, [currentTeam?.id, register, lastRefreshed, fetchTickets]);
 
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
     
-    if (!isSessionActive) return;
+    if (!isSessionActive) {
+      setShowClockInWarning(true);
+      return;
+    }
 
     // If stopping the current ticket
     if (activeTicketId === ticketId) {
@@ -73,14 +130,33 @@ export default function OpenTickets() {
     if (!pendingTicket) return;
 
     if (modalType === 'stop') {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment);
+      // If the comment is empty when stopping a ticket, trigger the session clock out flow
+      if (!comment || comment.trim() === '') {
+        setIsModalOpen(false);
+        setPendingTicket(null);
+        setComment('');
+        setLink('');
+        toggleSession(currentTeam?.id);
+        return;
+      }
+      // If the comment is empty when stopping a ticket, trigger the session clock out flow
+      if (!comment || comment.trim() === '') {
+        setIsModalOpen(false);
+        setPendingTicket(null);
+        setComment('');
+        setLink('');
+        toggleSession(currentTeam?.id);
+        return;
+      }
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment, link || undefined);
     } else {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment, link || undefined);
     }
 
     setIsModalOpen(false);
     setPendingTicket(null);
     setComment('');
+    setLink('');
   };
 
   const handleAddTicket = async () => {
@@ -94,9 +170,17 @@ export default function OpenTickets() {
         link: newTicket.reference
       });
       
+      addActivity({
+        type: 'SESSION',
+        title: 'Created Ticket',
+        subtitle: newTicket.title,
+        status: 'Completed',
+        duration: 'Now'
+      });
+
       setIsAddTicketModalOpen(false);
       setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
-      loadTickets();
+      fetchTickets();
     } catch (error) {
       console.error('Failed to create ticket:', error);
     }
@@ -104,7 +188,35 @@ export default function OpenTickets() {
 
   return (
     <>
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
+    <Modal
+      isOpen={showClockInWarning}
+      onClose={() => setShowClockInWarning(false)}
+      title="Clock In Required"
+    >
+      <div className="space-y-4">
+        <p className="text-gray-600 dark:text-gray-300">
+          You must be clocked in to start a ticket timer. Would you like to clock in now?
+        </p>
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={() => setShowClockInWarning(false)}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              toggleSession(currentTeam?.id);
+              setShowClockInWarning(false);
+            }}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Clock In
+          </button>
+        </div>
+      </div>
+    </Modal>
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6 relative">
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Open Tickets</h2>
         <div className="flex items-center gap-2">
@@ -143,8 +255,17 @@ export default function OpenTickets() {
                   {ticket.title}
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{ticket.id.substring(0, 8)}</span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
+                  {ticket.creator && (
+                    <>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Created by</span>
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-white dark:ring-gray-700 shrink-0 transform hover:scale-105 transition-transform cursor-help" title={ticket.creator.full_name}>
+                          {getUserInitials(ticket.creator.full_name, ticket.creator.email)}
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
+                    </>
+                  )}
                   <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
                     {getFormattedTotalTime(ticket.id)}
                   </span>
@@ -159,10 +280,9 @@ export default function OpenTickets() {
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                 <button 
                   onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-                  disabled={!isSessionActive}
                   className={`p-2 rounded-full transition-colors ${
                     !isSessionActive 
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
                       : activeTicketId === ticket.id
                         ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40'
                         : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40'
@@ -195,7 +315,7 @@ export default function OpenTickets() {
 
     <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => { setIsModalOpen(false); setLink(''); }}
         title={modalType === 'stop' ? 'Stop Timer?' : 'Switching Tasks'}
       >
         <div className="space-y-4">
@@ -211,6 +331,16 @@ export default function OpenTickets() {
             className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             autoFocus
           />
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
+            <input
+              type="url"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder="Paste a YouTube or Pulse link..."
+              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setIsModalOpen(false)}

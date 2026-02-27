@@ -97,42 +97,57 @@ const isTokenExpired = (): boolean => {
   return Date.now() >= (parseInt(expiresAt) - 30000);
 };
 
+let refreshPromise: Promise<{ data: Session | null; error: AuthError | null }> | null = null;
+
 // Refresh token function
 export const refreshAccessToken = async (): Promise<{ data: Session | null; error: AuthError | null }> => {
-  const refreshToken = getRefreshToken();
-  
-  if (!refreshToken) {
-    return { data: null, error: { message: 'No refresh token available' } };
+  if (refreshPromise) {
+    return refreshPromise;
   }
 
-  try {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      // Only clear tokens if the server explicitly rejected the refresh token (401/403)
-      if (response.status === 401 || response.status === 403) {
-        await clearTokens();
-        notifyListeners('TOKEN_EXPIRED', null);
-      }
-      return { data: null, error: { message: data.error || 'Token refresh failed' } };
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    
+    if (!refreshToken) {
+      return { data: null, error: { message: 'No refresh token available' } };
     }
 
-    // Update tokens
-    setTokens(data.session);
-    
-    return { data: data.session, error: null };
-  } catch (err) {
-    console.error('Token refresh error:', err);
-    // Do NOT clear tokens on network error - allow offline mode
-    return { data: null, error: { message: 'Network error' } };
+    try {
+      const response = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Only clear tokens if the server explicitly rejected the refresh token (401/403)
+        if (response.status === 401 || response.status === 403) {
+          await clearTokens();
+          notifyListeners('TOKEN_EXPIRED', null);
+        }
+        return { data: null, error: { message: data.error || 'Token refresh failed' } };
+      }
+
+      // Update tokens
+      setTokens(data.session);
+      
+      return { data: data.session, error: null };
+    } catch (err) {
+      console.error('Token refresh error:', err);
+      // Do NOT clear tokens on network error - allow offline mode
+      return { data: null, error: { message: 'Network error' } };
+    }
+  })();
+
+  try {
+    const result = await refreshPromise;
+    return result;
+  } finally {
+    refreshPromise = null;
   }
 };
 
@@ -288,6 +303,15 @@ export const getUser = async () => {
   if (!isBrowser) {
     return { user: null, error: null };
   }
+
+  // Check if we have tokens. If not, don't attempt to fetch user.
+  // This prevents 401 errors on the login page or for unauthenticated users.
+  const token = getAccessToken();
+  const refreshToken = getRefreshToken();
+  
+  if (!token && !refreshToken) {
+    return { user: null, error: null };
+  }
   
   // Try to return stored user immediately for better UX
   const storedUser = await getStoredUser();
@@ -295,7 +319,7 @@ export const getUser = async () => {
   try {
     // Use a timeout for the network request to prevent hanging
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(new Error('Request timed out')), 30000); // 30 second timeout
 
     const response = await authenticatedFetch(`${API_URL}/auth/me`, {
       signal: controller.signal
@@ -351,6 +375,34 @@ export const getUser = async () => {
       : 'Network error';
       
     return { user: null, error: { message } };
+  }
+};
+
+export const updateProfile = async (data: { full_name?: string; email?: string }) => {
+  try {
+    const response = await authenticatedFetch(`${API_URL}/auth/me`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      return { user: null, error: { message: responseData.error || 'Failed to update profile' } };
+    }
+
+    // Update local storage/db with new user data
+    if (responseData.user) {
+        await setUser(responseData.user);
+    }
+
+    return { user: responseData.user, error: null };
+  } catch (err: any) {
+    console.error('Update profile error:', err);
+    return { user: null, error: { message: err.message || 'Network error' } };
   }
 };
 

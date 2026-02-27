@@ -26,6 +26,7 @@ export interface TimeEvent {
   teamId?: string | null;
   ticketTitle?: string | null;
   comment?: string | null;
+  link?: string | null;
   synced: number; // 0 for false, 1 for true
 }
 
@@ -78,6 +79,7 @@ export class TimeharborDB extends Dexie {
   tickets!: Table<Ticket>;
   dashboardStats!: Table<{ teamId: string; data: any; updatedAt: number }>;
   dashboardActivity!: Table<{ id: string; teamId: string; data: any; updatedAt: number }>;
+  activityLogs!: Table<any>; // New table
 
   constructor() {
     super('TimeharborDB');
@@ -113,7 +115,15 @@ export class TimeharborDB extends Dexie {
       dashboardStats: 'teamId', // teamId as key, or 'global' for all teams
       dashboardActivity: 'id, teamId'
     });
+
+    this.version(7).stores({
+      events: 'id, userId, type, timestamp, synced, teamId'
+    });
+
+    this.version(8).stores({
+      activityLogs: 'id, teamId, startTime' // Add explicit table for activity logs
+    });
   }
 }
 
-export const db = new TimeharborDB();
+export const db = typeof window !== 'undefined' ? new TimeharborDB() : {} as TimeharborDB;

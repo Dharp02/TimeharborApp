@@ -1,3 +1,4 @@
+import { Network } from '@capacitor/network';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db';
 import { authenticatedFetch, getUser } from '../auth';
@@ -21,7 +22,7 @@ export interface Team {
 }
 
 const STORAGE_KEY = 'timeharbor_teams';
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.39:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.8:8080/api';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -540,5 +541,46 @@ export const removeMemberFromTeam = async (teamId: string, userIdToRemove: strin
     
     // Trigger sync attempt in case we are actually online
     NetworkDetector.getInstance().triggerSync();
+  }
+};
+
+export const getTeamActivity = async (teamId: string, limit: number = 50): Promise<any[]> => {
+  const url = `${API_URL}/teams/${teamId}/activity?limit=${limit}`;
+
+  try {
+    const response = await authenticatedFetch(url);
+
+    if (!response.ok) {
+        if (response.status === 404) return [];
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch team activity');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching team activity:', error);
+    return [];
+  }
+};
+
+export const updateMemberRole = async (teamId: string, memberId: string, role: 'Leader' | 'Member'): Promise<void> => {
+  const endpoint = `${API_URL}/teams/${teamId}/members/${memberId}/role`;
+  
+  if (isBrowser) {
+    const status = await Network.getStatus();
+    if (!status.connected) {
+       throw new Error('Cannot update member role while offline');
+    }
+  }
+
+  const response = await authenticatedFetch(endpoint, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role })
+  });
+  
+  if (!response.ok) {
+     const error = await response.json().catch(() => ({}));
+     throw new Error(error.error || 'Failed to update member role');
   }
 };

@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import apn from 'apn';
 import User from '../models/User';
+import Notification from '../models/Notification';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -259,6 +260,21 @@ export const sendNotificationToUser = async (
   payload: NotificationPayload
 ): Promise<boolean> => {
   try {
+    // Save notification to database
+    try {
+      await Notification.create({
+        userId,
+        title: payload.title,
+        body: payload.body,
+        type: (payload.data?.type as string) || 'info',
+        data: payload.data,
+        readAt: null
+      });
+      console.log(`[NOTIFICATION] ✅ Saved to database for user ${userId}`);
+    } catch (dbError) {
+      console.error('[NOTIFICATION] ❌ Failed to save to database:', dbError);
+    }
+
     // Get user's FCM token
     const user = await User.findByPk(userId);
     
@@ -348,13 +364,15 @@ export const sendClockInNotification = async (
   leaderIds: string[],
   memberName: string,
   teamName: string,
-  teamId: string
+  teamId: string,
+  memberId: string
 ) => {
   console.log('[NOTIFICATION] Clock-in event trigger:', {
     timestamp: new Date().toISOString(),
     teamId,
     teamName,
     memberName,
+    memberId,
     recipientLeaderIds: leaderIds,
     leaderCount: leaderIds.length
   });
@@ -365,6 +383,7 @@ export const sendClockInNotification = async (
     data: {
       type: 'clock_in',
       teamId,
+      memberId,
     },
   });
 };
@@ -374,13 +393,15 @@ export const sendClockOutNotification = async (
   leaderIds: string[],
   memberName: string,
   teamName: string,
-  teamId: string
+  teamId: string,
+  memberId: string
 ) => {
   console.log('[NOTIFICATION] Clock-out event trigger:', {
     timestamp: new Date().toISOString(),
     teamId,
     teamName,
     memberName,
+    memberId,
     recipientLeaderIds: leaderIds,
     leaderCount: leaderIds.length
   });
@@ -391,6 +412,33 @@ export const sendClockOutNotification = async (
     data: {
       type: 'clock_out',
       teamId,
+      memberId,
+    },
+  });
+};
+
+// Send notification when team member stops a ticket (with optional link)
+export const sendStopTicketNotification = async (
+  leaderIds: string[],
+  memberName: string,
+  ticketTitle: string,
+  teamId: string,
+  memberId: string,
+  comment?: string | null,
+  link?: string | null
+) => {
+  const bodyParts = [`${memberName} stopped ticket: ${ticketTitle}`];
+  if (comment) bodyParts.push(comment);
+  if (link) bodyParts.push(link);
+
+  return sendNotificationToUsers(leaderIds, {
+    title: `Ticket Update — ${ticketTitle}`,
+    body: bodyParts.join('\n'),
+    data: {
+      type: 'stop_ticket',
+      teamId,
+      memberId,
+      ...(link ? { url: link } : {}),
     },
   });
 };
