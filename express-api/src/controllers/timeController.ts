@@ -87,7 +87,7 @@ async function recomputeStatsForUser(userId: string, teamId: string | null) {
     // Replay events to compute ms per calendar day
     const dayTotals = new Map<string, number>();
     let isClockedIn = lastPreEvent
-      ? ['CLOCK_IN', 'START_TICKET', 'STOP_TICKET'].includes(lastPreEvent.type)
+      ? ['CLOCK_IN', 'START_TICKET', 'STOP_TICKET', 'BREAK_END'].includes(lastPreEvent.type)
       : false;
     let segStart = startOfWeek.getTime();
 
@@ -101,9 +101,11 @@ async function recomputeStatsForUser(userId: string, teamId: string | null) {
         case 'CLOCK_IN':
         case 'START_TICKET':
         case 'STOP_TICKET':
+        case 'BREAK_END':
           isClockedIn = true;
           break;
         case 'CLOCK_OUT':
+        case 'BREAK_START':
           isClockedIn = false;
           break;
       }

@@ -44,23 +44,51 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       .reduce((acc, r) => acc + Number(r.totalMs), 0);
     let totalMsWeek = statRows.reduce((acc, r) => acc + Number(r.totalMs), 0);
 
-    // 2. Add live time for any currently-active CLOCK_IN session (not yet clocked out)
-    const clockWhere: any = {
-      userId,
-      type: { [Op.in]: ['CLOCK_IN', 'CLOCK_OUT'] },
-    };
-    if (teamId) clockWhere.teamId = teamId as string;
+    // 2. Add live time for any currently-active CLOCK_IN session (not yet clocked out),
+    //    minus any break time accumulated since the session started.
+    const lastClockEventWhere: any = { userId, type: { [Op.in]: ['CLOCK_IN', 'CLOCK_OUT'] } };
+    if (teamId) lastClockEventWhere.teamId = teamId as string;
 
     const lastClockEvent = await WorkLog.findOne({
-      where: clockWhere,
+      where: lastClockEventWhere,
       order: [['timestamp', 'DESC']],
       attributes: ['type', 'timestamp'],
     });
 
     if (lastClockEvent?.type === 'CLOCK_IN') {
-      const liveMs = now.getTime() - new Date(lastClockEvent.timestamp).getTime();
+      const sessionStartMs = new Date(lastClockEvent.timestamp).getTime();
+
+      // Sum up all completed break durations since the session started
+      const breakEventsWhere: any = {
+        userId,
+        type: { [Op.in]: ['BREAK_START', 'BREAK_END'] },
+        timestamp: { [Op.gte]: lastClockEvent.timestamp },
+      };
+      if (teamId) breakEventsWhere.teamId = teamId as string;
+
+      const breakEvents = await WorkLog.findAll({
+        where: breakEventsWhere,
+        order: [['timestamp', 'ASC']],
+        attributes: ['type', 'timestamp'],
+      });
+
+      let totalBreakMsLive = 0;
+      let breakSegStart: number | null = null;
+      for (const be of breakEvents) {
+        if (be.type === 'BREAK_START') {
+          breakSegStart = new Date(be.timestamp).getTime();
+        } else if (be.type === 'BREAK_END' && breakSegStart !== null) {
+          totalBreakMsLive += new Date(be.timestamp).getTime() - breakSegStart;
+          breakSegStart = null;
+        }
+      }
+      // If currently on break (BREAK_START without matching BREAK_END), add ongoing break time
+      if (breakSegStart !== null) {
+        totalBreakMsLive += now.getTime() - breakSegStart;
+      }
+
+      const liveMs = Math.max(0, now.getTime() - sessionStartMs - totalBreakMsLive);
       if (liveMs > 0) {
-        // Only add to today's total if the session started today
         const sessionDate = new Date(lastClockEvent.timestamp).toISOString().slice(0, 10);
         if (sessionDate === today) totalMsToday += liveMs;
         totalMsWeek += liveMs;

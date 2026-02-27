@@ -15,7 +15,7 @@ export interface UserProfile {
   data: any;
 }
 
-export type TimeEventType = 'CLOCK_IN' | 'CLOCK_OUT' | 'START_TICKET' | 'STOP_TICKET';
+export type TimeEventType = 'CLOCK_IN' | 'CLOCK_OUT' | 'START_TICKET' | 'STOP_TICKET' | 'BREAK_START' | 'BREAK_END';
 
 export interface TimeEvent {
   id: string;
