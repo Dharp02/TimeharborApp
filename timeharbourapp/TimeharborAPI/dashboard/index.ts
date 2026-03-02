@@ -358,6 +358,27 @@ export interface TimesheetDayTotal {
   totalMs: number;  // Break-excluded work milliseconds, computed by backend
 }
 
+export const fetchActivitiesByDateRange = async (
+  teamId: string,
+  startDate: string,
+  endDate: string,
+): Promise<Activity[]> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  if (!token) throw new Error('No access token found');
+
+  const params = new URLSearchParams({ startDate, endDate });
+  const response = await fetch(`${API_URL}/teams/${teamId}/logs?${params}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) throw new Error('Failed to fetch activities by date range');
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
+};
+
 export const getTimesheetTotals = async (
   from: string,
   to: string,

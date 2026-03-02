@@ -1,82 +1,62 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useActivityLog } from '@/components/dashboard/ActivityLogContext';
 import { useTeam } from '@/components/dashboard/TeamContext';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
-import { Activity, getTimesheetTotals, TimesheetDayTotal } from '@/TimeharborAPI/dashboard';
+import { Activity, fetchActivitiesByDateRange, getTimesheetTotals, TimesheetDayTotal } from '@/TimeharborAPI/dashboard';
 import { formatDurationMs } from '@/lib/formatDuration';
-import { Clock, Calendar, CheckCircle2, PauseCircle, PlayCircle, StopCircle } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, PauseCircle, PlayCircle, StopCircle, WifiOff } from 'lucide-react';
 import { useRefresh } from '../../../../contexts/RefreshContext';
+import { useSocket } from '@/contexts/SocketContext';
 
 export default function TimesheetPage() {
-  const { activities: cachedActivities, fetchActivitiesByDateRange } = useActivityLog();
   const { currentTeam } = useTeam();
   const { register, lastRefreshed } = useRefresh();
+  const { isOnline } = useSocket();
   const [dateRange, setDateRange] = useState<DateRange>({ 
     from: DateTime.now().startOf('day'),
     to: DateTime.now().endOf('day') 
   });
   const [preset, setPreset] = useState<DateRangePreset>('today');
-  const [fetchedActivities, setFetchedActivities] = useState<Activity[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   /** Per-day totalMs from backend (UserDailyStat), break-excluded */
   const [timesheetTotals, setTimesheetTotals] = useState<TimesheetDayTotal[]>([]);
 
-  // Fetch per-day totalMs from backend whenever the date range changes.
-  // Backend uses UserDailyStat (break-excluded) and injects live session time for today.
+  // Fetch both activities and per-day totals from the API whenever the date range changes.
   useEffect(() => {
-    if (!dateRange.from || !dateRange.to) return;
+    if (!currentTeam?.id || !dateRange.from || !dateRange.to) return;
+
     const from = dateRange.from.toISODate();
     const to = dateRange.to.toISODate();
     if (!from || !to) return;
-    getTimesheetTotals(from, to, currentTeam?.id)
-      .then(setTimesheetTotals)
-      .catch(e => console.error('Failed to fetch timesheet totals:', e));
-  }, [dateRange, currentTeam?.id, lastRefreshed]);
 
-  // Ensure fetched data updates when dependencies change
-  useEffect(() => {
-    const fetchFilteredData = async () => {
-      // If we are looking at "today", we don't necessarily fetch, but context sync might update cachedActivities.
-      // However, if we pull-to-refresh, we might want to re-run this logic?
-      // Actually, if cachedActivities updates, this effect runs anyway. 
-      // But if we are looking at PAST dates, we need to re-fetch if trigger happens.
-      
-      if (preset === 'today') {
-        // No need to fetch, relying on cached context data
-        return;
-      }
-
-      if (!dateRange.from || !dateRange.to) return;
-
+    const loadData = async () => {
       setIsLoading(true);
       try {
-        const fromDate = dateRange.from || DateTime.now().startOf('day');
-        const toDate = dateRange.to || DateTime.now().endOf('day');
-        
-        const data = await fetchActivitiesByDateRange(
-          fromDate.toISO() || '',
-          toDate.toISO() || ''
-        );
-        setFetchedActivities(data);
-      } catch (error) {
-        console.error('Failed to fetch activities:', error);
+        const [acts, totals] = await Promise.all([
+          fetchActivitiesByDateRange(
+            currentTeam.id,
+            dateRange.from!.toISO() || '',
+            dateRange.to!.toISO() || '',
+          ),
+          getTimesheetTotals(from, to, currentTeam.id),
+        ]);
+        setActivities(acts);
+        setTimesheetTotals(totals);
+      } catch (e) {
+        console.error('Failed to load timesheet data:', e);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchFilteredData();
+    loadData();
 
-    // Register refresh
-    const unregister = register(async () => {
-        await fetchFilteredData();
-    });
-    
+    const unregister = register(loadData);
     return unregister;
-  }, [dateRange, preset, cachedActivities, fetchActivitiesByDateRange, register, lastRefreshed]);
+  }, [dateRange, currentTeam?.id, lastRefreshed, register]);
 
   const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
     setDateRange(range);
@@ -85,7 +65,7 @@ export default function TimesheetPage() {
 
   // Group activities by day
   const groupedActivities = useMemo(() => {
-    const activitiesToDisplay = preset === 'today' ? cachedActivities : fetchedActivities;
+    const activitiesToDisplay = activities;
 
     // Sort by time descending for display
     const sorted = [...activitiesToDisplay].sort((a, b) => {
@@ -141,7 +121,7 @@ export default function TimesheetPage() {
     }
 
     return Object.values(groups).sort((a, b) => b.date.toMillis() - a.date.toMillis());
-  }, [cachedActivities, fetchedActivities, preset, dateRange, timesheetTotals]);
+  }, [activities, dateRange, timesheetTotals]);
 
   // Total is the sum of backend-provided ms across all days in view
   const totalViewDurationMs = useMemo(() => {
@@ -235,7 +215,13 @@ export default function TimesheetPage() {
       </div>
 
       <div className="space-y-6">
-        {isLoading ? (
+        {!isOnline ? (
+          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl shadow-sm">
+            <WifiOff className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">You&apos;re offline</h3>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">Come online to view your timesheet.</p>
+          </div>
+        ) : isLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
             <p className="text-gray-500">Loading timesheet data...</p>
