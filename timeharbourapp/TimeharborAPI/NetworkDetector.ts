@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
+import { getApiUrl } from './apiUrl';
 
 // Only import Capacitor plugins when running as a native app.
 // In a plain web browser these are loaded as async chunks and can
@@ -32,7 +33,7 @@ class NetworkDetector {
 
   constructor(options: NetworkDetectorOptions = {}) {
     // Default to localhost if env var is not set, as specific IPs are fragile
-    this.backendUrl = options.backendUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    this.backendUrl = options.backendUrl || getApiUrl();
     this.onStatusChange = options.onStatusChange;
     this.onSync = options.onSync;
     this.maxRetries = options.maxRetries || 5;

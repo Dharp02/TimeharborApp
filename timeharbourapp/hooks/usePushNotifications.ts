@@ -3,8 +3,9 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { onAuthStateChange } from '@/TimeharborAPI/auth';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { getApiUrl } from '@/TimeharborAPI/apiUrl';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = getApiUrl();
 
 export function usePushNotifications() {
   const initialized = useRef(false);

@@ -3,6 +3,7 @@ import { db, type OfflineMutation } from './db';
 import { authenticatedFetch } from './auth';
 import { localTimeStore } from './time/LocalTimeStore';
 import { TimeService } from './time/TimeService';
+import { getApiUrl } from './apiUrl';
 
 class SyncManager {
   private static instance: SyncManager;
@@ -90,7 +91,7 @@ class SyncManager {
   private async processMutation(mutation: OfflineMutation) {
     const { url, method, body, tempId } = mutation;
     
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.8:8080/api';
+    const backendUrl = getApiUrl();
     
     // Strip /api prefix from mutation URL to avoid duplication or 404s
     // blocked by backend not expecting /api prefix when hitting directly

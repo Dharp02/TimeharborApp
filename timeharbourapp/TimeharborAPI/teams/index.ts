@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db';
 import { authenticatedFetch, getUser } from '../auth';
 import NetworkDetector from '../NetworkDetector';
+import { getApiUrl } from '../apiUrl';
 
 export interface Member {
   id: string;
@@ -22,7 +23,7 @@ export interface Team {
 }
 
 const STORAGE_KEY = 'timeharbor_teams';
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.0.0.8:8080/api';
+const API_URL = getApiUrl();
 
 const isBrowser = typeof window !== 'undefined';
 

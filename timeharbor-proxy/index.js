@@ -28,7 +28,13 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.url.startsWith('/api') || req.url.startsWith('/socket.io')) {
+  // Route to backend if:
+  //   1. Path starts with /api (normal case) — strip the prefix
+  //   2. Path starts with /socket.io (WebSocket)
+  //   3. Request carries an Authorization header — it's an API fetch, not a page
+  //      load. This catches stale browser-cached JS that omits the /api prefix.
+  const hasAuthHeader = !!req.headers['authorization'];
+  if (req.url.startsWith('/api') || req.url.startsWith('/socket.io') || hasAuthHeader) {
     // Strip /api prefix only if it starts with /api
     if (req.url.startsWith('/api')) {
       req.url = req.url.replace(/^\/api/, '');

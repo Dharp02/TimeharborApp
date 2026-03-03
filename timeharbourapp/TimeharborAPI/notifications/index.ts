@@ -1,6 +1,7 @@
 import { authenticatedFetch } from '../auth';
+import { getApiUrl } from '../apiUrl';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = getApiUrl();
 
 export interface Notification {
   id: string;

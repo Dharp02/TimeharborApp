@@ -1,6 +1,7 @@
-// API URL from environment variable
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { getApiUrl } from '../apiUrl';
 import { db } from '../db';
+
+const API_URL = getApiUrl();
 
 // Types
 export interface User {

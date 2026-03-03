@@ -1,8 +1,9 @@
 import { authenticatedFetch, getStoredUser } from '../auth';
 import { db } from '../db';
 import { v4 as uuidv4 } from 'uuid';
+import { getApiUrl } from '../apiUrl';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = getApiUrl();
 
 export interface Ticket {
   id: string;

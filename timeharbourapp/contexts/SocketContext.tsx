@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { getApiUrl } from '@/TimeharborAPI/apiUrl';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -33,8 +34,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     window.addEventListener('offline', handleOffline);
 
     // Initialize Socket.io
-    // Use environment variable or default to localhost:3001
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    // Use environment variable or default to same-origin /api, stripping /api for socket root
+    const apiUrl = getApiUrl();
     // Remove /api suffix if present to connect to root namespace, as sockets run on root
     const SOCKET_URL = apiUrl.replace(/\/api\/?$/, '');
     

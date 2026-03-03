@@ -8,8 +8,9 @@ import { Network, ConnectionStatus } from '@capacitor/network';
 import { authenticatedFetch } from '@/TimeharborAPI/auth';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { useRefresh } from '../../contexts/RefreshContext';
+import { getApiUrl } from '@/TimeharborAPI/apiUrl';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = getApiUrl();
 
 interface ActivityLogContextType {
   activities: Activity[];
