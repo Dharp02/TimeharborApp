@@ -36,7 +36,7 @@ jobs:
             git pull origin main
             
             echo "🛑 Stopping PM2 services..."
-            sudo pm2 stop ecosystem.config.js || true
+            sudo pm2 stop ecosystem.uat.config.js || true
             
             echo "⚙️  Installing dependencies for express-api..."
             cd express-api
@@ -69,7 +69,7 @@ jobs:
             cd ..
             
             echo " Starting PM2 services..."
-            sudo pm2 start ecosystem.config.js --update-env
+            sudo pm2 start ecosystem.uat.config.js --update-env
             
             echo "✅ Deployment completed successfully!"
             sudo pm2 status

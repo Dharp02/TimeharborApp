@@ -1,7 +1,6 @@
-import { db } from '../db';
-
 // API URL from environment variable
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { db } from '../db';
 
 // Types
 export interface User {
