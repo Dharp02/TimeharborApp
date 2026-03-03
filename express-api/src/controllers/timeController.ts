@@ -84,15 +84,43 @@ async function recomputeStatsForUser(userId: string, teamId: string | null) {
       }),
     ]);
 
-    // Replay events to compute ms per calendar day
+    // ---------------------------------------------------------------------------
+    // Find the open session boundary: the last CLOCK_IN that has no following
+    // CLOCK_OUT. Time from this boundary onwards belongs to the LIVE session and
+    // must NOT be written to user_daily_stats — getDashboardStats adds it at
+    // read time. Writing it here would cause double-counting (e.g. show 6m
+    // instead of 3m when 3m of work + 2m break is in progress).
+    // ---------------------------------------------------------------------------
+    let openSessionStartTs: number | null = null;
+    {
+      let lastClockInTs: number | null = null;
+      let lastClockOutTs: number | null = null;
+      for (const e of events) {
+        if (e.type === 'CLOCK_IN') lastClockInTs = new Date(e.timestamp).getTime();
+        else if (e.type === 'CLOCK_OUT') lastClockOutTs = new Date(e.timestamp).getTime();
+      }
+      if (
+        lastClockInTs !== null &&
+        (lastClockOutTs === null || lastClockInTs > lastClockOutTs)
+      ) {
+        openSessionStartTs = lastClockInTs;
+      }
+    }
+
+    // Replay events — only accumulate COMPLETED session time.
+    // Stop at the open session boundary so we never pre-write live time.
     const dayTotals = new Map<string, number>();
     let isClockedIn = lastPreEvent
-      ? ['CLOCK_IN', 'START_TICKET', 'STOP_TICKET', 'BREAK_END'].includes(lastPreEvent.type)
+      ? ['CLOCK_IN', 'START_TICKET', 'STOP_TICKET', 'BREAK_END'].includes(lastPreEvent.type) &&
+        (openSessionStartTs === null || new Date(lastPreEvent.timestamp).getTime() < openSessionStartTs)
       : false;
     let segStart = startOfWeek.getTime();
 
     for (const event of events) {
       const eventTs = new Date(event.timestamp).getTime();
+      // Stop accumulating at the open session boundary
+      if (openSessionStartTs !== null && eventTs >= openSessionStartTs) break;
+
       if (isClockedIn && eventTs > segStart) {
         accumulateMsByDay(dayTotals, segStart, eventTs);
       }
@@ -111,28 +139,68 @@ async function recomputeStatsForUser(userId: string, teamId: string | null) {
       }
     }
 
-    // Don't add live time here — getDashboardStats adds it at read time.
-
-    // Upsert each day's total
+    // Upsert each completed-session day's total
     for (const [date, totalMs] of dayTotals) {
       await upsertDailyStat(userId, teamId, date, totalMs);
     }
 
-    // Push updated stats to the user's socket room so the dashboard updates instantly
+    // Push updated stats to the user's socket room so the dashboard updates instantly.
+    // Include live session time (break-excluded) so the socket value matches what
+    // getDashboardStats would return — preventing a visible dip on sync events.
     try {
-      const today = localDate(new Date());
+      const today = localDate(now);
       const startOfWeekDate = localDate(startOfWeek);
+
       const updatedRows = await UserDailyStat.findAll({
         where: { userId, ...(teamId ? { teamId } : {}), date: { [Op.between]: [startOfWeekDate, today] } },
         attributes: ['date', 'totalMs'],
       });
+
+      let completedMsToday = updatedRows.filter(r => r.date === today).reduce((a, r) => a + Number(r.totalMs), 0);
+      let completedMsWeek  = updatedRows.reduce((a, r) => a + Number(r.totalMs), 0);
+
+      // Add live time for the open session (mirrors getDashboardStats logic)
+      let liveMsToday = 0;
+      let liveMsWeek  = 0;
+      if (openSessionStartTs !== null) {
+        const breakEventsForLive = await WorkLog.findAll({
+          where: {
+            userId,
+            type: { [Op.in]: ['BREAK_START', 'BREAK_END'] },
+            timestamp: { [Op.gte]: new Date(openSessionStartTs) },
+            ...(teamId ? { teamId } : {}),
+          },
+          order: [['timestamp', 'ASC']],
+          attributes: ['type', 'timestamp'],
+        });
+
+        let totalBreakMs = 0;
+        let breakSegStartMs: number | null = null;
+        for (const be of breakEventsForLive) {
+          if (be.type === 'BREAK_START') {
+            breakSegStartMs = new Date(be.timestamp).getTime();
+          } else if (be.type === 'BREAK_END' && breakSegStartMs !== null) {
+            totalBreakMs += new Date(be.timestamp).getTime() - breakSegStartMs;
+            breakSegStartMs = null;
+          }
+        }
+        // If currently on a break, count ongoing break so it is excluded from liveMs
+        if (breakSegStartMs !== null) totalBreakMs += now.getTime() - breakSegStartMs;
+
+        const liveMs = Math.max(0, now.getTime() - openSessionStartTs - totalBreakMs);
+        const sessionDate = localDate(new Date(openSessionStartTs));
+        if (sessionDate === today) liveMsToday = liveMs;
+        liveMsWeek = liveMs;
+      }
+
       const toHM = (ms: number) => {
         const h = Math.floor(ms / 3_600_000);
         const m = Math.floor((ms % 3_600_000) / 60_000);
         return `${h}h ${m}m`;
       };
-      const totalMsToday = updatedRows.filter(r => r.date === today).reduce((a, r) => a + Number(r.totalMs), 0);
-      const totalMsWeek  = updatedRows.reduce((a, r) => a + Number(r.totalMs), 0);
+      const totalMsToday = completedMsToday + liveMsToday;
+      const totalMsWeek  = completedMsWeek  + liveMsWeek;
+
       getIO().to(userId).emit('stats_updated', {
         teamId: teamId ?? null,
         totalHoursToday: toHM(totalMsToday),

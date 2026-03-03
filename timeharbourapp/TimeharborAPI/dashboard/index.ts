@@ -358,16 +358,22 @@ export interface TimesheetDayTotal {
   totalMs: number;  // Break-excluded work milliseconds, computed by backend
 }
 
+/**
+ * Fetches work events for the timesheet visual timeline from the source-of-truth
+ * work_logs table (via GET /dashboard/activity?from=&to=&teamId=).
+ * This replaces the former activity_logs-based path which was unreliable (frontend-written,
+ * offline-sync gaps could cause mismatches with the actual hour totals).
+ */
 export const fetchActivitiesByDateRange = async (
   teamId: string,
-  startDate: string,
-  endDate: string,
+  from: string,
+  to: string,
 ): Promise<Activity[]> => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
   if (!token) throw new Error('No access token found');
 
-  const params = new URLSearchParams({ startDate, endDate });
-  const response = await fetch(`${API_URL}/teams/${teamId}/logs?${params}`, {
+  const params = new URLSearchParams({ from, to, teamId });
+  const response = await fetch(`${API_URL}/dashboard/activity?${params}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',

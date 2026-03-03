@@ -128,12 +128,168 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 export const getRecentActivity = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { teamId, limit } = req.query;
+    const { teamId, limit, from, to } = req.query;
 
     if (!userId) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
+
+    // ---------------------------------------------------------------------------
+    // Date-range mode: used by the timesheet page.
+    // Returns individual formatted events from work_logs (the source of truth),
+    // NOT grouped sessions. This replaces the formerly activity_logs-based path.
+    // ---------------------------------------------------------------------------
+    if (from && to) {
+      const whereClause: any = {
+        userId,
+        timestamp: { [Op.between]: [new Date(from as string), new Date(to as string)] },
+      };
+      if (teamId) whereClause.teamId = teamId as string;
+
+      const events = await WorkLog.findAll({
+        where: whereClause,
+        order: [['timestamp', 'ASC']],
+        limit: 2000,
+      });
+
+      const typeMap: Record<string, string> = {
+        CLOCK_IN: 'SESSION', CLOCK_OUT: 'SESSION',
+        BREAK_START: 'BREAK', BREAK_END: 'BREAK',
+        START_TICKET: 'TICKET', STOP_TICKET: 'TICKET',
+      };
+
+      // Format ms → "Xh Xm Xs" with seconds precision for individual-event view
+      const toHMS = (ms: number) => {
+        const h = Math.floor(ms / 3_600_000);
+        const m = Math.floor((ms % 3_600_000) / 60_000);
+        const s = Math.floor((ms % 60_000) / 1_000);
+        return `${h}h ${m}m ${s}s`;
+      };
+
+      // --- Forward pass: compute CLOCK_OUT durations (break-excluded) ---
+      let sessionStartMs: number | null = null;
+      let breakStartMs: number | null = null;
+      let accumulatedBreakMs = 0;
+      const clockOutDurationMap = new Map<string, number>();
+
+      // --- Also track active tickets: START_TICKET id → ticketId ---
+      // After the pass, any START_TICKET id still in the map has no STOP_TICKET.
+      const openTickets = new Map<string, string>(); // ticketId → START_TICKET event id
+      const activeEventIds = new Set<string>();       // event ids that are "Active"
+
+      // Track open clock-in (no CLOCK_OUT yet) to mark as Active
+      let openClockInId: string | null = null;
+
+      for (const e of events) {
+        const ts = new Date(e.timestamp).getTime();
+        switch (e.type) {
+          case 'CLOCK_IN':
+            sessionStartMs = ts;
+            accumulatedBreakMs = 0;
+            breakStartMs = null;
+            openClockInId = e.id;
+            break;
+          case 'BREAK_START':
+            breakStartMs = ts;
+            break;
+          case 'BREAK_END':
+            if (breakStartMs !== null) {
+              accumulatedBreakMs += ts - breakStartMs;
+              breakStartMs = null;
+            }
+            break;
+          case 'CLOCK_OUT':
+            if (sessionStartMs !== null) {
+              const extraBreak = breakStartMs !== null ? ts - breakStartMs : 0;
+              const worked = Math.max(0, ts - sessionStartMs - accumulatedBreakMs - extraBreak);
+              clockOutDurationMap.set(e.id, worked);
+            }
+            sessionStartMs = null;
+            breakStartMs = null;
+            accumulatedBreakMs = 0;
+            openClockInId = null;
+            break;
+          case 'START_TICKET': {
+            const tid = e.ticketId || e.id;
+            openTickets.set(tid, e.id);
+            break;
+          }
+          case 'STOP_TICKET': {
+            const tid = e.ticketId || e.id;
+            openTickets.delete(tid);
+            break;
+          }
+        }
+      }
+
+      // Any START_TICKET still in openTickets has no matching STOP — mark as Active
+      for (const eventId of openTickets.values()) {
+        activeEventIds.add(eventId);
+      }
+      // Open CLOCK_IN (no CLOCK_OUT) → Active
+      if (openClockInId) activeEventIds.add(openClockInId);
+
+      const formatted = events.map(e => {
+        const workedMs = e.type === 'CLOCK_OUT' ? (clockOutDurationMap.get(e.id) ?? 0) : undefined;
+        const isActive = activeEventIds.has(e.id);
+        const durStr = workedMs !== undefined ? toHMS(workedMs) : undefined;
+
+        // Human-readable titles & subtitles matching the original activity log format
+        let title: string;
+        let subtitle: string | undefined;
+        switch (e.type) {
+          case 'CLOCK_IN':
+            title = 'Work Session Started';
+            subtitle = 'Clocked In';
+            break;
+          case 'CLOCK_OUT':
+            title = 'Session Ended';
+            subtitle = durStr ? `Duration: ${durStr}` : 'Session Ended';
+            break;
+          case 'BREAK_START':
+            title = 'Break Started';
+            subtitle = undefined;
+            break;
+          case 'BREAK_END':
+            title = 'Break Ended';
+            subtitle = undefined;
+            break;
+          case 'START_TICKET':
+            title = 'Started Ticket';
+            subtitle = e.ticketTitle || undefined;
+            break;
+          case 'STOP_TICKET':
+            title = 'Stopped Ticket';
+            subtitle = e.ticketTitle || undefined;
+            break;
+          default:
+            title = e.type;
+            subtitle = undefined;
+        }
+
+        return {
+          id: e.id,
+          type: typeMap[e.type] || 'SESSION',
+          title,
+          subtitle,
+          description: e.comment || undefined,
+          startTime: e.timestamp,
+          endTime: undefined,
+          status: (isActive ? 'Active' : 'Completed') as 'Active' | 'Completed',
+          duration: durStr,
+          durationMs: workedMs ?? 0,
+        };
+      });
+
+      // Return newest-first so the All Activity page displays in chronological DESC order
+      res.json(formatted.reverse());
+      return;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Session-grouping mode: used by the dashboard recent activity panel.
+    // ---------------------------------------------------------------------------
 
     // Fetch recent work logs (events)
     const eventsWhereClause: any = { userId };

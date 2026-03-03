@@ -120,6 +120,22 @@ export const createTicket = async (teamId: string, data: CreateTicketData): Prom
 };
 
 export const getTickets = async (teamId: string, options?: { sort?: string; status?: string }): Promise<Ticket[]> => {
+  const loadFromCache = async () => {
+    const allTickets = await db.tickets.where('teamId').equals(teamId).toArray();
+    if (options?.status === 'open') {
+      return allTickets.filter(t => t.status !== 'Closed');
+    }
+    if (options?.status) {
+      return allTickets.filter(t => t.status.toLowerCase() === options.status!.toLowerCase());
+    }
+    return allTickets;
+  };
+
+  // Skip network entirely when offline
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return loadFromCache();
+  }
+
   try {
     const queryParams = new URLSearchParams();
     if (options?.sort) queryParams.append('sort', options.sort);
@@ -141,17 +157,7 @@ export const getTickets = async (teamId: string, options?: { sort?: string; stat
     return tickets;
   } catch (error) {
     console.warn('Fetching tickets failed, loading from offline cache:', error);
-    
-    let collection = db.tickets.where('teamId').equals(teamId);
-    
-    // Basic client-side filtering
-    if (options?.status) {
-      const status = options.status.toLowerCase();
-      const tickets = await collection.toArray();
-      return tickets.filter(t => t.status.toLowerCase() === status);
-    }
-
-    return collection.toArray();
+    return loadFromCache();
   }
 };
 

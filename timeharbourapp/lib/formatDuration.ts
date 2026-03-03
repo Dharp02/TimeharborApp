@@ -14,3 +14,9 @@ export function formatDurationMs(ms: number): string {
   const m = Math.floor(d.minutes);
   return `${h}h ${m}m`;
 }
+
+/** Returns null instead of '0h 0m' — use for badges where 0 should be hidden. */
+export function formatDurationMsOrNull(ms: number | undefined | null): string | null {
+  if (!ms || ms < 60_000) return null; // hide sub-minute durations
+  return formatDurationMs(ms);
+}

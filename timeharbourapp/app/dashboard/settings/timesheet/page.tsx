@@ -158,12 +158,14 @@ export default function TimesheetPage() {
       return activity.title || 'General Work';
   };
 
+  // Only show the duration badge on session-end events where we have a real computed duration.
+  // Break events are intentionally excluded — break time is not work time.
   const shouldShowDuration = (activity: Activity): boolean => {
     const title = (activity.title || '').toLowerCase();
     return (
-      title.includes('session ended') ||
-      title.includes('clock out') ||
-      title.includes('break ended')
+      (title.includes('session ended') || title.includes('clock out')) &&
+      !!activity.duration &&
+      activity.duration !== '0h 0m'
     );
   };
 
