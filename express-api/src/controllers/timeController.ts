@@ -49,9 +49,107 @@ async function upsertDailyStat(
 }
 
 /**
+ * Emit a live stats socket update WITHOUT writing to user_daily_stats.
+ * Used for mid-session events (BREAK_START, BREAK_END, START_TICKET, CLOCK_IN)
+ * where we want the dashboard to reflect the current moment but the session
+ * isn't closed yet — so no DB write should occur.
+ */
+async function pushLiveStats(userId: string, teamId: string | null) {
+  try {
+    const now = new Date();
+    const today = localDate(now);
+
+    // Find the open session boundary (latest CLOCK_IN with no following CLOCK_OUT)
+    const whereClause: any = { userId };
+    if (teamId) whereClause.teamId = teamId;
+
+    const recentEvents = await WorkLog.findAll({
+      where: whereClause,
+      order: [['timestamp', 'DESC']],
+      limit: 200,
+      attributes: ['type', 'timestamp'],
+    });
+
+    let openSessionStartTs: number | null = null;
+    let foundClockOut = false;
+    for (const e of recentEvents) {
+      if (e.type === 'CLOCK_OUT') { foundClockOut = true; break; }
+      if (e.type === 'CLOCK_IN') { openSessionStartTs = new Date(e.timestamp).getTime(); break; }
+    }
+    if (foundClockOut) return; // session is closed, nothing live to push
+
+    // Read completed stats from DB (not modified by this function)
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    const startOfWeekDate = localDate(startOfWeek);
+
+    const updatedRows = await UserDailyStat.findAll({
+      where: { userId, ...(teamId ? { teamId } : {}), date: { [Op.between]: [startOfWeekDate, today] } },
+      attributes: ['date', 'totalMs'],
+    });
+    const completedMsToday = updatedRows.filter((r: any) => r.date === today).reduce((a: number, r: any) => a + Number(r.totalMs), 0);
+    const completedMsWeek  = updatedRows.reduce((a: number, r: any) => a + Number(r.totalMs), 0);
+
+    let liveMsToday = 0;
+    let liveMsWeek  = 0;
+
+    if (openSessionStartTs !== null) {
+      const breakEvents = await WorkLog.findAll({
+        where: {
+          userId,
+          type: { [Op.in]: ['BREAK_START', 'BREAK_END'] },
+          timestamp: { [Op.gte]: new Date(openSessionStartTs) },
+          ...(teamId ? { teamId } : {}),
+        },
+        order: [['timestamp', 'ASC']],
+        attributes: ['type', 'timestamp'],
+      });
+
+      let totalBreakMs = 0;
+      let breakSegStartMs: number | null = null;
+      for (const be of breakEvents) {
+        if (be.type === 'BREAK_START') {
+          breakSegStartMs = new Date(be.timestamp).getTime();
+        } else if (be.type === 'BREAK_END' && breakSegStartMs !== null) {
+          totalBreakMs += new Date(be.timestamp).getTime() - breakSegStartMs;
+          breakSegStartMs = null;
+        }
+      }
+      // If currently on break, exclude the ongoing break from live time
+      if (breakSegStartMs !== null) totalBreakMs += now.getTime() - breakSegStartMs;
+
+      const liveMs = Math.max(0, now.getTime() - openSessionStartTs - totalBreakMs);
+      const sessionDate = localDate(new Date(openSessionStartTs));
+      if (sessionDate === today) liveMsToday = liveMs;
+      liveMsWeek = liveMs;
+    }
+
+    const toHM = (ms: number) => {
+      const h = Math.floor(ms / 3_600_000);
+      const m = Math.floor((ms % 3_600_000) / 60_000);
+      return `${h}h ${m}m`;
+    };
+    const totalMsToday = completedMsToday + liveMsToday;
+    const totalMsWeek  = completedMsWeek  + liveMsWeek;
+
+    getIO().to(userId).emit('stats_updated', {
+      teamId: teamId ?? null,
+      totalHoursToday: toHM(totalMsToday),
+      totalHoursWeek: toHM(totalMsWeek),
+      totalMsToday,
+      totalMsWeek,
+    });
+  } catch (err) {
+    logger.warn('[pushLiveStats] Failed:', err);
+  }
+}
+
+/**
  * Recompute user_daily_stats for a given (userId, teamId) pair
- * covering the current week. Called after each successful sync so that
+ * covering the current week. Called ONLY after CLOCK_OUT or STOP_TICKET so that
  * getDashboardStats can read pre-computed totals instead of replaying events.
+ * Mid-session events (BREAK_START/END, START_TICKET, CLOCK_IN) use pushLiveStats
+ * instead to avoid writing incomplete session data to the DB.
  */
 async function recomputeStatsForUser(userId: string, teamId: string | null) {
   try {
@@ -281,8 +379,11 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
     const validTeamIds = new Set(existingTeams.map((t: any) => t.id));
     const existingLogMap = new Map(existingLogs.map((l: any) => [l.id, l]));
 
-    // Track unique (userId, teamId) pairs for stats recompute after commit
+    // Track targets for post-commit stats updates:
+    // - statsTargets: full recompute + DB write (CLOCK_OUT and STOP_TICKET only)
+    // - liveTargets:  socket-only live push (all other mid-session events)
     const statsTargets = new Set<string>();
+    const liveTargets  = new Set<string>();
 
     for (const event of events) {
       const { id, type, timestamp, ticketId, teamId, ticketTitle, comment, link } = event;
@@ -307,12 +408,22 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
       if (teamId && UUID_REGEX.test(teamId)) {
         if (validTeamIds.has(teamId)) {
           finalTeamId = teamId;
-          statsTargets.add(`${userId}::${finalTeamId}`);
+          const target = `${userId}::${finalTeamId}`;
+          if (type === 'CLOCK_OUT' || type === 'STOP_TICKET') {
+            statsTargets.add(target);
+          } else {
+            liveTargets.add(target);
+          }
         } else {
           console.warn(`Team ${teamId} not found for event ${id}, setting teamId to null`);
         }
       } else {
-        statsTargets.add(`${userId}::null`);
+        const target = `${userId}::null`;
+        if (type === 'CLOCK_OUT' || type === 'STOP_TICKET') {
+          statsTargets.add(target);
+        } else {
+          liveTargets.add(target);
+        }
       }
 
       const existingLog = id ? existingLogMap.get(id) ?? null : null;
@@ -398,13 +509,20 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
     await transaction.commit();
 
     // ---------------------------------------------------------------------------
-    // Item 15: Recompute user_daily_stats after commit — background, non-blocking.
-    // Dashboard reads pre-computed totals instead of replaying events on every request.
+    // Item 15: Post-commit stats updates — background, non-blocking.
+    // CLOCK_OUT / STOP_TICKET → full recompute with DB write.
+    // Mid-session events     → live socket push only (no DB write).
     // ---------------------------------------------------------------------------
     setImmediate(async () => {
       for (const target of statsTargets) {
         const [uid, tid] = target.split('::');
         await recomputeStatsForUser(uid, tid === 'null' ? null : tid);
+      }
+      // liveTargets only need a socket push — skip if already covered by a full recompute
+      for (const target of liveTargets) {
+        if (statsTargets.has(target)) continue; // full recompute already emits socket
+        const [uid, tid] = target.split('::');
+        await pushLiveStats(uid, tid === 'null' ? null : tid);
       }
     });
 
