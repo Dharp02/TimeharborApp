@@ -1,6 +1,10 @@
-import { Network } from '@capacitor/network';
-import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
+
+// Only import Capacitor plugins when running as a native app.
+// In a plain web browser these are loaded as async chunks and can
+// fail to load, crashing network detection entirely.
+const isNative = Capacitor.isNativePlatform();
 
 type NetworkStatus = 'online' | 'offline' | 'backend-unreachable';
 
@@ -44,18 +48,48 @@ class NetworkDetector {
   async init() {
     await this.checkNetworkStatus();
 
-    this.networkListener = await Network.addListener(
-      'networkStatusChange',
-      this.handleNetworkChange
-    );
+    if (isNative) {
+      // Native app: use Capacitor plugins for accurate network + app-state events
+      const { Network } = await import('@capacitor/network');
+      const { App } = await import('@capacitor/app');
 
-    this.appStateListener = await App.addListener(
-      'appStateChange',
-      this.handleAppStateChange
-    );
+      this.networkListener = await Network.addListener(
+        'networkStatusChange',
+        this.handleNetworkChange
+      );
+
+      this.appStateListener = await App.addListener(
+        'appStateChange',
+        this.handleAppStateChange
+      );
+    } else {
+      // Web browser: use standard browser events — no dynamic chunk required
+      window.addEventListener('online', this.handleBrowserOnline);
+      window.addEventListener('offline', this.handleBrowserOffline);
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    }
 
     console.log('NetworkDetector initialized');
   }
+
+  private handleBrowserOnline = () => {
+    console.log('Browser: network online');
+    this.checkNetworkStatus();
+  };
+
+  private handleBrowserOffline = () => {
+    console.log('Browser: network offline');
+    this.updateStatus('offline');
+    this.retryCount = 0;
+    this.cancelRetry();
+  };
+
+  private handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      console.log('Tab became visible, checking status...');
+      this.checkNetworkStatus();
+    }
+  };
 
   private handleNetworkChange = async (status: { connected: boolean; connectionType: string }) => {
     console.log('Network status changed:', status);
@@ -79,9 +113,11 @@ class NetworkDetector {
   };
 
   private async checkNetworkStatus() {
-    const networkStatus = await Network.getStatus();
-    
-    if (!networkStatus.connected) {
+    const isConnected = isNative
+      ? (await (await import('@capacitor/network')).Network.getStatus()).connected
+      : navigator.onLine;
+
+    if (!isConnected) {
       this.updateStatus('offline');
       return;
     }
@@ -193,12 +229,14 @@ class NetworkDetector {
   async destroy() {
     console.log('Cleaning up NetworkDetector...');
     this.cancelRetry();
-    
-    if (this.networkListener) {
-      await this.networkListener.remove();
-    }
-    if (this.appStateListener) {
-      await this.appStateListener.remove();
+
+    if (isNative) {
+      if (this.networkListener) await this.networkListener.remove();
+      if (this.appStateListener) await this.appStateListener.remove();
+    } else {
+      window.removeEventListener('online', this.handleBrowserOnline);
+      window.removeEventListener('offline', this.handleBrowserOffline);
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     }
   }
 }

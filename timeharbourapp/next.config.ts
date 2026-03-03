@@ -4,6 +4,9 @@ import path from "path";
 const isProduction = process.env.NODE_ENV === 'production';
 
 const nextConfig: NextConfig = {
+  // Allow cross-origin dev requests from the local machine IP (for mobile testing via proxy)
+  // Include multiple format variants — Next.js version history varies on the expected format
+  allowedDevOrigins: ['10.0.0.8', '10.0.0.8:8080', 'http://10.0.0.8:8080'],
   // Enable static export only for Capacitor production builds.
   // In dev mode this causes Turbopack to treat every route as a static
   // export candidate, triggering extra compilation on every page visit.

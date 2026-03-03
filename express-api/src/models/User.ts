@@ -1,5 +1,6 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import sequelize from '../config/sequelize';
 
 // User attributes interface
@@ -45,7 +46,7 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
 
   // Instance method to generate reset token
   public async generateResetToken(): Promise<string> {
-    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const token = crypto.randomBytes(32).toString('hex');
     this.reset_token = token;
     this.reset_token_expiry = new Date(Date.now() + 3600000); // 1 hour
     await this.save();
