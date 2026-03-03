@@ -5,6 +5,7 @@ import { User, RefreshToken } from '../models';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import logger from '../utils/logger';
+import { sendPasswordResetEmail } from '../services/emailService';
 
 // Token generation helpers
 const generateAccessToken = (userId: string, email: string, full_name?: string): string => {
@@ -220,19 +221,17 @@ export const forgotPassword = asyncHandler(async (req: AuthRequest, res: Respons
   // Generate reset token
   const resetToken = await user.generateResetToken();
 
-  // TODO: Send email with reset token
-  // For now, log it (in production, use a proper email service)
-  logger.info(`Password reset token for ${email}: ${resetToken}`);
-  
-  // In development, return the token for testing
-  if (process.env.NODE_ENV === 'development') {
-    res.json({
-      message: 'Password reset token generated',
-      reset_token: resetToken // Remove in production
-    });
-  } else {
-    res.json({ message: 'If that email exists, a password reset link has been sent.' });
+  const appUrl = process.env.APP_URL || 'http://localhost:3000';
+  const resetLink = `${appUrl}/reset-password?token=${resetToken}`;
+
+  try {
+    await sendPasswordResetEmail(user.email, resetLink);
+  } catch (err) {
+    logger.error('Failed to send password reset email', { email, err });
+    // Don't expose email failure to the client — fall through to success response
   }
+
+  res.json({ message: 'If that email exists, a password reset link has been sent.' });
 });
 
 // Reset password

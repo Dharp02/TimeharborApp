@@ -53,7 +53,7 @@ const TeamContext = createContext<TeamContextType | undefined>(undefined);
 export function TeamProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { socket } = useSocket();
-  const { register, lastRefreshed } = useRefresh();
+  const { register, refreshAll, lastRefreshed } = useRefresh();
   const [teams, setTeams] = useState<Team[]>([]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -172,6 +172,8 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
       setTeams(prev => [...prev, newTeam]);
       setCurrentTeam(newTeam);
       db.teams.put(newTeam).catch(() => {});
+      // Refresh dashboard so it immediately shows the new team's data
+      refreshAll();
       return { success: true, teamId: newTeam.id };
     } catch (error: any) {
       return { success: false, error: error.message || 'Failed to join team' };

@@ -66,17 +66,33 @@ export const getStoredUser = async (): Promise<User | null> => {
   }
 };
 
+// Keys that survive sign-out because they are device-scoped, not user-scoped.
+const DEVICE_SCOPED_STORAGE_KEYS = new Set(['deviceId']);
+
 const clearTokens = async () => {
   if (!isBrowser) return;
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('token_expires_at');
+
+  // Clear every localStorage key except device-scoped ones.
+  // Adding new user-scoped keys in future requires no changes here.
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key && !DEVICE_SCOPED_STORAGE_KEYS.has(key)) {
+      localStorage.removeItem(key);
+    }
+  }
+
   try {
-    await db.profile.delete('user');
+    // Clear every Dexie table dynamically so new tables added in future
+    // are wiped automatically without needing to update this function.
+    await Promise.all(db.tables.map(table => table.clear()));
   } catch (error) {
-    console.error('Failed to delete user from Dexie:', error);
+    console.error('Failed to clear Dexie cache on sign-out:', error);
   }
 };
+
+// Exported so that pages like ResetPasswordForm can clear any stale session
+// before redirecting to login, preventing auto-login as the wrong account.
+export const clearStoredSession = clearTokens;
 
 const getAccessToken = (): string | null => {
   if (!isBrowser) return null;

@@ -2,24 +2,28 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { forgotPassword } from '@/TimeharborAPI/auth';
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setIsLoading(true);
 
-    // TODO: Implement password reset logic
-    console.log('Password reset requested for:', email);
+    const { error: apiError } = await forgotPassword(email);
+    setIsLoading(false);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsSubmitted(true);
-    }, 1000);
+    if (apiError) {
+      setError(apiError.message);
+      return;
+    }
+
+    setIsSubmitted(true);
   };
 
   if (isSubmitted) {
@@ -46,7 +50,12 @@ export default function ForgotPasswordForm() {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6" aria-label="Forgot password form">
+        {error && (
+          <div role="alert" className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded-lg px-4 py-3">
+            {error}
+          </div>
+        )}
         <div>
           <label
             htmlFor="email"
