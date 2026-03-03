@@ -42,6 +42,14 @@ export class LocalTimeStore {
     return this.logEvent(userId, 'STOP_TICKET', ticketId, null, comment, teamId, link);
   }
 
+  async breakStart(userId: string, teamId: string | null = null) {
+    return this.logEvent(userId, 'BREAK_START', null, null, null, teamId);
+  }
+
+  async breakEnd(userId: string, teamId: string | null = null) {
+    return this.logEvent(userId, 'BREAK_END', null, null, null, teamId);
+  }
+
   async getPendingEvents() {
     return await db.events.where('synced').equals(0).toArray();
   }

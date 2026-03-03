@@ -38,11 +38,16 @@ export default function SettingsPage() {
 
     setIsClearingCache(true);
     try {
-      // 1. Clear IndexedDB (except auth if it was there, but our db is mostly data)
-      await db.transaction('rw', db.activityLogs, db.offlineMutations, async () => {
-        await db.activityLogs.clear();
-        await db.offlineMutations.clear();
-      });
+      // 1. Clear all IndexedDB tables
+      await Promise.all([
+        db.activityLogs.clear(),
+        db.offlineMutations.clear(),
+        db.events.clear(),
+        db.teams.clear(),
+        db.tickets.clear(),
+        db.dashboardStats.clear(),
+        db.dashboardActivity.clear(),
+      ]);
 
       // 2. Clear LocalStorage (preserve auth tokens)
       const authKeys = ['supabase.auth.token', 'sb-api-auth-token']; // Add any specific auth keys here

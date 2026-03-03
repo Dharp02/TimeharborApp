@@ -2,10 +2,24 @@
 
 import Link from 'next/link';
 import { ChevronRight, Clock } from 'lucide-react';
+import type { Activity } from '@/TimeharborAPI/dashboard';
+import { DateTime } from 'luxon';
 import { useActivityLog } from './ActivityLogContext';
 
+/**
+ * Loads recent activity from activity_logs (via ActivityLogContext / GET /teams/:id/logs).
+ * This includes work sessions AND discrete events like ticket created, team created/deleted.
+ */
 export default function RecentActivity() {
-  const { activities } = useActivityLog();
+  const { activities: allActivities } = useActivityLog();
+
+  // Filter to a 7-day rolling window, newest first, capped at 10 entries
+  const cutoff = DateTime.now().minus({ days: 7 }).startOf('day');
+  const activities = allActivities
+    .filter((a: Activity) => DateTime.fromISO(a.startTime) >= cutoff)
+    .slice(0, 10);
+
+  const loading = false; // ActivityLogContext manages its own loading state; treat as ready
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -17,13 +31,6 @@ export default function RecentActivity() {
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   };
 
-  // Helper to format duration if needed, though most activities might pre-calculate it
-  const formatDuration = (ms: number) => {
-      const hours = Math.floor(ms / (1000 * 60 * 60));
-      const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-      return `${hours}h ${minutes}m`;
-  };
-
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
       <div className="flex items-center justify-between mb-4 md:mb-6">
@@ -33,11 +40,17 @@ export default function RecentActivity() {
       </div>
 
       <div className="space-y-3 md:space-y-4">
-        {activities.length === 0 ? (
+        {loading ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-20 bg-gray-100 dark:bg-gray-700 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : activities.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400 text-center py-4">No recent activity</p>
         ) : (
           activities.slice(0, 10).map((activity) => (
-            <div 
+            <div
               key={activity.id}
               className={`p-3 md:p-4 rounded-xl border transition-colors ${
                 activity.status === 'Active'
@@ -68,18 +81,8 @@ export default function RecentActivity() {
                     </p>
                     {activity.description && (
                       <p className="text-sm md:text-base font-bold text-gray-700 dark:text-gray-200 mt-0.5">
-                        "{activity.description}"
+                        &quot;{activity.description}&quot;
                       </p>
-                    )}
-                    {activity.link && (
-                      <a
-                        href={activity.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
-                      >
-                        🔗 {activity.link}
-                      </a>
                     )}
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       {formatDate(activity.startTime)}, {formatTime(activity.startTime)}
@@ -87,9 +90,10 @@ export default function RecentActivity() {
                     </p>
                   </div>
                 </div>
-                
+
+                {/* Duration badge — shown for CLOCK_OUT events matching the All Activity page format */}
                 {activity.duration && (
-                  <div className={`px-2 md:px-3 py-1 rounded-lg text-xs md:text-sm font-mono font-medium ${
+                  <div className={`shrink-0 px-2 md:px-3 py-1 rounded-lg text-xs md:text-sm font-mono font-medium ${
                     activity.status === 'Active'
                       ? 'bg-green-500 text-white'
                       : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
@@ -102,10 +106,10 @@ export default function RecentActivity() {
           ))
         )}
       </div>
-      
+
       <div className="mt-4 flex justify-end">
-        <Link 
-          href="/dashboard/activity" 
+        <Link
+          href="/dashboard/activity"
           className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
         >
           See All <ChevronRight className="w-4 h-4" />

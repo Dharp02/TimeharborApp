@@ -12,6 +12,7 @@ import { SessionCard } from './components/SessionCard';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
 import { useRefresh } from '../../../contexts/RefreshContext';
+import { formatDurationMs } from '@/lib/formatDuration';
 
 interface MemberPageProps {
   memberId?: string;
@@ -66,21 +67,8 @@ function MemberPageContent({
     setPreset(newPreset);
   };
 
-  const calculateTotalDuration = (sessionsToSum: ActivitySession[]) => {
-    let totalMs = 0;
-    const now = DateTime.now().toMillis();
-    
-    sessionsToSum.forEach(session => {
-        const start = session.startTime.toMillis();
-        const end = session.endTime ? session.endTime.toMillis() : now;
-        totalMs += (end - start);
-    });
-    
-    const hours = Math.floor(totalMs / 3600000);
-    const minutes = Math.floor((totalMs % 3600000) / 60000);
-    
-    return `${hours}h ${minutes}m`;
-  };
+  // Sum backend-computed durationMs per session (break-excluded). No client-side time math.
+  const customRangeDurationMs = filteredSessions.reduce((acc, s) => acc + ((s as any).durationMs || 0), 0);
 
   const mapSessionFromApi = (s: any): ActivitySession => ({
         id: s.id,
@@ -374,14 +362,18 @@ function MemberPageContent({
                                 <Clock className="w-3 h-3" />
                                 Today
                             </div>
-                            <div className="text-xl font-bold text-gray-900 dark:text-white">{timeTracking.today.duration}</div>
+                            <div className="text-xl font-bold text-gray-900 dark:text-white">
+                            {formatDurationMs(timeTracking.today.totalMs)}
+                          </div>
                         </div>
                         <div className="text-center px-2 pt-0.5">
                             <div className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-0.5 flex items-center justify-center gap-1.5">
                                 <Calendar className="w-3 h-3" />
                                 This Week
                             </div>
-                            <div className="text-xl font-bold text-gray-900 dark:text-white">{timeTracking.week.duration}</div>
+                            <div className="text-xl font-bold text-gray-900 dark:text-white">
+                            {formatDurationMs(timeTracking.week.totalMs)}
+                          </div>
                         </div>
                         {show && (
                             <div className="text-center px-2 pt-0.5 animate-in fade-in zoom-in-95 duration-200">
@@ -389,7 +381,7 @@ function MemberPageContent({
                                     <Calendar className="w-3 h-3" />
                                     <span className="truncate max-w-[80px]">{label}</span>
                                 </div>
-                                <div className="text-xl font-bold text-gray-900 dark:text-white">{calculateTotalDuration(filteredSessions)}</div>
+                                <div className="text-xl font-bold text-gray-900 dark:text-white">{formatDurationMs(customRangeDurationMs)}</div>
                             </div>
                         )}
                     </div>

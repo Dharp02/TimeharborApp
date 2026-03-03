@@ -4,7 +4,7 @@ import User from './User';
 import Team from './Team';
 import Ticket from './Ticket';
 
-export type TimeEventType = 'CLOCK_IN' | 'CLOCK_OUT' | 'START_TICKET' | 'STOP_TICKET';
+export type TimeEventType = 'CLOCK_IN' | 'CLOCK_OUT' | 'START_TICKET' | 'STOP_TICKET' | 'BREAK_START' | 'BREAK_END';
 
 interface WorkLogAttributes {
   id: string;
@@ -58,7 +58,7 @@ WorkLog.init(
       },
     },
     type: {
-      type: DataTypes.ENUM('CLOCK_IN', 'CLOCK_OUT', 'START_TICKET', 'STOP_TICKET'),
+      type: DataTypes.ENUM('CLOCK_IN', 'CLOCK_OUT', 'START_TICKET', 'STOP_TICKET', 'BREAK_START', 'BREAK_END'),
       allowNull: false,
     },
     timestamp: {

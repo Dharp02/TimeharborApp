@@ -130,27 +130,11 @@ export default function OpenTickets() {
     if (!pendingTicket) return;
 
     if (modalType === 'stop') {
-      // If the comment is empty when stopping a ticket, trigger the session clock out flow
-      if (!comment || comment.trim() === '') {
-        setIsModalOpen(false);
-        setPendingTicket(null);
-        setComment('');
-        setLink('');
-        toggleSession(currentTeam?.id);
-        return;
-      }
-      // If the comment is empty when stopping a ticket, trigger the session clock out flow
-      if (!comment || comment.trim() === '') {
-        setIsModalOpen(false);
-        setPendingTicket(null);
-        setComment('');
-        setLink('');
-        toggleSession(currentTeam?.id);
-        return;
-      }
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment, link || undefined);
+      // Stop the ticket (comment optional)
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined);
     } else {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment, link || undefined);
+      // Switch to a new ticket
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment || undefined, link || undefined);
     }
 
     setIsModalOpen(false);

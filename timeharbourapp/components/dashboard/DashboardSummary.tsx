@@ -6,16 +6,21 @@ import { useSocket } from '@/contexts/SocketContext';
 import * as API from '@/TimeharborAPI';
 import { db } from '@/TimeharborAPI/db';
 import Link from 'next/link';
+import { formatDurationMs } from '@/lib/formatDuration';
 
 interface DashboardStats {
   totalHoursToday: string;
   totalHoursWeek: string;
+  totalMsToday: number;
+  totalMsWeek: number;
   teamMembers: number;
 }
 
 const DEFAULT_STATS: DashboardStats = {
   totalHoursToday: '0h 0m',
   totalHoursWeek: '0h 0m',
+  totalMsToday: 0,
+  totalMsWeek: 0,
   teamMembers: 0,
 };
 
@@ -31,7 +36,11 @@ export default function DashboardSummary() {
   const refreshFromBackend = async (teamId?: string) => {
     try {
       const data = await API.dashboard.getStats(teamId);
-      setStats(data);
+      setStats({
+        ...data,
+        totalMsToday: data.totalMsToday ?? 0,
+        totalMsWeek: data.totalMsWeek ?? 0,
+      });
     } catch (error) {
       console.error('Error refreshing dashboard stats:', error);
     }
@@ -64,17 +73,35 @@ export default function DashboardSummary() {
   // 4. Live update via WebSocket — backend pushes fresh totals after each sync
   useEffect(() => {
     if (!socket || !currentTeam?.id) return;
-    const handleStatsUpdated = (payload: { teamId: string | null; totalHoursToday: string; totalHoursWeek: string }) => {
+    const handleStatsUpdated = (payload: {
+      teamId: string | null;
+      totalHoursToday: string;
+      totalHoursWeek: string;
+      totalMsToday?: number;
+      totalMsWeek?: number;
+    }) => {
       if (payload.teamId !== currentTeam.id && payload.teamId !== null) return;
       setStats(prev => ({
         ...prev,
         totalHoursToday: payload.totalHoursToday,
         totalHoursWeek: payload.totalHoursWeek,
+        totalMsToday: payload.totalMsToday ?? prev.totalMsToday,
+        totalMsWeek: payload.totalMsWeek ?? prev.totalMsWeek,
       }));
       // Also update Dexie cache so next page load is instant
       db.dashboardStats.get(currentTeam.id).then((cached: any) => {
         if (cached) {
-          db.dashboardStats.put({ ...cached, data: { ...cached.data, totalHoursToday: payload.totalHoursToday, totalHoursWeek: payload.totalHoursWeek }, updatedAt: Date.now() });
+          db.dashboardStats.put({
+            ...cached,
+            data: {
+              ...cached.data,
+              totalHoursToday: payload.totalHoursToday,
+              totalHoursWeek: payload.totalHoursWeek,
+              totalMsToday: payload.totalMsToday,
+              totalMsWeek: payload.totalMsWeek,
+            },
+            updatedAt: Date.now()
+          });
         }
       });
     };
@@ -99,7 +126,9 @@ export default function DashboardSummary() {
           <h3 className="text-xs md:text-lg font-semibold text-blue-900 dark:text-blue-100 mb-1 md:mb-2 truncate">
             Total Hours
           </h3>
-          <p className="text-lg md:text-3xl font-bold text-blue-600 dark:text-blue-400 truncate">{stats.totalHoursToday}</p>
+          <p className="text-lg md:text-3xl font-bold text-blue-600 dark:text-blue-400 truncate">
+            {stats.totalMsToday > 0 ? formatDurationMs(stats.totalMsToday) : stats.totalHoursToday}
+          </p>
         </div>
         <p className="text-[10px] md:text-sm text-blue-600/60 dark:text-blue-400/60 mt-1 truncate">Today</p>
       </div>
@@ -109,7 +138,9 @@ export default function DashboardSummary() {
           <h3 className="text-xs md:text-lg font-semibold text-indigo-900 dark:text-indigo-100 mb-1 md:mb-2 truncate">
             This Week
           </h3>
-          <p className="text-lg md:text-3xl font-bold text-indigo-600 dark:text-indigo-400 truncate">{stats.totalHoursWeek}</p>
+          <p className="text-lg md:text-3xl font-bold text-indigo-600 dark:text-indigo-400 truncate">
+            {stats.totalMsWeek > 0 ? formatDurationMs(stats.totalMsWeek) : stats.totalHoursWeek}
+          </p>
         </div>
         <p className="text-[10px] md:text-sm text-indigo-600/60 dark:text-indigo-400/60 mt-1 truncate">Total hours</p>
       </div>

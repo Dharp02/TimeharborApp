@@ -71,9 +71,11 @@ async function recomputeForPair(userId: string, teamId: string | null) {
       case 'CLOCK_IN':
       case 'START_TICKET':
       case 'STOP_TICKET':
+      case 'BREAK_END':
         isClockedIn = true;
         break;
       case 'CLOCK_OUT':
+      case 'BREAK_START':
         isClockedIn = false;
         break;
     }
