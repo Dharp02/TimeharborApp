@@ -1,56 +1,25 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Clock } from 'lucide-react';
-import { fetchActivitiesByDateRange } from '@/TimeharborAPI/dashboard';
 import type { Activity } from '@/TimeharborAPI/dashboard';
 import { DateTime } from 'luxon';
-import { useTeam } from './TeamContext';
-import { useRefresh } from '@/contexts/RefreshContext';
-import { useSocket } from '@/contexts/SocketContext';
+import { useActivityLog } from './ActivityLogContext';
 
 /**
- * Loads recent work sessions from work_logs (via GET /dashboard/activity),
- * which is the backend source of truth — not the frontend-written activity_logs table.
+ * Loads recent activity from activity_logs (via ActivityLogContext / GET /teams/:id/logs).
+ * This includes work sessions AND discrete events like ticket created, team created/deleted.
  */
 export default function RecentActivity() {
-  const { currentTeam } = useTeam();
-  const { register, lastRefreshed } = useRefresh();
-  const { socket } = useSocket();
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { activities: allActivities } = useActivityLog();
 
-  const load = useCallback(async () => {
-    if (!currentTeam?.id) return;
-    try {
-      // Fetch individual events (same source as All Activity page) over a 7-day rolling window,
-      // newest first. Slice to 10 for the dashboard panel.
-      const from = DateTime.now().minus({ days: 7 }).startOf('day').toISO() || '';
-      const to = DateTime.now().toISO() || '';
-      const data = await fetchActivitiesByDateRange(currentTeam.id, from, to);
-      setActivities(data.slice(0, 10));
-    } catch (e) {
-      console.error('Failed to load recent activity:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentTeam?.id]);
+  // Filter to a 7-day rolling window, newest first, capped at 10 entries
+  const cutoff = DateTime.now().minus({ days: 7 }).startOf('day');
+  const activities = allActivities
+    .filter((a: Activity) => DateTime.fromISO(a.startTime) >= cutoff)
+    .slice(0, 10);
 
-  useEffect(() => {
-    setLoading(true);
-    load();
-    const unregister = register(load);
-    return unregister;
-  }, [load, lastRefreshed, register]);
-
-  // Reload after a sync event so the active session duration stays fresh
-  useEffect(() => {
-    if (!socket) return;
-    const handler = () => load();
-    socket.on('stats_updated', handler);
-    return () => { socket.off('stats_updated', handler); };
-  }, [socket, load]);
+  const loading = false; // ActivityLogContext manages its own loading state; treat as ready
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
