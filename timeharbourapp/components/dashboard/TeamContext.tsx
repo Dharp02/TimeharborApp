@@ -107,16 +107,36 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
 
       const myTeams = await fetchMyTeams();
       setTeams(myTeams);
+
+      // Purge teams (and their tickets) that are no longer in the user's fresh team list.
+      // This prevents the Dexie fast-path from serving a stale team on the next load,
+      // which would cause 403s on every ticket/stats fetch until the API corrects state.
+      const freshTeamIds = new Set(myTeams.map((t: Team) => t.id));
+      try {
+        const cachedTeamIds = (await db.teams.toArray()).map(t => t.id);
+        const staleTeamIds = cachedTeamIds.filter(id => !freshTeamIds.has(id));
+        if (staleTeamIds.length > 0) {
+          await Promise.all([
+            db.teams.bulkDelete(staleTeamIds),
+            // Also remove tickets that belonged to stale teams to avoid cross-team data leaks.
+            ...staleTeamIds.map(id => db.tickets.where('teamId').equals(id).delete()),
+          ]);
+        }
+      } catch (e) {
+        console.warn('Failed to prune stale teams from Dexie', e);
+      }
+
       if (myTeams.length > 0) {
         await db.teams.bulkPut(myTeams);
       }
 
       const savedTeamId = localStorage.getItem('timeharbor-current-team-id');
       if (savedTeamId) {
-        const team = myTeams.find(t => t.id === savedTeamId);
+        const team = myTeams.find((t: Team) => t.id === savedTeamId);
         if (team) {
           setCurrentTeam(team);
         } else if (myTeams.length > 0) {
+          // Saved team is no longer in the user's list — switch to first available.
           setCurrentTeam(myTeams[0]);
           localStorage.setItem('timeharbor-current-team-id', myTeams[0].id);
         }

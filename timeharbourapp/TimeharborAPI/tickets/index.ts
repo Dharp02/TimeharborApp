@@ -148,14 +148,22 @@ export const getTickets = async (teamId: string, options?: { sort?: string; stat
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch tickets');
+      const errorBody = await response.json();
+      const err: any = new Error(errorBody.message || 'Failed to fetch tickets');
+      err.status = response.status;
+      throw err;
     }
 
     const tickets = await response.json();
     await db.tickets.bulkPut(tickets);
     return tickets;
-  } catch (error) {
+  } catch (error: any) {
+    // 403 = genuine access denied (user not a member of this team).
+    // Do NOT serve stale cache data — return empty to avoid showing another user's tickets.
+    if (error?.status === 403) {
+      console.warn(`Tickets fetch denied (403) for team ${teamId} — user may no longer be a member.`);
+      return [];
+    }
     console.warn('Fetching tickets failed, loading from offline cache:', error);
     return loadFromCache();
   }
