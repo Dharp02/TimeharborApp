@@ -18,6 +18,7 @@ import { Plus, Play, Ticket, Coffee, PlayCircle } from 'lucide-react';
 type ClockInContextType = {
   // Global Session
   isSessionActive: boolean;
+  isSessionInitialized: boolean;
   isOnBreak: boolean;
   sessionStartTime: number | null;
   sessionDuration: string;
@@ -52,6 +53,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const serverStateLoadedRef = useRef(false);  // True once first server state has been applied
   
   // Session State
+  const [isSessionInitialized, setIsSessionInitialized] = useState(false); // True once server state or fallback has resolved
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [sessionDuration, setSessionDuration] = useState('00:00');
@@ -119,6 +121,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     if (isSwitchingTicketRef.current) return;
 
     serverStateLoadedRef.current = true;
+    setIsSessionInitialized(true);
 
     if (state.isSessionActive && state.sessionStartTime) {
       const ms = new Date(state.sessionStartTime).getTime();
@@ -217,8 +220,8 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     };
 
     applyLocal();
-    // If server hasn't responded within 800ms, apply local as fallback
-    const fallback = setTimeout(applyLocal, 800);
+    // If server hasn't responded within 800ms, apply local as fallback and mark as initialized
+    const fallback = setTimeout(() => { applyLocal(); setIsSessionInitialized(true); }, 800);
     return () => clearTimeout(fallback);
   }, []);
 
@@ -851,6 +854,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   return (
     <ClockInContext.Provider value={{ 
       isSessionActive,
+      isSessionInitialized,
       isOnBreak,
       sessionStartTime, 
       sessionDuration, 

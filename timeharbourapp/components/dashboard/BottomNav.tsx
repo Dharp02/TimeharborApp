@@ -8,7 +8,7 @@ import { useTeam } from './TeamContext';
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const { isSessionActive, isOnBreak, sessionDuration, sessionFormat, toggleSession, resumeFromBreak } = useClockIn();
+  const { isSessionActive, isSessionInitialized, isOnBreak, sessionDuration, sessionFormat, toggleSession, resumeFromBreak } = useClockIn();
   const { refreshTeams, currentTeam } = useTeam();
 
   const isActive = (path: string) => {
@@ -56,16 +56,16 @@ export default function BottomNav() {
           <button 
             onClick={() => isOnBreak ? resumeFromBreak() : toggleSession(currentTeam?.id)}
             className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-white dark:ring-gray-800 ${
-              isOnBreak
+              isSessionInitialized && isOnBreak
                 ? 'bg-amber-400 hover:bg-amber-500 w-16 h-16'
-                : isSessionActive 
+                : isSessionInitialized && isSessionActive 
                 ? 'bg-red-500 hover:bg-red-600 animate-pulse w-17 h-17' 
                 : 'bg-blue-600 hover:bg-blue-700 w-16 h-16'
             }`}
           >
-            {isOnBreak ? (
+            {isSessionInitialized && isOnBreak ? (
               <Coffee className="w-7 h-7" />
-            ) : isSessionActive ? (
+            ) : isSessionInitialized && isSessionActive ? (
               <>
                 <span className="text-xs font-bold font-mono leading-none">{sessionDuration}</span>
                 <span className="text-[8px] font-medium opacity-80 leading-none mt-0.5">{sessionFormat}</span>
@@ -75,9 +75,9 @@ export default function BottomNav() {
             )}
           </button>
           <span className={`absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap ${
-            isOnBreak ? 'text-amber-500' : isSessionActive ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
+            isSessionInitialized && isOnBreak ? 'text-amber-500' : isSessionInitialized && isSessionActive ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
           }`}>
-            {isOnBreak ? 'On Break' : isSessionActive ? 'Clock Out' : 'Clock In'}
+            {isSessionInitialized && isOnBreak ? 'On Break' : isSessionInitialized && isSessionActive ? 'Clock Out' : 'Clock In'}
           </span>
         </div>
 

@@ -2,34 +2,95 @@
 
 import Link from 'next/link';
 import { ChevronRight, Clock } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Activity } from '@/TimeharborAPI/dashboard';
+import { fetchActivitiesByDateRange } from '@/TimeharborAPI/dashboard';
 import { DateTime } from 'luxon';
-import { useActivityLog } from './ActivityLogContext';
+import { useTeam } from './TeamContext';
+import { useRefresh } from '@/contexts/RefreshContext';
+import { useSocket } from '@/contexts/SocketContext';
+import { db } from '@/TimeharborAPI/db';
+import { Network } from '@capacitor/network';
 
 /**
- * Loads recent activity from activity_logs (via ActivityLogContext / GET /teams/:id/logs).
- * This includes work sessions AND discrete events like ticket created, team created/deleted.
+ * Fetches recent activity directly from the API (same source as All Activity page).
+ * Refreshes on pull-to-refresh via RefreshContext.
  */
 export default function RecentActivity() {
-  const { activities: allActivities } = useActivityLog();
+  const { currentTeam } = useTeam();
+  const { register } = useRefresh();
+  const { socket } = useSocket();
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Filter to a 7-day rolling window, newest first, capped at 10 entries
-  const cutoff = DateTime.now().minus({ days: 7 }).startOf('day');
-  const activities = allActivities
-    .filter((a: Activity) => DateTime.fromISO(a.startTime) >= cutoff)
-    .slice(0, 10);
+  const fetchData = useCallback(async () => {
+    if (!currentTeam?.id) return;
+    setLoading(true);
+    try {
+      const { connected } = await Network.getStatus();
+      const from = DateTime.now().minus({ days: 7 }).startOf('day');
+      const to = DateTime.now().endOf('day');
 
-  const loading = false; // ActivityLogContext manages its own loading state; treat as ready
+      if (connected) {
+        const data = await fetchActivitiesByDateRange(currentTeam.id, from.toISO()!, to.toISO()!);
+        const slice = data.slice(0, 10);
+        setActivities(slice);
+        // Persist to Dexie so the last-known 7-day window is available offline
+        if (slice.length > 0) {
+          await db.activityLogs.bulkPut(slice);
+        }
+      } else {
+        // Offline: serve the cached Dexie data for this team / date range
+        const fromTs = from.toISO()!;
+        const cached = await db.activityLogs
+          .where('teamId').equals(currentTeam.id)
+          .filter(a => a.startTime >= fromTs)
+          .toArray();
+        cached.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        setActivities(cached.slice(0, 10));
+      }
+    } catch (e) {
+      console.error('RecentActivity fetch failed', e);
+      // On any error fall back to whatever is cached in Dexie
+      try {
+        const from = DateTime.now().minus({ days: 7 }).startOf('day').toISO()!;
+        const cached = await db.activityLogs
+          .where('teamId').equals(currentTeam.id!)
+          .filter(a => a.startTime >= from)
+          .toArray();
+        cached.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        setActivities(cached.slice(0, 10));
+      } catch { /* swallow */ }
+    } finally {
+      setLoading(false);
+    }
+  }, [currentTeam?.id]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString([], { month: 'numeric', day: 'numeric', year: 'numeric' });
-  };
+  useEffect(() => {
+    fetchData();
+    const unregister = register(fetchData);
+    return unregister;
+  }, [fetchData, register]);
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  };
+  // Re-fetch whenever the backend signals that activity logs have changed
+  // (covers clock-in/out, breaks, tickets — on this device or any other).
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('activity_logs_updated', fetchData);
+    socket.on('stats_updated', fetchData);
+    socket.on('session_state_restore', fetchData);
+    return () => {
+      socket.off('activity_logs_updated', fetchData);
+      socket.off('stats_updated', fetchData);
+      socket.off('session_state_restore', fetchData);
+    };
+  }, [socket, fetchData]);
+
+  const formatDate = (dateString: string) =>
+    DateTime.fromISO(dateString).toFormat('M/d/yyyy');
+
+  const formatTime = (dateString: string) =>
+    DateTime.fromISO(dateString).toFormat('h:mm a');
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
