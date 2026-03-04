@@ -427,6 +427,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       // Use the team from the active ticket or the pending stop team
       const teamId = activeTicketTeamId || pendingSessionStopTeamId || null;
       await localTimeStore.breakStart(user.id, teamId);
+      // Flush the BREAK_START work-log to the backend immediately so the server
+      // can emit session_state_restore to all other connected devices.
+      await syncManager.syncNow();
     }
     } finally {
       isMutatingRef.current = false;
@@ -474,6 +477,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     if (user?.id) {
       const teamId = activeTicketTeamId || null;
       await localTimeStore.breakEnd(user.id, teamId);
+      // Flush the BREAK_END work-log to the backend immediately so the server
+      // can emit session_state_restore to all other connected devices.
+      await syncManager.syncNow();
     }
     } finally {
       isMutatingRef.current = false;
