@@ -1,11 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { localTimeStore } from '@/TimeharborAPI/time/LocalTimeStore';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { TimeService } from '@/TimeharborAPI/time/TimeService';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useSocket } from '@/contexts/SocketContext';
 import { Network } from '@capacitor/network';
 import { Modal } from '@/components/ui/Modal';
 import { useActivityLog } from './ActivityLogContext';
@@ -42,9 +43,13 @@ const ClockInContext = createContext<ClockInContextType | undefined>(undefined);
 
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { socket } = useSocket();
   const { addActivity, updateActivity, updateActiveSession } = useActivityLog();
   const router = useRouter();
   const isSwitchingTicketRef = useRef(false); // Prevents activity-sync useEffect from clearing ticket during handoff
+  const isMutatingRef = useRef(false);         // True while a local clock/break/ticket action is in flight
+  const lastAppliedAtRef = useRef<number>(0);  // Timestamp of last applied server state — stale payloads are discarded
+  const serverStateLoadedRef = useRef(false);  // True once first server state has been applied
   
   // Session State
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -83,58 +88,185 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [ticketFormat, setTicketFormat] = useState('mm:ss');
   const [ticketDurations, setTicketDurations] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    // Load state from local storage on mount
-    const storedSessionStart = localStorage.getItem('sessionStartTime');
-    const storedTicketStart = localStorage.getItem('ticketStartTime');
-    const storedTicketId = localStorage.getItem('activeTicketId');
-    const storedTicketTitle = localStorage.getItem('activeTicketTitle');
-    const storedTicketTeamId = localStorage.getItem('activeTicketTeamId');
-    const storedDurations = localStorage.getItem('ticketDurations');
-    
-    if (storedSessionStart) {
-      setSessionStartTime(parseInt(storedSessionStart, 10));
+  /**
+   * Apply authoritative session state received from the backend.
+   * Called on socket connect, REST fetch on login, and dashboard refresh.
+   * Server state always wins over localStorage so cross-device sessions
+   * are correctly restored on Device B.
+   */
+  const applySessionState = useCallback((state: {
+    isSessionActive: boolean;
+    sessionStartTime: string | null;
+    isOnBreak: boolean;
+    breakStartTime: string | null;
+    totalBreakMs: number;
+    ticketBreakMs?: number;
+    activeTicketId: string | null;
+    activeTicketTitle: string | null;
+    activeTicketTeamId: string | null;
+    ticketStartTime: string | null;
+    computedAt?: number;
+  }) => {
+    // Discard stale payloads (e.g. REST response arriving after a newer socket event)
+    const computedAt = state.computedAt ?? Date.now();
+    if (computedAt < lastAppliedAtRef.current) return;
+    lastAppliedAtRef.current = computedAt;
+
+    // Don't clobber optimistic UI while a local action is still in flight
+    if (isMutatingRef.current) return;
+
+    // Don't apply state during a ticket switch handoff
+    if (isSwitchingTicketRef.current) return;
+
+    serverStateLoadedRef.current = true;
+
+    if (state.isSessionActive && state.sessionStartTime) {
+      const ms = new Date(state.sessionStartTime).getTime();
       setIsSessionActive(true);
+      setSessionStartTime(ms);
+      setTotalBreakMs(state.totalBreakMs);
+      localStorage.setItem('sessionStartTime', ms.toString());
+      localStorage.setItem('totalBreakMs', state.totalBreakMs.toString());
+    } else {
+      setIsSessionActive(false);
+      setSessionStartTime(null);
+      setTotalBreakMs(0);
+      localStorage.removeItem('sessionStartTime');
+      localStorage.removeItem('totalBreakMs');
     }
 
-    const storedBreakStart = localStorage.getItem('breakStartTime');
-    const storedTotalBreakMs = localStorage.getItem('totalBreakMs');
-    if (storedBreakStart) {
+    if (state.isOnBreak && state.breakStartTime) {
+      const ms = new Date(state.breakStartTime).getTime();
       setIsOnBreak(true);
-      setBreakStartTime(parseInt(storedBreakStart, 10));
-    }
-    if (storedTotalBreakMs) {
-      setTotalBreakMs(parseInt(storedTotalBreakMs, 10));
-    }
-
-    if (storedTicketStart && storedTicketId) {
-      setTicketStartTime(parseInt(storedTicketStart, 10));
-      setActiveTicketId(storedTicketId);
-      if (storedTicketTitle) setActiveTicketTitle(storedTicketTitle);
-      if (storedTicketTeamId) setActiveTicketTeamId(storedTicketTeamId);
+      setBreakStartTime(ms);
+      localStorage.setItem('breakStartTime', ms.toString());
+    } else {
+      setIsOnBreak(false);
+      setBreakStartTime(null);
+      localStorage.removeItem('breakStartTime');
     }
 
-    if (storedDurations) {
-      try {
-        setTicketDurations(JSON.parse(storedDurations));
-      } catch (e) {
-        console.error('Failed to parse ticket durations', e);
-      }
+    if (state.activeTicketId && state.ticketStartTime) {
+      const ms = new Date(state.ticketStartTime).getTime();
+      setActiveTicketId(state.activeTicketId);
+      setActiveTicketTitle(state.activeTicketTitle);
+      setActiveTicketTeamId(state.activeTicketTeamId);
+      setTicketStartTime(ms);
+      setTicketBreakMs(state.ticketBreakMs ?? 0);
+      localStorage.setItem('activeTicketId', state.activeTicketId);
+      if (state.activeTicketTitle) localStorage.setItem('activeTicketTitle', state.activeTicketTitle);
+      if (state.activeTicketTeamId) localStorage.setItem('activeTicketTeamId', state.activeTicketTeamId);
+      localStorage.setItem('ticketStartTime', ms.toString());
+      localStorage.setItem('ticketBreakMs', String(state.ticketBreakMs ?? 0));
+    } else {
+      setActiveTicketId(null);
+      setActiveTicketTitle(null);
+      setActiveTicketTeamId(null);
+      setTicketStartTime(null);
+      localStorage.removeItem('activeTicketId');
+      localStorage.removeItem('activeTicketTitle');
+      localStorage.removeItem('activeTicketTeamId');
+      localStorage.removeItem('ticketStartTime');
+      localStorage.removeItem('ticketBreakMs');
     }
-
-    const storedTicketBreakMs = localStorage.getItem('ticketBreakMs');
-    if (storedTicketBreakMs) {
-      setTicketBreakMs(parseInt(storedTicketBreakMs, 10));
-    }
-
-    // Network listener removed - handled by SyncManager
   }, []);
+
+  useEffect(() => {
+    // Load state from local storage on mount — only if server hasn't responded yet.
+    // This avoids a flash of stale local state when server state is available.
+    const applyLocal = () => {
+      if (serverStateLoadedRef.current) return; // server already won
+
+      const storedSessionStart = localStorage.getItem('sessionStartTime');
+      const storedTicketStart = localStorage.getItem('ticketStartTime');
+      const storedTicketId = localStorage.getItem('activeTicketId');
+      const storedTicketTitle = localStorage.getItem('activeTicketTitle');
+      const storedTicketTeamId = localStorage.getItem('activeTicketTeamId');
+      const storedDurations = localStorage.getItem('ticketDurations');
+
+      if (storedSessionStart) {
+        setSessionStartTime(parseInt(storedSessionStart, 10));
+        setIsSessionActive(true);
+      }
+
+      const storedBreakStart = localStorage.getItem('breakStartTime');
+      const storedTotalBreakMs = localStorage.getItem('totalBreakMs');
+      if (storedBreakStart) {
+        setIsOnBreak(true);
+        setBreakStartTime(parseInt(storedBreakStart, 10));
+      }
+      if (storedTotalBreakMs) {
+        setTotalBreakMs(parseInt(storedTotalBreakMs, 10));
+      }
+
+      if (storedTicketStart && storedTicketId) {
+        setTicketStartTime(parseInt(storedTicketStart, 10));
+        setActiveTicketId(storedTicketId);
+        if (storedTicketTitle) setActiveTicketTitle(storedTicketTitle);
+        if (storedTicketTeamId) setActiveTicketTeamId(storedTicketTeamId);
+      }
+
+      if (storedDurations) {
+        try { setTicketDurations(JSON.parse(storedDurations)); } catch (e) {}
+      }
+
+      const storedTicketBreakMs = localStorage.getItem('ticketBreakMs');
+      if (storedTicketBreakMs) {
+        setTicketBreakMs(parseInt(storedTicketBreakMs, 10));
+      }
+    };
+
+    applyLocal();
+    // If server hasn't responded within 800ms, apply local as fallback
+    const fallback = setTimeout(applyLocal, 800);
+    return () => clearTimeout(fallback);
+  }, []);
+
+  // Fetch authoritative session state from the backend on login.
+  // This is the primary mechanism for Device B to restore a session
+  // that Device A already started.
+  useEffect(() => {
+    if (!user?.id) return;
+    TimeService.getSessionState().then(state => {
+      if (state) applySessionState(state);
+    }).catch(() => { /* silently fall back to localStorage values */ });
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Real-time session restore via WebSocket.
+  // The backend emits session_state_restore:
+  //  - immediately on socket connect (so Device B gets state without waiting)
+  //  - after every sync commit (so all devices see the latest clock/break/ticket state)
+  // This is the primary cross-device clock-out propagation path.
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+    const handleRestore = (state: any) => applySessionState(state);
+    socket.on('session_state_restore', handleRestore);
+    return () => { socket.off('session_state_restore', handleRestore); };
+  }, [socket, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fallback: if the socket connect event fires before this listener is registered
+  // (can happen because SocketContext mounts before ClockInContext listeners run),
+  // re-request session state once the socket is available.
+  useEffect(() => {
+    if (!socket || !user?.id) return;
+    // Ask for an immediate state push by re-using the REST endpoint — this
+    // covers the case where session_state_restore was emitted before we listened.
+    TimeService.getSessionState().then(state => {
+      if (state) applySessionState(state);
+    }).catch(() => {});
+  }, [socket?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync state with activity logs
   const { activities } = useActivityLog();
   
   useEffect(() => {
     if (!user?.id || activities.length === 0) return;
+
+    // Once the server has provided authoritative state via session_state_restore or REST,
+    // do NOT let the activity log override it. The activity log on Device B can be stale
+    // (e.g. it still shows "Work Session Started / Active" after Device A clocked out),
+    // and letting it run would undo the clock-out that session_state_restore already applied.
+    if (serverStateLoadedRef.current) return;
 
     // Find the most recent session activity
     const recentSession = activities.find(a => a.type === 'SESSION' && (a.title === 'Work Session Started' || a.title === 'Session Ended'));
@@ -273,6 +405,8 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   }, [activeTicketId, ticketStartTime, isOnBreak, ticketBreakMs]);
 
   const takeBreak = async () => {
+    isMutatingRef.current = true;
+    try {
     const now = DateTime.now().toMillis();
     setIsOnBreak(true);
     setBreakStartTime(now);
@@ -291,10 +425,15 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       const teamId = activeTicketTeamId || pendingSessionStopTeamId || null;
       await localTimeStore.breakStart(user.id, teamId);
     }
+    } finally {
+      isMutatingRef.current = false;
+    }
   };
 
   const resumeFromBreak = async () => {
     if (!breakStartTime) return;
+    isMutatingRef.current = true;
+    try {
     const breakEndMs = DateTime.now().toMillis();
     const breakDuration = breakEndMs - breakStartTime;
     const newTotal = totalBreakMs + breakDuration;
@@ -332,6 +471,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     if (user?.id) {
       const teamId = activeTicketTeamId || null;
       await localTimeStore.breakEnd(user.id, teamId);
+    }
+    } finally {
+      isMutatingRef.current = false;
     }
   };
 
@@ -384,6 +526,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     await localTimeStore.clockOut(user.id, null, teamId || null);
     await syncManager.syncNow();
+    isMutatingRef.current = false;
     window.dispatchEvent(new Event('pull-to-refresh'));
     window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
   };
@@ -402,6 +545,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     } else {
       // Clock In Session
       const now = DateTime.now();
+      isMutatingRef.current = true;
       setIsSessionActive(true);
       setSessionStartTime(now.toMillis());
       localStorage.setItem('sessionStartTime', now.toMillis().toString());
@@ -419,6 +563,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
       // Attempt to sync immediately
       await syncManager.syncNow();
+      isMutatingRef.current = false;
       
       // Force reload activities to ensure sync
       window.dispatchEvent(new Event('pull-to-refresh'));
@@ -456,6 +601,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
   const confirmStopTicketAndSession = async () => {
     if (!user?.id) return;
+    isMutatingRef.current = true;
 
     // First stop the ticket
     if (activeTicketId && ticketStartTime) {
@@ -534,6 +680,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     // Attempt to sync immediately
     await syncManager.syncNow();
+    isMutatingRef.current = false;
     
     // Force reload activities to ensure sync
     window.dispatchEvent(new Event('pull-to-refresh'));
@@ -559,11 +706,12 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
 
   const toggleTicketTimer = async (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string) => {
-    if (!isSessionActive) return; // Cannot start ticket timer if session is not active
+    if (!isSessionActive) return;
     if (!user?.id) {
       console.error('Cannot toggle ticket: Missing user');
       return;
     }
+    isMutatingRef.current = true;
 
     if (activeTicketId === ticketId) {
       // Stop current ticket (activeTicketId === ticketId)
@@ -675,7 +823,8 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Attempt to sync immediately
-    await syncManager.syncNow(); 
+    await syncManager.syncNow();
+    isMutatingRef.current = false;
     // Force reload activities to ensure sync
     window.dispatchEvent(new Event('pull-to-refresh'));  };
 
