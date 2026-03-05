@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ActivityLog } from '../models/ActivityLog';
 import { Op } from 'sequelize';
 import { AuthRequest } from '../middleware/authMiddleware';
+import { getIO } from '../socket/socketManager';
 
 export const getActivities = async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
@@ -125,6 +126,16 @@ export const syncActivities = async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, syncedIds: results });
+
+    // Notify all of this user's connected devices that activity_logs are updated.
+    // This fires AFTER the upsert is committed, so Device B syncs accurate data.
+    if (userId) {
+      try {
+        getIO().to(userId).emit('activity_logs_updated', { teamId });
+      } catch {
+        // Non-critical — don't let socket errors break the response
+      }
+    }
   } catch (error) {
     console.error('Error syncing activities:', error);
     res.status(500).json({ error: 'Failed to sync activities' });

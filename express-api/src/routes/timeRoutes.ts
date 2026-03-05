@@ -1,5 +1,5 @@
 import express from 'express';
-import { syncTimeData, syncTimeEvents } from '../controllers/timeController';
+import { syncTimeData, syncTimeEvents, getSessionState } from '../controllers/timeController';
 import { authenticateToken } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -7,6 +7,7 @@ const router = express.Router();
 // Apply auth middleware to all routes
 router.use(authenticateToken);
 
+router.get('/session-state', getSessionState);
 router.post('/sync', syncTimeData);
 router.post('/sync-events', syncTimeEvents);
 

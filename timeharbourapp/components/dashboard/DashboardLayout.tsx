@@ -129,12 +129,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            {currentTeam && (
-              <div className="text-right mr-1">
-                <div className="text-xs text-gray-500 dark:text-gray-400 leading-none">Team</div>
-                <div className="text-sm font-semibold text-gray-900 dark:text-white leading-tight truncate max-w-[120px]">{currentTeam.name}</div>
-              </div>
-            )}
+            <div className={`text-right mr-1 ${currentTeam ? '' : 'invisible'}`}>
+              <div className="text-xs text-gray-500 dark:text-gray-400 leading-none">Team</div>
+              <div className="text-sm font-semibold text-gray-900 dark:text-white leading-tight truncate max-w-[120px]">{currentTeam?.name ?? ''}</div>
+            </div>
             <ProfileAvatarMenu onTeamSwitchClick={() => setIsTeamModalOpen(true)} />
           </div>
         </div>

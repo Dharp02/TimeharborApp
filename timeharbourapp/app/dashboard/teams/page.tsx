@@ -162,6 +162,7 @@ export default function TeamsPage() {
       setAddMemberError(null);
       try {
         await addMember(currentTeam.id, newMemberEmail);
+        logger.log('Member Added', { subtitle: newMemberEmail, description: `Added to ${currentTeam.name}` });
         setIsAddMemberModalOpen(false);
         setNewMemberEmail('');
       } catch (error: any) {
@@ -181,6 +182,7 @@ export default function TeamsPage() {
     if (currentTeam && memberToRemove) {
       try {
         await removeMember(currentTeam.id, memberToRemove.id);
+        logger.log('Member Removed', { subtitle: memberToRemove.name, description: `Removed from ${currentTeam.name}` });
         setIsRemoveMemberModalOpen(false);
         setMemberToRemove(null);
       } catch (error) {

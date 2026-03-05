@@ -2,6 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import User from '../models/User';
 import logger from '../utils/logger';
+import { computeCurrentSessionState } from '../services/sessionStateService';
 
 let io: Server;
 
@@ -49,20 +50,31 @@ const handleConnection = async (socket: Socket) => {
       logger.error(`Error updating user status for ${userId}:`, error);
     }
 
+    // Restore session state on this device immediately after connecting.
+    // This handles Device B joining while Device A is already clocked in.
+    try {
+      const sessionState = await computeCurrentSessionState(userId);
+      socket.emit('session_state_restore', sessionState);
+      logger.info(`Session state emitted to ${userId} (${socket.id}): active=${sessionState.isSessionActive}`);
+    } catch (error) {
+      logger.error(`Error emitting session state for ${userId}:`, error);
+    }
+
     socket.on('disconnect', async () => {
       logger.info(`User disconnected: ${userId} (${socket.id})`);
       
-      // Update user status to offline
-      try {
-        await User.update({ status: 'offline' }, { where: { id: userId } });
-        
-        // Broadcast user offline status
-        socket.broadcast.emit('user_status_change', {
-          userId,
-          status: 'offline'
-        });
-      } catch (error) {
-        logger.error(`Error updating user status for ${userId}:`, error);
+      // Only mark offline if no other sockets for this user are still connected.
+      const room = io.sockets.adapter.rooms.get(userId);
+      const remainingSockets = room ? room.size : 0;
+      if (remainingSockets === 0) {
+        try {
+          await User.update({ status: 'offline' }, { where: { id: userId } });
+          socket.broadcast.emit('user_status_change', { userId, status: 'offline' });
+        } catch (error) {
+          logger.error(`Error updating user status for ${userId}:`, error);
+        }
+      } else {
+        logger.info(`User ${userId} still has ${remainingSockets} socket(s) connected — keeping online status.`);
       }
     });
   } else {

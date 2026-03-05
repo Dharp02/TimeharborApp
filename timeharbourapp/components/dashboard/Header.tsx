@@ -67,7 +67,7 @@ export default function Header({ onTeamSwitch, currentTeamName }: HeaderProps) {
           title="Switch Team"
         >
           <ArrowRightLeft className="w-4 h-4" />
-          <span>{currentTeamName || 'Switch Team'}</span>
+          <span suppressHydrationWarning>{currentTeamName || 'Switch Team'}</span>
         </button>
         
         <button

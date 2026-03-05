@@ -6,6 +6,7 @@ import logger from '../utils/logger';
 import { Op } from 'sequelize';
 import { sendClockInNotification, sendClockOutNotification, sendStopTicketNotification } from '../services/notificationService';
 import { getIO } from '../socket/socketManager';
+import { computeCurrentSessionState } from '../services/sessionStateService';
 
 // ---------------------------------------------------------------------------
 // Helpers for Item 15: stats recompute after sync
@@ -439,6 +440,22 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
           comment: storedComment,
         }, { transaction });
       } else {
+        // Guard: reject a duplicate CLOCK_IN when the user is already clocked in.
+        // This prevents a second open session from being written when Device B
+        // syncs an offline CLOCK_IN that was queued before it learned Device A
+        // had already clocked in.
+        if (type === 'CLOCK_IN') {
+          const lastClockEvent = await WorkLog.findOne({
+            where: { userId, type: { [Op.in]: ['CLOCK_IN', 'CLOCK_OUT'] } },
+            order: [['timestamp', 'DESC']],
+            attributes: ['type'],
+            transaction,
+          });
+          if (lastClockEvent?.type === 'CLOCK_IN') {
+            logger.warn(`[syncTimeEvents] Dropping duplicate CLOCK_IN for ${userId} — already clocked in`);
+            continue;
+          }
+        }
         await WorkLog.create({
           id: id || undefined,
           userId,
@@ -524,6 +541,17 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
         const [uid, tid] = target.split('::');
         await pushLiveStats(uid, tid === 'null' ? null : tid);
       }
+
+      // Broadcast the authoritative session state to ALL of this user's connected
+      // devices (the entire userId socket room).  This keeps Device A and Device B
+      // in sync after any clock / break / ticket event, regardless of which device
+      // triggered the sync.
+      try {
+        const state = await computeCurrentSessionState(userId);
+        getIO().to(userId).emit('session_state_restore', state);
+      } catch (err) {
+        logger.warn('[syncTimeEvents] Failed to emit session_state_restore:', err);
+      }
     });
 
     res.status(200).json({ message: 'Events synced successfully' });
@@ -532,6 +560,23 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
     await transaction.rollback();
     console.error('Error syncing events:', error);
     res.status(500).json({ message: 'Error syncing events', error: (error as Error).message });
+  }
+};
+
+/**
+ * GET /time/session-state
+ * Returns the authoritative session state for the authenticated user.
+ * Used by Device B on login / dashboard load to restore in-progress sessions
+ * that were started on another device.
+ */
+export const getSessionState = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const state = await computeCurrentSessionState(userId);
+    res.json(state);
+  } catch (error) {
+    logger.error('Error fetching session state:', error);
+    res.status(500).json({ message: 'Error fetching session state', error: (error as Error).message });
   }
 };
 
