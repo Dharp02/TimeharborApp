@@ -2,7 +2,7 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
 import { AuthRequest } from '../middleware/authMiddleware';
-import { Ticket, Member, Team, WorkLog, User, WorkLogReply, UserDailyStat } from '../models';
+import { Ticket, Member, Team, WorkLog, User, WorkLogReply, UserDailyStat, ActivityLog } from '../models';
 import sequelize from '../config/sequelize';
 import { sendNotificationToUser } from '../services/notificationService';
 
@@ -282,8 +282,40 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
         };
       });
 
+      // Also include LOG-type entries from activity_logs (ticket, member, manual logs)
+      const logWhereClause: any = {
+        userId,
+        type: 'LOG',
+        startTime: { [Op.between]: [new Date(from as string), new Date(to as string)] },
+      };
+      if (teamId) logWhereClause.teamId = teamId as string;
+
+      const logEntries = await ActivityLog.findAll({
+        where: logWhereClause,
+        order: [['startTime', 'ASC']],
+        limit: 500,
+      });
+
+      const formattedLogs = logEntries.map(l => ({
+        id: l.activityId || l.id,
+        type: 'LOG' as const,
+        title: l.title,
+        subtitle: l.subtitle,
+        description: l.description,
+        startTime: l.startTime,
+        endTime: l.endTime,
+        status: (l.status || 'Completed') as 'Active' | 'Completed',
+        duration: l.duration,
+        durationMs: 0,
+      }));
+
+      // Merge work_log events + LOG entries, sort ascending, then reverse for newest-first
+      const merged = [...formatted, ...formattedLogs].sort(
+        (a, b) => new Date(a.startTime as string | Date).getTime() - new Date(b.startTime as string | Date).getTime(),
+      );
+
       // Return newest-first so the All Activity page displays in chronological DESC order
-      res.json(formatted.reverse());
+      res.json(merged.reverse());
       return;
     }
 

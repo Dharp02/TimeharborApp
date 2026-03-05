@@ -64,6 +64,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [breakStartTime, setBreakStartTime] = useState<number | null>(null);
   const [totalBreakMs, setTotalBreakMs] = useState(0);
   const [breakActivityId, setBreakActivityId] = useState<string | null>(null);
+  // Tracks the activity log ID of the current "Started Ticket / Active" entry so it
+  // can be marked Completed when the ticket is stopped (prevents stale green badge).
+  const [ticketActivityId, setTicketActivityId] = useState<string | null>(null);
 
   // Session Options Modal State (Take a Break / Clock Out)
   const [isSessionOptionsOpen, setIsSessionOptionsOpen] = useState(false);
@@ -632,6 +635,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
        const seconds = Math.floor(durationObj.seconds);
        const durationStr = `${hours}h ${minutes}m ${seconds}s`;
 
+      // Mark the "Started Ticket / Active" log entry as completed before adding the stop entry
+      if (ticketActivityId) {
+        updateActivity(ticketActivityId, { status: 'Completed', endTime: now.toISO() || new Date().toISOString() });
+        setTicketActivityId(null);
+      }
       addActivity({
         type: 'SESSION',
         title: 'Stopped Ticket',
@@ -744,6 +752,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         const seconds = Math.floor(duration.seconds);
         const durationStr = `${hours}h ${minutes}m ${seconds}s`;
         
+        // Mark the "Started Ticket / Active" entry as completed
+        if (ticketActivityId) {
+          updateActivity(ticketActivityId, { status: 'Completed', endTime: new Date().toISOString() });
+          setTicketActivityId(null);
+        }
         addActivity({
             type: 'SESSION',
             title: 'Stopped Ticket',
@@ -790,6 +803,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         const seconds = Math.floor(sessionDuration.seconds);
         const durationStr = `${hours}h ${minutes}m ${seconds}s`;
 
+        // Mark the previous "Started Ticket / Active" entry as completed
+        if (ticketActivityId) {
+          updateActivity(ticketActivityId, { status: 'Completed', endTime: new Date().toISOString() });
+          setTicketActivityId(null);
+        }
         addActivity({
             type: 'SESSION',
             title: 'Stopped Ticket',
@@ -808,7 +826,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
       await localTimeStore.startTicket(user.id, ticketId, ticketTitle, teamId || null);
 
-      addActivity({
+      const newTicketActId = addActivity({
         type: 'SESSION',
         title: 'Started Ticket',
         subtitle: ticketTitle,
@@ -816,6 +834,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         duration: '0m',
         startTime: now.toISO() || new Date().toISOString()
       });
+      setTicketActivityId(newTicketActId);
 
       // Start new ticket state (reset break accumulator for the new ticket)
       setActiveTicketId(ticketId);

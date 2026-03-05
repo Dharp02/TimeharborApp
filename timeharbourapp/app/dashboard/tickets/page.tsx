@@ -300,6 +300,11 @@ export default function TicketsPage() {
   const handleDeleteTicket = async () => {
     if (selectedTicketForAction && currentTeam) {
       try {
+        // If the ticket being deleted is currently active, stop it first so the
+        // "Started Ticket / Active" log entry gets properly marked Completed.
+        if (isSessionActive && activeTicketId === selectedTicketForAction.id) {
+          await toggleTicketTimer(selectedTicketForAction.id, selectedTicketForAction.title);
+        }
         await ticketsApi.deleteTicket(currentTeam.id, selectedTicketForAction.id);
         
         logger.log('Deleted Ticket', {

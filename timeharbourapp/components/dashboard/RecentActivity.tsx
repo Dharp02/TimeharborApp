@@ -4,13 +4,11 @@ import Link from 'next/link';
 import { ChevronRight, Clock } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import type { Activity } from '@/TimeharborAPI/dashboard';
-import { fetchActivitiesByDateRange } from '@/TimeharborAPI/dashboard';
+import { getActivity } from '@/TimeharborAPI/dashboard';
 import { DateTime } from 'luxon';
 import { useTeam } from './TeamContext';
 import { useRefresh } from '@/contexts/RefreshContext';
 import { useSocket } from '@/contexts/SocketContext';
-import { db } from '@/TimeharborAPI/db';
-import { Network } from '@capacitor/network';
 
 /**
  * Fetches recent activity directly from the API (same source as All Activity page).
@@ -27,40 +25,11 @@ export default function RecentActivity() {
     if (!currentTeam?.id) return;
     setLoading(true);
     try {
-      const { connected } = await Network.getStatus();
-      const from = DateTime.now().minus({ days: 7 }).startOf('day');
-      const to = DateTime.now().endOf('day');
-
-      if (connected) {
-        const data = await fetchActivitiesByDateRange(currentTeam.id, from.toISO()!, to.toISO()!);
-        const slice = data.slice(0, 10);
-        setActivities(slice);
-        // Persist to Dexie so the last-known 7-day window is available offline
-        if (slice.length > 0) {
-          await db.activityLogs.bulkPut(slice);
-        }
-      } else {
-        // Offline: serve the cached Dexie data for this team / date range
-        const fromTs = from.toISO()!;
-        const cached = await db.activityLogs
-          .where('teamId').equals(currentTeam.id)
-          .filter(a => a.startTime >= fromTs)
-          .toArray();
-        cached.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-        setActivities(cached.slice(0, 10));
-      }
+      // Uses session-grouped activity_logs path (no date range) with built-in offline caching
+      const data = await getActivity(currentTeam.id, 10);
+      setActivities(data.slice(0, 10));
     } catch (e) {
       console.error('RecentActivity fetch failed', e);
-      // On any error fall back to whatever is cached in Dexie
-      try {
-        const from = DateTime.now().minus({ days: 7 }).startOf('day').toISO()!;
-        const cached = await db.activityLogs
-          .where('teamId').equals(currentTeam.id!)
-          .filter(a => a.startTime >= from)
-          .toArray();
-        cached.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-        setActivities(cached.slice(0, 10));
-      } catch { /* swallow */ }
     } finally {
       setLoading(false);
     }
