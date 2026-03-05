@@ -34,7 +34,9 @@ export const requestRecording = async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    // Check for an existing pending session for this ticket that hasn't expired.
+    // Resume an existing pending session if one hasn't expired yet.
+    // Pulse Vault accepts the same draftId again and issues a fresh token,
+    // so the user can continue recording from where they left off.
     const existingPending = await PulseAttachment.findOne({
       where: {
         ticketId,
@@ -44,28 +46,10 @@ export const requestRecording = async (req: AuthRequest, res: Response): Promise
       },
     });
 
-    // Short-circuit: if a live session exists with a stored deeplink, return it
-    // immediately without calling Pulse Vault. The token TTL is 24 hours so the
-    // stored deeplink is almost certainly still valid.
-    if (existingPending && existingPending.deeplink && existingPending.qrData) {
-      res.status(200).json({
-        id: existingPending.id,
-        draftId: existingPending.draftId,
-        deeplink: existingPending.deeplink,
-        qrData: existingPending.qrData,
-        status: 'pending',
-        expiresAt: existingPending.expiresAt!.toISOString(),
-        resumed: true,
-      });
-      return;
-    }
-
-    // No cached session (or deeplink missing) — call Pulse Vault for a new token.
-    // Passing an existing draftId re-tokenizes the same draft (resume); passing a
-    // new UUID starts a fresh recording session.
     const draftId = existingPending ? existingPending.draftId : uuidv4();
     const resumed = !!existingPending;
 
+    // Call Pulse Vault — works for both new draftIds and existing ones (re-tokenizes)
     let deeplinkResult;
     try {
       deeplinkResult = await requestDeeplink({
@@ -85,12 +69,8 @@ export const requestRecording = async (req: AuthRequest, res: Response): Promise
 
     let attachment: PulseAttachment;
     if (existingPending) {
-      // Update stored deeplink and extend expiry
-      await existingPending.update({
-        deeplink: deeplinkResult.deeplink,
-        qrData: deeplinkResult.qrData,
-        expiresAt,
-      });
+      // Extend expiry to match the freshly issued token
+      await existingPending.update({ expiresAt });
       attachment = existingPending;
     } else {
       attachment = await PulseAttachment.create({
@@ -99,8 +79,6 @@ export const requestRecording = async (req: AuthRequest, res: Response): Promise
         requestedBy: userId,
         draftId,
         status: 'pending',
-        deeplink: deeplinkResult.deeplink,
-        qrData: deeplinkResult.qrData,
         expiresAt,
       });
     }

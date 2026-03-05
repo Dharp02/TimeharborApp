@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Video, Loader2, X, ExternalLink, Copy, Check } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import QRCode from 'qrcode';
 import { Modal } from '@/components/ui/Modal';
 import { pulse as pulseApi } from '@/TimeharborAPI';
@@ -13,11 +14,58 @@ interface PulseButtonProps {
   ticketId: string;
 }
 
+const PULSE_APP_STORE_URL = 'https://apps.apple.com/za/app/pulse-cam/id6748621024';
+const PULSE_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mieweb.pulse';
+
+/**
+ * Tries to open the `pulsecam://` deeplink via the OS.
+ * Uses the Capacitor App plugin to detect whether the app went to background
+ * (meaning Pulse Cam opened) or stayed in foreground (not installed).
+ * Falls back to document.visibilitychange on web.
+ */
+async function openDeeplinkWithStoreFallback(deeplink: string) {
+  const platform = Capacitor.getPlatform(); // 'ios' | 'android' | 'web'
+  const storeUrl = platform === 'android' ? PULSE_PLAY_STORE_URL : PULSE_APP_STORE_URL;
+
+  if (!Capacitor.isNativePlatform()) {
+    window.open(deeplink, '_blank');
+    return;
+  }
+
+  // On native: listen for the app going to background via Capacitor App plugin.
+  // WKWebView (iOS) does NOT fire visibilitychange on app-switch —
+  // Capacitor's appStateChange is the correct event for this.
+  let wentToBackground = false;
+
+  const listener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+    if (!isActive) {
+      // App moved to background — Pulse Cam launched successfully
+      wentToBackground = true;
+      listener.remove();
+    }
+  });
+
+  // Fire the deeplink — if Pulse Cam is installed the OS opens it
+  window.open(deeplink, '_system');
+
+  // Give the OS 1.5s to respond. If still in foreground, app is not installed.
+  // Use window.location.href (not window.open) — iOS blocks window.open from
+  // setTimeout callbacks since they lack a direct user-gesture context.
+  setTimeout(() => {
+    listener.remove();
+    if (!wentToBackground) {
+      window.location.href = storeUrl;
+    }
+  }, 1500);
+}
+
 /**
  * Pulse recording button that sits beside each ticket.
  *
  * Mobile (Capacitor native): tapping the button calls the backend, then
  *   opens the `pulsecam://` deeplink via the OS — Pulse Cam launches natively.
+ *   If Pulse Cam is not installed, automatically redirects to the App Store
+ *   (iOS) or Play Store (Android).
  *
  * Desktop / web: shows a QR code modal so the user can scan with their phone
  *   to open Pulse Cam there, plus a fallback copy-link button.
@@ -81,10 +129,9 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
       setSession(result);
 
       if (isNative) {
-        // On Capacitor (iOS / Android): hand off to the OS.
-        // The OS routes pulsecam:// to Pulse Cam if installed,
-        // or falls back to the App Store / Play Store.
-        window.open(result.deeplink, '_system');
+        // Fire and forget — don't await so loading clears immediately.
+        // The store fallback fires asynchronously after 1.5s if needed.
+        openDeeplinkWithStoreFallback(result.deeplink);
       } else {
         // Desktop / web: show the QR code modal
         setQrModalOpen(true);

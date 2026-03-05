@@ -10,8 +10,6 @@ interface PulseAttachmentAttributes {
   requestedBy?: string;
   draftId: string;       // TimeHarbor-generated UUID; stable key across both systems
   status: PulseAttachmentStatus;
-  deeplink?: string;     // pulsecam:// URL stored so resume skips Pulse Vault re-call
-  qrData?: string;       // QR data URL stored alongside deeplink
   watchUrl?: string;     // filled by webhook / fallback poll after upload
   thumbnailUrl?: string; // filled by webhook / fallback poll after upload
   title?: string;        // filled by webhook / fallback poll after upload
@@ -24,7 +22,7 @@ interface PulseAttachmentAttributes {
 interface PulseAttachmentCreationAttributes
   extends Optional<
     PulseAttachmentAttributes,
-    'id' | 'requestedBy' | 'deeplink' | 'qrData' | 'watchUrl' | 'thumbnailUrl' | 'title' | 'expiresAt' | 'uploadedAt' | 'createdAt' | 'updatedAt'
+    'id' | 'requestedBy' | 'watchUrl' | 'thumbnailUrl' | 'title' | 'expiresAt' | 'uploadedAt' | 'createdAt' | 'updatedAt'
   > {}
 
 class PulseAttachment
@@ -37,8 +35,6 @@ class PulseAttachment
   public requestedBy?: string;
   public draftId!: string;
   public status!: PulseAttachmentStatus;
-  public deeplink?: string;
-  public qrData?: string;
   public watchUrl?: string;
   public thumbnailUrl?: string;
   public title?: string;
@@ -79,14 +75,6 @@ PulseAttachment.init(
       type: DataTypes.ENUM('pending', 'uploaded', 'failed', 'expired'),
       allowNull: false,
       defaultValue: 'pending',
-    },
-    deeplink: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-    qrData: {
-      type: DataTypes.TEXT,
-      allowNull: true,
     },
     watchUrl: {
       type: DataTypes.TEXT,
