@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Video, Loader2, X, ExternalLink, Copy, Check } from 'lucide-react';
+import { PulseLogoIcon } from '@/components/ui/PulseLogoIcon';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import QRCode from 'qrcode';
@@ -166,23 +167,21 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
 
   return (
     <>
-      {/* Pulse button with optional "uploaded" count badge */}
+      {/* Pulse button with optional badges */}
       <div className="relative">
         <button
           onClick={handleClick}
           disabled={loading}
           aria-label={hasPending ? 'Continue Pulse recording for this ticket' : 'Record a Pulse Short for this ticket'}
           title={hasPending ? 'Continue Recording' : 'Record a Pulse Short'}
-          className={`p-2 rounded-full transition-colors disabled:opacity-50 ${
-            hasPending
-              ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40'
-              : 'bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 dark:hover:bg-purple-900/40'
+          className={`p-1.5 rounded-xl transition-all disabled:opacity-50 hover:scale-110 hover:shadow-md active:scale-95 ${
+            hasPending ? 'ring-2 ring-blue-500 ring-offset-1' : ''
           }`}
         >
           {loading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Loader2 className="w-[18px] h-[18px] animate-spin text-blue-600" />
           ) : (
-            <Video className="w-4 h-4" />
+            <PulseLogoIcon size={18} />
           )}
         </button>
 
@@ -190,7 +189,7 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
         {attachments.length > 0 && (
           <span
             aria-label={`${attachments.length} Pulse Short${attachments.length > 1 ? 's' : ''} attached`}
-            className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold flex items-center justify-center leading-none"
+            className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center leading-none shadow-sm"
           >
             {attachments.length > 9 ? '9+' : attachments.length}
           </span>
@@ -294,6 +293,7 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
                       onClick={async () => {
                         await pulseApi.deleteAttachment(teamId, ticketId, a.id);
                         loadAttachments();
+                        loadPending();
                       }}
                       aria-label="Remove this Pulse Short attachment"
                       className="p-1.5 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
