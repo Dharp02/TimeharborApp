@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
+import PulseButton from '@/components/dashboard/PulseButton';
 import Link from 'next/link';
 import { useClockIn } from './ClockInContext';
 import { Modal } from '@/components/ui/Modal';
@@ -261,6 +262,9 @@ export default function OpenTickets() {
               <span className="hidden md:inline-block text-xs font-medium px-2 py-1 bg-white dark:bg-gray-600 rounded-md border border-gray-200 dark:border-gray-500 text-gray-600 dark:text-gray-300">
                 {ticket.status}
               </span>
+              {currentTeam && (
+                <PulseButton teamId={currentTeam.id} ticketId={ticket.id} />
+              )}
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                 <button 
                   onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}

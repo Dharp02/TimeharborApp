@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/Modal';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType, CreateTicketData, UpdateTicketData } from '@/TimeharborAPI/tickets';
 import { useLogger } from '@/hooks/useLogger';
+import PulseButton from '@/components/dashboard/PulseButton';
 
 export default function TicketsPage() {
   const logger = useLogger();
@@ -529,7 +530,12 @@ export default function TicketsPage() {
                   </div>
 
                   {/* Actions Menu */}
-                  <div className="relative">
+                  <div className="flex items-center gap-1">
+                    {/* Pulse Button */}
+                    {currentTeam && (
+                      <PulseButton teamId={currentTeam.id} ticketId={ticket.id} />
+                    )}
+
                     {/* Mobile Menu Button */}
                     <button 
                       onClick={(e) => {
@@ -541,71 +547,73 @@ export default function TicketsPage() {
                       <MoreHorizontal className="w-5 h-5" />
                     </button>
 
-                    {/* Desktop Menu Button */}
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuTicketId(openMenuTicketId === ticket.id ? null : ticket.id);
-                      }}
-                      className="hidden md:block p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
-                    
-                    {openMenuTicketId === ticket.id && (
-                      <>
-                        <div 
-                          className="fixed inset-0 z-10" 
-                          onClick={(e) => { e.stopPropagation(); setOpenMenuTicketId(null); }} 
-                        />
-                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-20 overflow-hidden py-1">
-                          {/* Assign - Creator Only */}
-                          {user && ticket.createdBy === user.id && (
+                    {/* Desktop Menu Button + Dropdown */}
+                    <div className="relative hidden md:block">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuTicketId(openMenuTicketId === ticket.id ? null : ticket.id);
+                        }}
+                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <MoreHorizontal className="w-5 h-5" />
+                      </button>
+                      
+                      {openMenuTicketId === ticket.id && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-10" 
+                            onClick={(e) => { e.stopPropagation(); setOpenMenuTicketId(null); }} 
+                          />
+                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-20 overflow-hidden py-1">
+                            {/* Assign - Creator Only */}
+                            {user && ticket.createdBy === user.id && (
+                              <button
+                                onClick={(e) => openAssignModal(e, ticket)}
+                                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                              >
+                                <UserPlus className="w-4 h-4" />
+                                Assign Ticket
+                              </button>
+                            )}
+
+                            {/* Change Status - Everyone */}
                             <button
-                              onClick={(e) => openAssignModal(e, ticket)}
+                              onClick={(e) => openStatusModal(e, ticket)}
                               className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
                             >
-                              <UserPlus className="w-4 h-4" />
-                              Assign Ticket
+                              <ArrowRightLeft className="w-4 h-4" />
+                              Change Status
                             </button>
-                          )}
 
-                          {/* Change Status - Everyone */}
-                          <button
-                            onClick={(e) => openStatusModal(e, ticket)}
-                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
-                          >
-                            <ArrowRightLeft className="w-4 h-4" />
-                            Change Status
-                          </button>
-
-                          {/* Edit - Creator Only */}
-                          {user && ticket.createdBy === user.id && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditModal(ticket);
-                              }}
-                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                              Edit Ticket
-                            </button>
-                          )}
-                          
-                          {/* Delete - Creator Only */}
-                          {user && ticket.createdBy === user.id && (
-                            <button
-                              onClick={(e) => openDeleteModal(e, ticket)}
-                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Delete Ticket
-                            </button>
-                          )}
-                        </div>
-                      </>
-                    )}
+                            {/* Edit - Creator Only */}
+                            {user && ticket.createdBy === user.id && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditModal(ticket);
+                                }}
+                                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                                Edit Ticket
+                              </button>
+                            )}
+                            
+                            {/* Delete - Creator Only */}
+                            {user && ticket.createdBy === user.id && (
+                              <button
+                                onClick={(e) => openDeleteModal(e, ticket)}
+                                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete Ticket
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

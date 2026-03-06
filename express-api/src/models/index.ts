@@ -9,6 +9,7 @@ import WorkLogReply from './WorkLogReply';
 import Notification from './Notification';
 import { ActivityLog } from './ActivityLog';
 import UserDailyStat from './UserDailyStat';
+import PulseAttachment from './PulseAttachment';
 
 // Define associations
 User.hasMany(Member, { foreignKey: 'userId', as: 'memberships' });
@@ -48,6 +49,14 @@ Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // Activity Logs
 User.hasMany(ActivityLog, { foreignKey: 'userId', as: 'activities' });
+
+// Pulse Attachments
+Ticket.hasMany(PulseAttachment, { foreignKey: 'ticketId', as: 'pulseAttachments' });
+PulseAttachment.belongsTo(Ticket, { foreignKey: 'ticketId', as: 'ticket' });
+Team.hasMany(PulseAttachment, { foreignKey: 'teamId', as: 'pulseAttachments' });
+PulseAttachment.belongsTo(Team, { foreignKey: 'teamId', as: 'team' });
+User.hasMany(PulseAttachment, { foreignKey: 'requestedBy', as: 'pulseAttachments' });
+PulseAttachment.belongsTo(User, { foreignKey: 'requestedBy', as: 'requester' });
 ActivityLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // Daily Stats
@@ -65,7 +74,8 @@ export {
   WorkLogReply,
   Notification,
   ActivityLog,
-  UserDailyStat
+  UserDailyStat,
+  PulseAttachment
 };
 
 // Export sequelize instance

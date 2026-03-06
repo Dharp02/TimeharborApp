@@ -13,6 +13,7 @@ import notificationRoutes from './routes/notificationRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
 import { startCleanupJob } from './jobs/cleanupTokens';
+import { startPulseCleanupJobs } from './jobs/cleanupPulseAttachments';
 import { initializeFirebase, initializeAPNs } from './services/notificationService';
 import { initializeSocket } from './socket/socketManager';
 
@@ -74,6 +75,9 @@ const startServer = async () => {
   try {
     // Connect to database
     await connectDatabase();
+
+    // Start Pulse background jobs
+    startPulseCleanupJobs();
 
     // Initialize Firebase for push notifications (Android and iOS fallback)
     initializeFirebase();
