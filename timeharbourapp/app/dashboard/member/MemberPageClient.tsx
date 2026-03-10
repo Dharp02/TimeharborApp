@@ -225,12 +225,7 @@ function MemberPageContent({
 
   const { member: apiMember, timeTracking, recentTickets } = memberData;
 
-  // TEMPORARY: Inject dummy social links so you can see the UI layout
-  const member = {
-    ...apiMember,
-    github: apiMember.github || 'https://github.com',
-    linkedin: apiMember.linkedin || 'https://linkedin.com'
-  };
+  const member = apiMember;
 
   return (
     <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 min-h-screen bg-gray-50 dark:bg-gray-900">

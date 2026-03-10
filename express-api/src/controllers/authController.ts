@@ -126,7 +126,7 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     throw new AppError('User not authenticated', 401);
   }
 
-  const { full_name, email } = req.body;
+  const { full_name, email, github, linkedin } = req.body;
 
   const user = await User.findByPk(req.user.id);
   
@@ -136,6 +136,8 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
 
   // Update fields
   if (full_name) user.full_name = full_name;
+  if (github !== undefined) user.github = github || undefined;
+  if (linkedin !== undefined) user.linkedin = linkedin || undefined;
   
   // If email is changing, we should verify it doesn't exist
   if (email && email !== user.email) {
@@ -154,6 +156,8 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
       id: user.id,
       email: user.email,
       full_name: user.full_name,
+      github: user.github,
+      linkedin: user.linkedin,
       email_verified: user.email_verified,
       created_at: user.created_at,
       updated_at: user.updated_at

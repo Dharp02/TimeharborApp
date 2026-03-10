@@ -16,6 +16,8 @@ export interface UserAttributes {
   fcm_token?: string;
   fcm_platform?: 'ios' | 'android';
   fcm_updated_at?: Date;
+  github?: string;
+  linkedin?: string;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -36,6 +38,8 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
   public fcm_token?: string;
   public fcm_platform?: 'ios' | 'android';
   public fcm_updated_at?: Date;
+  public github?: string;
+  public linkedin?: string;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 
@@ -123,6 +127,14 @@ User.init(
     },
     fcm_updated_at: {
       type: DataTypes.DATE,
+      allowNull: true
+    },
+    github: {
+      type: DataTypes.STRING(500),
+      allowNull: true
+    },
+    linkedin: {
+      type: DataTypes.STRING(500),
       allowNull: true
     },
     created_at: {
