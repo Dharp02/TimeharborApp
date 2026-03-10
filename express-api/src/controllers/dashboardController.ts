@@ -919,6 +919,16 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
                          timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
                      });
                 }
+            } else if (e.type === 'BREAK_START' || e.type === 'BREAK_END') {
+                flushPendingTicket();
+                groupedEvents.push({
+                    id: e.id,
+                    type: 'CLOCK',
+                    title: e.type === 'BREAK_START' ? 'Break Started' : 'Break Ended',
+                    timestamp: e.timestamp,
+                    original: e,
+                    timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
+                });
             } else {
                  flushPendingTicket();
                  groupedEvents.push({

@@ -6,7 +6,7 @@ import { ActivitySession } from '../types';
 import { ExpandableText } from './ExpandableText';
 import * as API from '@/TimeharborAPI/dashboard';
 
-export function ClockEventItem({ event, isClockIn }: { event: ActivitySession['events'][0], isClockIn: boolean }) {
+export function ClockEventItem({ event, isClockIn, isBreak = false, isBreakStart = false }: { event: ActivitySession['events'][0], isClockIn: boolean, isBreak?: boolean, isBreakStart?: boolean }) {
     const [expanded, setExpanded] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [sending, setSending] = useState(false);
@@ -43,14 +43,20 @@ export function ClockEventItem({ event, isClockIn }: { event: ActivitySession['e
                 onClick={() => setExpanded(!expanded)}
             >
                 <div className="flex items-center justify-between w-full">
-                    <span className={`text-sm font-medium ${isClockIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                        {isClockIn ? 'Clocked In' : 'Clocked Out'}
+                    <span className={`text-sm font-medium ${
+                        isClockIn
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : isBreak
+                                ? 'text-amber-500 dark:text-amber-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                    }`}>
+                        {isClockIn ? 'Clocked In' : isBreak ? (isBreakStart ? 'Break Started' : 'Break Ended') : 'Clocked Out'}
                     </span>
                     <span className="text-sm font-mono text-gray-400">{event.timeFormatted}</span>
                 </div>
 
                 {/* Always show full comment if present */}
-                {!isClockIn && event.original?.comment && (
+                {!isClockIn && !isBreak && event.original?.comment && (
                     <div className="mt-1 text-base text-gray-600 dark:text-gray-300">
                         {event.original.comment}
                     </div>
