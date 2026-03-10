@@ -12,6 +12,7 @@ import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
 import { useRefresh } from '../../contexts/RefreshContext';
 import { db } from '@/TimeharborAPI/db';
+import { fetchGitHubTitle } from '@/lib/utils';
 
 const getUserInitials = (name?: string, email?: string) => {
   if (name && name.trim()) {
@@ -146,6 +147,22 @@ export default function OpenTickets() {
     setLink('');
   };
 
+  const handleReferenceBlur = async (url: string) => {
+    if (!url || newTicket.title.trim()) return;
+    const title = await fetchGitHubTitle(url);
+    if (title) setNewTicket(prev => ({ ...prev, title }));
+  };
+
+  const handleTitleBlur = async (value: string) => {
+    const title = await fetchGitHubTitle(value);
+    if (!title) return;
+    setNewTicket(prev => ({
+      ...prev,
+      title,
+      reference: prev.reference.trim() || value
+    }));
+  };
+
   const handleAddTicket = async () => {
     if (!currentTeam) return;
     
@@ -238,9 +255,25 @@ export default function OpenTickets() {
                 <Ticket className="w-4 h-4 md:w-5 md:h-5" />
               </div>
               <div className="min-w-0">
-                <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm md:text-base">
-                  {ticket.title}
-                </h3>
+                {(() => {
+                  const githubUrl = ticket.link
+                    || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
+                  return (
+                    <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm md:text-base">
+                      {githubUrl ? (
+                        <a
+                          href={githubUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
+                          {ticket.title}
+                        </a>
+                      ) : ticket.title}
+                    </h3>
+                  );
+                })()}
                 <div className="flex items-center gap-2 mt-1">
                   {ticket.creator && (
                     <>
@@ -375,6 +408,7 @@ export default function OpenTickets() {
                 type="text"
                 value={newTicket.title}
                 onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
+                onBlur={(e) => handleTitleBlur(e.target.value)}
                 placeholder="Enter ticket title"
                 className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
               />
@@ -400,6 +434,7 @@ export default function OpenTickets() {
                 type="url"
                 value={newTicket.reference}
                 onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
+                onBlur={(e) => handleReferenceBlur(e.target.value)}
                 placeholder="https://..."
                 className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
               />

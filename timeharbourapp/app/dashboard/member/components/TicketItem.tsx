@@ -41,7 +41,22 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
        >
           <div className="flex items-start justify-between mb-2">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate pr-2">
-                  {event.title}
+                  {(() => {
+                    const githubLink = event.original?.ticket?.link
+                      || event.references?.find((r: any) => r.url)?.url
+                      || event.original?.ticket?.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
+                    return githubLink ? (
+                      <a
+                        href={githubLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        {event.title}
+                      </a>
+                    ) : event.title;
+                  })()}
               </h3>
               {event.status && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">

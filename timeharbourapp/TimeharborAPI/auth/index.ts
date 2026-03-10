@@ -8,6 +8,8 @@ export interface User {
   id: string;
   email: string;
   full_name?: string;
+  github?: string;
+  linkedin?: string;
   email_verified: boolean;
   created_at: string;
   updated_at: string;
@@ -395,7 +397,7 @@ export const getUser = async () => {
   }
 };
 
-export const updateProfile = async (data: { full_name?: string; email?: string }) => {
+export const updateProfile = async (data: { full_name?: string; email?: string; github?: string; linkedin?: string }) => {
   try {
     const response = await authenticatedFetch(`${API_URL}/auth/me`, {
       method: 'PUT',

@@ -1004,7 +1004,9 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
         name: member.full_name || member.email,
         email: member.email,
         role: memberRole,
-        status: member.status || 'offline'
+        status: member.status || 'offline',
+        github: member.github || null,
+        linkedin: member.linkedin || null
       },
       timeTracking: {
         today: {

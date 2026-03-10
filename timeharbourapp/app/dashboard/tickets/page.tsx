@@ -11,6 +11,7 @@ import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType, CreateTicketData, UpdateTicketData } from '@/TimeharborAPI/tickets';
 import { useLogger } from '@/hooks/useLogger';
 import PulseButton from '@/components/dashboard/PulseButton';
+import { fetchGitHubTitle } from '@/lib/utils';
 
 export default function TicketsPage() {
   const logger = useLogger();
@@ -184,6 +185,22 @@ export default function TicketsPage() {
     setPendingTicket(null);
     setComment('');
     setLink('');
+  };
+
+  const handleReferenceBlur = async (url: string) => {
+    if (!url || newTicket.title.trim()) return;
+    const title = await fetchGitHubTitle(url);
+    if (title) setNewTicket(prev => ({ ...prev, title }));
+  };
+
+  const handleTitleBlur = async (value: string) => {
+    const title = await fetchGitHubTitle(value);
+    if (!title) return;
+    setNewTicket(prev => ({
+      ...prev,
+      title,
+      reference: prev.reference.trim() || value
+    }));
   };
 
   const handleAddTicket = async () => {
@@ -499,7 +516,21 @@ export default function TicketsPage() {
                       </span>
                     </div>
                     <h3 className="text-base font-medium text-gray-900 dark:text-white truncate">
-                      {ticket.title}
+                      {(() => {
+                        const githubUrl = ticket.reference
+                          || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
+                        return githubUrl ? (
+                          <a
+                            href={githubUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          >
+                            {ticket.title}
+                          </a>
+                        ) : ticket.title;
+                      })()}
                     </h3>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       Created by <span className="font-medium text-gray-700 dark:text-gray-300">{ticket.creatorName}</span>
@@ -710,6 +741,7 @@ export default function TicketsPage() {
                 type="text"
                 value={newTicket.title}
                 onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
+                onBlur={(e) => handleTitleBlur(e.target.value)}
                 placeholder="Enter ticket title"
                 className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
               />
@@ -735,6 +767,7 @@ export default function TicketsPage() {
                 type="url"
                 value={newTicket.reference}
                 onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
+                onBlur={(e) => handleReferenceBlur(e.target.value)}
                 placeholder="https://..."
                 className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
               />
@@ -929,7 +962,20 @@ export default function TicketsPage() {
                   </div>
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
-                  {ticket.title}
+                  {(() => {
+                    const githubUrl = ticket.reference
+                      || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
+                    return githubUrl ? (
+                      <a
+                        href={githubUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        {ticket.title}
+                      </a>
+                    ) : ticket.title;
+                  })()}
                 </h3>
               </div>
 
