@@ -863,6 +863,8 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
                      references.push({ type: 'link', url: originalTicket.link, label: 'External Link' });
                  }
 
+                 const segmentDurationMs = endTime ? endTime.getTime() - startTime.getTime() : 0;
+
                  groupedEvents.push({
                      id: pendingTicket.startId, 
                      type: 'TICKET',
@@ -873,6 +875,7 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
                          ...pendingTicket.originalStart,
                          comment: pendingTicket.comment, 
                      },
+                     durationMs: segmentDurationMs,
                      timeFormatted: durationStr,
                      startTimeFormatted: startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true}),
                      endTimeFormatted: endTime ? endTime.toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true}) : undefined
@@ -919,6 +922,16 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
                          timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
                      });
                 }
+            } else if (e.type === 'BREAK_START' || e.type === 'BREAK_END') {
+                flushPendingTicket();
+                groupedEvents.push({
+                    id: e.id,
+                    type: 'CLOCK',
+                    title: e.type === 'BREAK_START' ? 'Break Started' : 'Break Ended',
+                    timestamp: e.timestamp,
+                    original: e,
+                    timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
+                });
             } else {
                  flushPendingTicket();
                  groupedEvents.push({
@@ -933,10 +946,55 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
         });
         flushPendingTicket();
 
+        // Merge repeated work on the same ticket within a session into a single entry.
+        // Identity key: ticketId (reliable) or title (fallback).
+        const ticketKeyToMergedIdx = new Map<string, number>();
+        const mergedEvents: any[] = [];
+
+        for (const ev of groupedEvents) {
+            if (ev.type !== 'TICKET') {
+                mergedEvents.push(ev);
+                continue;
+            }
+
+            const ticketKey = ev.original?.ticketId || ev.title;
+
+            if (ticketKeyToMergedIdx.has(ticketKey)) {
+                // Accumulate duration into the existing entry
+                const existingIdx = ticketKeyToMergedIdx.get(ticketKey)!;
+                const existing = mergedEvents[existingIdx];
+                existing.durationMs = (existing.durationMs || 0) + (ev.durationMs || 0);
+
+                // Update endTimeFormatted to the latest end
+                if (ev.endTimeFormatted) existing.endTimeFormatted = ev.endTimeFormatted;
+
+                // Collect additional comments (avoid duplicates)
+                if (ev.original?.comment && ev.original.comment !== existing.original?.comment) {
+                    existing.original = {
+                        ...existing.original,
+                        additionalComments: [...(existing.original.additionalComments || []), ev.original.comment]
+                    };
+                }
+
+                // Reformat the total duration string
+                const totalMin = Math.floor(existing.durationMs / 60000);
+                if (totalMin < 1) existing.timeFormatted = '< 1m';
+                else if (totalMin < 60) existing.timeFormatted = `${totalMin}m`;
+                else {
+                    const h = Math.floor(totalMin / 60);
+                    const m = totalMin % 60;
+                    existing.timeFormatted = `${h}h ${m}m`;
+                }
+            } else {
+                ticketKeyToMergedIdx.set(ticketKey, mergedEvents.length);
+                mergedEvents.push(ev);
+            }
+        }
+
         return {
             ...session,
             durationMs: sessionDurationMs,
-            events: groupedEvents
+            events: mergedEvents
         };
     });
 

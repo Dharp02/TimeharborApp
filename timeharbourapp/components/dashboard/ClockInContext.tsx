@@ -478,7 +478,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       duration: '0m',
     });
     if (user?.id) {
-      const teamId = activeTicketTeamId || null;
+      const teamId = activeTicketTeamId || pendingSessionStopTeamId || null;
       await localTimeStore.breakEnd(user.id, teamId);
       // Flush the BREAK_END work-log to the backend immediately so the server
       // can emit session_state_restore to all other connected devices.
@@ -494,7 +494,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     const teamId = pendingSessionStopTeamId;
     setIsSessionOptionsOpen(false);
 
-    // If on break, end it first so break time is counted
+    // If on break, end it first so break time is counted and BREAK_END is logged
     let finalBreakMs = totalBreakMs;
     if (isOnBreak && breakStartTime) {
       finalBreakMs = totalBreakMs + (DateTime.now().toMillis() - breakStartTime);
@@ -503,6 +503,8 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       setTotalBreakMs(finalBreakMs);
       localStorage.setItem('totalBreakMs', finalBreakMs.toString());
       localStorage.removeItem('breakStartTime');
+      // Write the BREAK_END event so the backend records it in the session timeline
+      await localTimeStore.breakEnd(user.id, teamId || null);
     }
 
     // Check if ticket is running
