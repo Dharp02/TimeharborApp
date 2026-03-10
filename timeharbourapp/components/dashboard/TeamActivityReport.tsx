@@ -18,6 +18,7 @@ type Activity = {
   description?: string;
   link?: string;
   tickets?: string[];
+  ticketLinks?: string[]; // parallel array of GitHub links for each ticket
   role: string;
 };
 
@@ -32,6 +33,7 @@ type DesktopActivity = {
   clockOut: string;
   status: string;
   tickets: string[];
+  ticketLinks?: string[];
   role: string;
 };
 
@@ -136,6 +138,7 @@ export function TeamActivityReport() {
                  member: log.user?.full_name || 'Unknown',
                  action: action,
                  tickets: tickets,
+                 ticketLinks: log.ticket?.link ? [log.ticket.link] : [],
                  role: log.user?.memberships?.[0]?.role || 'Member',
                  description: description,
                  link: link,
@@ -285,6 +288,24 @@ export function TeamActivityReport() {
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">{activity.action}</p>
                         {activity.description && (
                           <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mt-0.5 break-words">&quot;{activity.description}&quot;</p>
+                        )}
+                        {activity.ticketLinks && activity.ticketLinks.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {activity.tickets?.map((ticket, idx) => {
+                              const link = activity.ticketLinks?.[idx];
+                              return link ? (
+                                <a
+                                  key={ticket}
+                                  href={link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800 hover:underline"
+                                >
+                                  {ticket}
+                                </a>
+                              ) : null;
+                            })}
+                          </div>
                         )}
                         {activity.link && (
                           <a
@@ -474,12 +495,25 @@ export function TeamActivityReport() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                    <div className="flex gap-1">
-                      {activity.tickets.map(ticket => (
-                        <span key={ticket} className="bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded text-xs border border-blue-100 dark:border-blue-800">
-                          {ticket}
-                        </span>
-                      ))}
+                    <div className="flex gap-1 flex-wrap">
+                      {activity.tickets.map((ticket, idx) => {
+                        const link = activity.ticketLinks?.[idx];
+                        return link ? (
+                          <a
+                            key={ticket}
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded text-xs border border-blue-100 dark:border-blue-800 hover:underline text-blue-600 dark:text-blue-400"
+                          >
+                            {ticket}
+                          </a>
+                        ) : (
+                          <span key={ticket} className="bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded text-xs border border-blue-100 dark:border-blue-800">
+                            {ticket}
+                          </span>
+                        );
+                      })}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

@@ -255,9 +255,25 @@ export default function OpenTickets() {
                 <Ticket className="w-4 h-4 md:w-5 md:h-5" />
               </div>
               <div className="min-w-0">
-                <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm md:text-base">
-                  {ticket.title}
-                </h3>
+                {(() => {
+                  const githubUrl = ticket.link
+                    || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
+                  return (
+                    <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm md:text-base">
+                      {githubUrl ? (
+                        <a
+                          href={githubUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
+                          {ticket.title}
+                        </a>
+                      ) : ticket.title}
+                    </h3>
+                  );
+                })()}
                 <div className="flex items-center gap-2 mt-1">
                   {ticket.creator && (
                     <>

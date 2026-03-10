@@ -516,7 +516,21 @@ export default function TicketsPage() {
                       </span>
                     </div>
                     <h3 className="text-base font-medium text-gray-900 dark:text-white truncate">
-                      {ticket.title}
+                      {(() => {
+                        const githubUrl = ticket.reference
+                          || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
+                        return githubUrl ? (
+                          <a
+                            href={githubUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          >
+                            {ticket.title}
+                          </a>
+                        ) : ticket.title;
+                      })()}
                     </h3>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       Created by <span className="font-medium text-gray-700 dark:text-gray-300">{ticket.creatorName}</span>
@@ -948,7 +962,20 @@ export default function TicketsPage() {
                   </div>
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
-                  {ticket.title}
+                  {(() => {
+                    const githubUrl = ticket.reference
+                      || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
+                    return githubUrl ? (
+                      <a
+                        href={githubUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        {ticket.title}
+                      </a>
+                    ) : ticket.title;
+                  })()}
                 </h3>
               </div>
 
