@@ -176,7 +176,10 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
       // --- Also track active tickets: START_TICKET id → ticketId ---
       // After the pass, any START_TICKET id still in the map has no STOP_TICKET.
       const openTickets = new Map<string, string>(); // ticketId → START_TICKET event id
-      const activeEventIds = new Set<string>();       // event ids that are "Active"
+      // FIFO queue for START_TICKETs where ticketId is null (can't key by ticketId).
+      // Each STOP_TICKET with null ticketId dequeues the oldest waiting START_TICKET.
+      const nullTicketQueue: string[] = [];            // START_TICKET event ids with no ticketId
+      const activeEventIds = new Set<string>();        // event ids that are "Active"
 
       // Track open clock-in (no CLOCK_OUT yet) to mark as Active
       let openClockInId: string | null = null;
@@ -211,13 +214,21 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
             openClockInId = null;
             break;
           case 'START_TICKET': {
-            const tid = e.ticketId || e.id;
-            openTickets.set(tid, e.id);
+            if (e.ticketId) {
+              openTickets.set(e.ticketId, e.id);
+            } else {
+              // No ticketId — track in a FIFO queue so a matching null STOP_TICKET can close it
+              nullTicketQueue.push(e.id);
+            }
             break;
           }
           case 'STOP_TICKET': {
-            const tid = e.ticketId || e.id;
-            openTickets.delete(tid);
+            if (e.ticketId) {
+              openTickets.delete(e.ticketId);
+            } else {
+              // Pair with the oldest unmatched null-ticketId START_TICKET
+              nullTicketQueue.shift();
+            }
             break;
           }
         }
@@ -225,6 +236,10 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
 
       // Any START_TICKET still in openTickets has no matching STOP — mark as Active
       for (const eventId of openTickets.values()) {
+        activeEventIds.add(eventId);
+      }
+      // Any null-ticketId START_TICKETs still unmatched → Active
+      for (const eventId of nullTicketQueue) {
         activeEventIds.add(eventId);
       }
       // Open CLOCK_IN (no CLOCK_OUT) → Active
@@ -282,40 +297,8 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
         };
       });
 
-      // Also include LOG-type entries from activity_logs (ticket, member, manual logs)
-      const logWhereClause: any = {
-        userId,
-        type: 'LOG',
-        startTime: { [Op.between]: [new Date(from as string), new Date(to as string)] },
-      };
-      if (teamId) logWhereClause.teamId = teamId as string;
-
-      const logEntries = await ActivityLog.findAll({
-        where: logWhereClause,
-        order: [['startTime', 'ASC']],
-        limit: 500,
-      });
-
-      const formattedLogs = logEntries.map(l => ({
-        id: l.activityId || l.id,
-        type: 'LOG' as const,
-        title: l.title,
-        subtitle: l.subtitle,
-        description: l.description,
-        startTime: l.startTime,
-        endTime: l.endTime,
-        status: (l.status || 'Completed') as 'Active' | 'Completed',
-        duration: l.duration,
-        durationMs: 0,
-      }));
-
-      // Merge work_log events + LOG entries, sort ascending, then reverse for newest-first
-      const merged = [...formatted, ...formattedLogs].sort(
-        (a, b) => new Date(a.startTime as string | Date).getTime() - new Date(b.startTime as string | Date).getTime(),
-      );
-
       // Return newest-first so the All Activity page displays in chronological DESC order
-      res.json(merged.reverse());
+      res.json(formatted.reverse());
       return;
     }
 
