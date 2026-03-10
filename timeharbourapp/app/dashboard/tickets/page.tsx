@@ -15,7 +15,7 @@ import PulseButton from '@/components/dashboard/PulseButton';
 export default function TicketsPage() {
   const logger = useLogger();
   const router = useRouter();
-  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
+  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
   const { user } = useAuth();
 
@@ -147,6 +147,8 @@ export default function TicketsPage() {
       setShowClockInWarning(true);
       return;
     }
+
+    if (isOnBreak) return;
 
     // If stopping the current ticket
     if (activeTicketId === ticketId) {
@@ -463,11 +465,15 @@ export default function TicketsPage() {
                   {/* Status Icon/Action */}
                   <button
                     onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
+                    disabled={isOnBreak}
+                    title={isOnBreak ? 'Resume from break to track tickets' : undefined}
                     className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                      activeTicketId === ticket.id
-                        ? 'bg-blue-600 text-white shadow-md scale-105'
-                        : 'bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400'
-                    } cursor-pointer`}
+                      isOnBreak
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500'
+                        : activeTicketId === ticket.id
+                          ? 'bg-blue-600 text-white shadow-md scale-105 cursor-pointer'
+                          : 'bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 cursor-pointer'
+                    }`}
                   >
                     {activeTicketId === ticket.id ? (
                       <Square className="w-4 h-4 fill-current" />
