@@ -78,3 +78,26 @@ export const enhanceTicketData = (rawTicket: any) => {
     references: rawTicket.references || []
   };
 };
+
+const GITHUB_URL_REGEX = /github\.com\/([^/]+)\/([^/]+)\/(pull|issues)\/(\d+)/;
+
+/**
+ * Fetches the title of a GitHub issue or pull request from a GitHub URL.
+ * Returns null if the URL is not a valid GitHub issue/PR URL or the request fails.
+ */
+export async function fetchGitHubTitle(url: string): Promise<string | null> {
+  const match = url.match(GITHUB_URL_REGEX);
+  if (!match) return null;
+
+  const [, owner, repo, type, number] = match;
+  const endpoint = type === 'pull' ? 'pulls' : 'issues';
+
+  try {
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/${endpoint}/${number}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.title ?? null;
+  } catch {
+    return null;
+  }
+}

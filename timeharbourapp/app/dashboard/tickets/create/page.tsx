@@ -9,6 +9,7 @@ import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { CreateTicketData } from '@/TimeharborAPI/tickets';
 import { useLogger } from '@/hooks/useLogger';
 import Link from 'next/link';
+import { fetchGitHubTitle } from '@/lib/utils';
 
 export default function CreateTicketPage() {
   const router = useRouter();
@@ -25,6 +26,22 @@ export default function CreateTicketPage() {
     priority: 'Medium', 
     reference: '' 
   });
+
+  const handleReferenceBlur = async (url: string) => {
+    if (!url || newTicket.title.trim()) return;
+    const title = await fetchGitHubTitle(url);
+    if (title) setNewTicket(prev => ({ ...prev, title }));
+  };
+
+  const handleTitleBlur = async (value: string) => {
+    const title = await fetchGitHubTitle(value);
+    if (!title) return;
+    setNewTicket(prev => ({
+      ...prev,
+      title,
+      reference: prev.reference.trim() || value
+    }));
+  };
 
   const handleCreateTicket = async () => {
     if (!currentTeam) return;
@@ -91,6 +108,7 @@ export default function CreateTicketPage() {
                             type="text"
                             value={newTicket.title}
                             onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
+                            onBlur={(e) => handleTitleBlur(e.target.value)}
                             placeholder="Enter ticket title"
                             disabled={isLoading}
                             className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500 transition-shadow"
@@ -118,6 +136,7 @@ export default function CreateTicketPage() {
                             type="url"
                             value={newTicket.reference}
                             onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
+                            onBlur={(e) => handleReferenceBlur(e.target.value)}
                             placeholder="https://..."
                             disabled={isLoading}
                             className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500 transition-shadow"
