@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Send } from 'lucide-react';
 import { ActivitySession } from '../types';
 import { ExpandableText } from './ExpandableText';
+import { LinkifiedText } from './LinkifiedText';
 import * as API from '@/TimeharborAPI/dashboard';
 
 export function ClockEventItem({ event, isClockIn, isBreak = false, isBreakStart = false }: { event: ActivitySession['events'][0], isClockIn: boolean, isBreak?: boolean, isBreakStart?: boolean }) {
@@ -58,7 +59,7 @@ export function ClockEventItem({ event, isClockIn, isBreak = false, isBreakStart
                 {/* Always show full comment if present */}
                 {!isClockIn && !isBreak && event.original?.comment && (
                     <div className="mt-1 text-base text-gray-600 dark:text-gray-300">
-                        {event.original.comment}
+                        <LinkifiedText text={event.original.comment} />
                     </div>
                 )}
                  
@@ -89,7 +90,7 @@ export function ClockEventItem({ event, isClockIn, isBreak = false, isBreakStart
                             {replies.map((reply, idx) => (
                                 <div key={reply.id || idx} className="text-sm text-gray-700 dark:text-gray-200 pl-2 border-l-2 border-gray-200 dark:border-gray-700">
                                     {reply.user && <span className="font-semibold text-xs text-blue-500 block mb-0.5">{reply.user.full_name || reply.userName}</span>}
-                                    <span>{typeof reply === 'string' ? reply : reply.content}</span>
+                                    <LinkifiedText text={typeof reply === 'string' ? reply : (reply.content || '')} />
                                 </div>
                             ))}
                         </div>

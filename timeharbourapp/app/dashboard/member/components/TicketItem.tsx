@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Briefcase, ExternalLink, Link as LinkIcon, Send } from 'lucide-react';
 import { SessionEvent } from '../types';
 import { ExpandableText } from './ExpandableText';
+import { LinkifiedText } from './LinkifiedText';
 import * as API from '@/TimeharborAPI/dashboard';
 
 export function TicketItem({ event, member }: { event: SessionEvent, member?: any }) {
@@ -87,8 +88,8 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
               </div>
               <div className="flex-1 min-w-0">
                   <div className="max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 pr-1">
-                      <p className="text-base text-gray-700 dark:text-gray-300 font-medium break-words whitespace-pre-wrap">
-                          {event.original?.comment || "No description"}
+                      <p className="text-base text-gray-700 dark:text-gray-300 font-medium break-words">
+                          <LinkifiedText text={event.original?.comment || 'No description'} />
                       </p>
                   </div>
                   <p className="text-xs text-blue-500 mt-1 font-medium">
@@ -142,7 +143,10 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
                     {replies.map((reply, i) => (
                         <div key={reply.id || i} className="text-sm text-gray-700 dark:text-gray-200 pl-2 border-l-2 border-gray-200 dark:border-gray-700">
                             {reply.user && <span className="font-semibold text-xs text-blue-500 block mb-0.5">{reply.user.full_name}</span>}
-                            <span className={reply.user ? '' : 'italic'}>{reply.content || reply}</span>
+                            <LinkifiedText
+                                text={typeof reply === 'string' ? reply : (reply.content || '')}
+                                className={reply.user ? '' : 'italic'}
+                            />
                         </div>
                     ))}
                 </div>
