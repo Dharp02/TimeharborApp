@@ -19,6 +19,7 @@ import { useTeam } from './TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import ProfileAvatarMenu from './ProfileAvatarMenu';
 import PullToRefresh from '@/components/ui/PullToRefresh';
+import { Button } from '@mieweb/ui';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { currentTeam, isLoading } = useTeam();
@@ -114,15 +115,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-16 flex justify-between items-center">
           <div className="flex items-center gap-2">
             {shouldShowBackButton() && (
-              <button
+              <Button
+                variant="ghost"
                 onClick={handleBackClick}
-                className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                className="p-1 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
                 aria-label="Go back"
               >
                 <ChevronLeft className="w-5 h-5" />
-              </button>
+              </Button>
             )}
-            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 truncate max-w-[200px]">
+            <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400 truncate max-w-[200px]">
               {pathname?.startsWith('/dashboard/member')
                 ? <Suspense fallback="Member"><MemberName /></Suspense>
                 : getHeaderTitle()}

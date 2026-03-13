@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@mieweb/ui';
 import { Clock, Loader2 } from 'lucide-react';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
@@ -88,7 +89,7 @@ export default function ActivityPage() {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary-500 mb-4" />
             <p>Loading activities...</p>
           </div>
         ) : activities.length === 0 ? (
@@ -109,7 +110,7 @@ export default function ActivityPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-4">
                     <div className={`mt-1 p-2 rounded-full ${
-                      activity.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                      activity.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-primary-100 text-primary-600'
                     }`}>
                       <Clock className="w-5 h-5" />
                     </div>
@@ -158,12 +159,13 @@ export default function ActivityPage() {
 
         {hasMore && (
           <div className="p-4 border-t border-gray-100 dark:border-gray-700 text-center">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setVisibleCount(prev => prev + 20)}
-              className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
             >
               Load More
-            </button>
+            </Button>
           </div>
         )}
       </div>

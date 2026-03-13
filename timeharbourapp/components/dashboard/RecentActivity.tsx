@@ -61,7 +61,7 @@ export default function RecentActivity() {
               <div className="flex items-start justify-between gap-3 md:gap-4">
                 <div className="flex items-start gap-3">
                   <div className={`mt-1 p-1.5 rounded-full ${
-                    activity.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                    activity.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-primary-100 text-primary-600'
                   }`}>
                     <Clock className="w-4 h-4" />
                   </div>
@@ -110,7 +110,7 @@ export default function RecentActivity() {
       <div className="mt-4 flex justify-end">
         <Link
           href="/dashboard/activity"
-          className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
+          className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1"
         >
           See All <ChevronRight className="w-4 h-4" />
         </Link>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Edit2 } from 'lucide-react';
 import { DateTime } from 'luxon';
+import { Button, Input, Select, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@mieweb/ui';
 import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
@@ -260,12 +261,12 @@ export function TeamActivityReport() {
 
         {/* Compact Filter Row - Name Filter */}
         <div className="mx-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 flex items-center gap-2">
-          <input
+          <Input
             type="text"
             placeholder="Filter by name"
             value={columnFilters.member}
             onChange={(e) => handleFilterChange('member', e.target.value)}
-            className="flex-1 text-base bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
+            className="flex-1 text-base bg-transparent"
           />
         </div>
 
@@ -277,7 +278,7 @@ export function TeamActivityReport() {
                 <div key={activity.id} className="py-3">
                   <div className="flex items-start justify-between min-w-0">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-base font-medium flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-700 flex items-center justify-center text-white text-base font-medium flex-shrink-0">
                         {activity.member.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0 pr-2">
@@ -291,7 +292,7 @@ export function TeamActivityReport() {
                             href={activity.link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+                            className="inline-flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400 hover:underline break-all"
                           >
                             🔗 {activity.link}
                           </a>
@@ -306,12 +307,13 @@ export function TeamActivityReport() {
               ))}
               {filteredActivities.length > visibleCount && (
                 <div className="py-2 text-center">
-                  <button 
+                  <Button 
+                    variant="ghost"
                     onClick={handleShowMore}
-                    className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                    className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300"
                   >
                     Show more
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -328,7 +330,7 @@ export function TeamActivityReport() {
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <span className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
+            <span className="p-1.5 bg-primary-100 dark:bg-primary-900/30 rounded-lg text-primary-600 dark:text-primary-400">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
@@ -345,126 +347,130 @@ export function TeamActivityReport() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-              <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-              <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Team Member</th>
-              <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Hours</th>
-              <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Clock-in</th>
-              <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Clock-out</th>
-              <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tickets</th>
-              <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-            </tr>
+        <Table className="w-full text-left border-collapse">
+          <TableHeader>
+            <TableRow className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+              <TableHead className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</TableHead>
+              <TableHead className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Team Member</TableHead>
+              <TableHead className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</TableHead>
+              <TableHead className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Hours</TableHead>
+              <TableHead className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Clock-in</TableHead>
+              <TableHead className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Clock-out</TableHead>
+              <TableHead className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</TableHead>
+              <TableHead className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tickets</TableHead>
+              <TableHead className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</TableHead>
+            </TableRow>
             {/* Filter Row */}
-            <tr className="bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700">
-              <th className="px-6 py-2">
-                <input 
+            <TableRow className="bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700">
+              <TableHead className="px-6 py-2">
+                <Input 
                   type="text" 
                   placeholder="Filter Date" 
                   value={columnFilters.date}
                   onChange={(e) => handleFilterChange('date', e.target.value)}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs"
                 />
-              </th>
-              <th className="px-6 py-2">
-                <input 
+              </TableHead>
+              <TableHead className="px-6 py-2">
+                <Input 
                   type="text" 
                   placeholder="Filter Member" 
                   value={columnFilters.member}
                   onChange={(e) => handleFilterChange('member', e.target.value)}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs"
                 />
-              </th>
-              <th className="px-6 py-2">
-                <input 
+              </TableHead>
+              <TableHead className="px-6 py-2">
+                <Input 
                   type="text" 
                   placeholder="Filter Email" 
                   value={columnFilters.email}
                   onChange={(e) => handleFilterChange('email', e.target.value)}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs"
                 />
-              </th>
-              <th className="px-6 py-2">
-                <input 
+              </TableHead>
+              <TableHead className="px-6 py-2">
+                <Input 
                   type="text" 
                   placeholder="Filter Hours" 
                   value={columnFilters.hours}
                   onChange={(e) => handleFilterChange('hours', e.target.value)}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs"
                 />
-              </th>
-              <th className="px-6 py-2">
-                <input 
+              </TableHead>
+              <TableHead className="px-6 py-2">
+                <Input 
                   type="text" 
                   placeholder="Filter In" 
                   value={columnFilters.clockIn}
                   onChange={(e) => handleFilterChange('clockIn', e.target.value)}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs"
                 />
-              </th>
-              <th className="px-6 py-2">
-                <input 
+              </TableHead>
+              <TableHead className="px-6 py-2">
+                <Input 
                   type="text" 
                   placeholder="Filter Out" 
                   value={columnFilters.clockOut}
                   onChange={(e) => handleFilterChange('clockOut', e.target.value)}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs"
                 />
-              </th>
-              <th className="px-6 py-2">
-                <select 
+              </TableHead>
+              <TableHead className="px-6 py-2">
+                <Select
                   value={columnFilters.status}
-                  onChange={(e) => handleFilterChange('status', e.target.value)}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">All</option>
-                  <option value="Active">Active</option>
-                  <option value="Completed">Completed</option>
-                </select>
-              </th>
-              <th className="px-6 py-2">
-                <input 
+                  onValueChange={(value) => handleFilterChange('status', value)}
+                  hideLabel
+                  label="Status filter"
+                  placeholder="All"
+                  size="sm"
+                  options={[
+                    { value: '', label: 'All' },
+                    { value: 'Active', label: 'Active' },
+                    { value: 'Completed', label: 'Completed' },
+                  ]}
+                />
+              </TableHead>
+              <TableHead className="px-6 py-2">
+                <Input 
                   type="text" 
                   placeholder="Filter Tickets" 
                   value={columnFilters.tickets}
                   onChange={(e) => handleFilterChange('tickets', e.target.value)}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs"
                 />
-              </th>
-              <th className="px-6 py-2"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              </TableHead>
+              <TableHead className="px-6 py-2"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="divide-y divide-gray-200 dark:divide-gray-700">
             {filteredDesktopActivities.length > 0 ? (
               filteredDesktopActivities.map((activity) => (
-                <tr key={activity.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-white whitespace-nowrap">
+                <TableRow key={activity.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                  <TableCell className="px-6 py-4 text-sm text-gray-900 dark:text-white whitespace-nowrap">
                     {activity.date}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-xs">
                         {activity.member.charAt(0)}
                       </div>
                       {activity.member}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {activity.email}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-mono text-gray-900 dark:text-white whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-sm font-mono text-gray-900 dark:text-white whitespace-nowrap">
                     {activity.hours}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {activity.clockIn}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {activity.clockOut}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                       activity.status === 'Active' 
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
@@ -472,38 +478,40 @@ export function TeamActivityReport() {
                     }`}>
                       {activity.status}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-sm text-primary-600 dark:text-primary-400 whitespace-nowrap">
                     <div className="flex gap-1">
                       {activity.tickets.map(ticket => (
-                        <span key={ticket} className="bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded text-xs border border-blue-100 dark:border-blue-800">
+                        <span key={ticket} className="bg-primary-50 dark:bg-primary-900/20 px-1.5 py-0.5 rounded text-xs border border-primary-100 dark:border-primary-800">
                           {ticket}
                         </span>
                       ))}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     {isLeader && (
-                      <button 
+                      <Button 
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleEditClick(activity)}
-                        className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                         title="Edit Activity"
                       >
                         <Edit2 className="w-4 h-4" />
-                      </button>
+                      </Button>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))
             ) : (
-              <tr>
-                <td colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+              <TableRow>
+                <TableCell colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                   No activity found matching the filters.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
 
@@ -515,7 +523,7 @@ export function TeamActivityReport() {
       >
         <div className="space-y-4">
           <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg mb-4">
-            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
+            <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold">
               {editingActivity?.member.charAt(0)}
             </div>
             <div>
@@ -528,11 +536,11 @@ export function TeamActivityReport() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Date
             </label>
-            <input
+            <Input
               type="date"
               value={editForm.date}
               onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="w-full"
             />
           </div>
 
@@ -541,39 +549,38 @@ export function TeamActivityReport() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Clock In
               </label>
-              <input
+              <Input
                 type="time"
                 value={editForm.clockIn}
                 onChange={(e) => setEditForm({ ...editForm, clockIn: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Clock Out
               </label>
-              <input
+              <Input
                 type="time"
                 value={editForm.clockOut}
                 onChange={(e) => setEditForm({ ...editForm, clockOut: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full"
               />
             </div>
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setIsEditModalOpen(false)}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSaveEdit}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Save Changes
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

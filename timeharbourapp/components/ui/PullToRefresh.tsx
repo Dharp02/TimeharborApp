@@ -181,7 +181,7 @@ export default function PullToRefresh({ children }: PullToRefreshProps) {
                 w-8 h-8 rounded-full 
                 bg-white dark:bg-gray-800 
                 shadow-sm border border-gray-100 dark:border-gray-700
-                text-blue-600 dark:text-blue-400
+                text-primary-600 dark:text-primary-400
                 transition-none
              `}
              style={{ 

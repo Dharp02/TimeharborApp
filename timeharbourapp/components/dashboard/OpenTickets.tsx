@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { Button, Input, Textarea, Select } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
+import PulseButton from '@/components/dashboard/PulseButton';
 import { Modal } from '@/components/ui/Modal';
 import { useTeam } from './TeamContext';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
@@ -182,21 +184,20 @@ export default function OpenTickets() {
           You must be clocked in to start a ticket timer. Would you like to clock in now?
         </p>
         <div className="flex justify-end gap-3 mt-6">
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setShowClockInWarning(false)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => {
               toggleSession(currentTeam?.id);
               setShowClockInWarning(false);
             }}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             Clock In
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
@@ -205,15 +206,15 @@ export default function OpenTickets() {
         <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Open Tickets</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
-            <button 
+            <Button 
               onClick={() => setIsAddTicketModalOpen(true)}
               disabled={!currentTeam}
-              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
             >
               <Plus className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
-          <Link href="/dashboard/tickets" className="hidden md:flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline ml-2">
+          <Link href="/dashboard/tickets" className="hidden md:flex items-center text-sm text-primary-600 dark:text-primary-400 hover:underline ml-2">
             See All <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
@@ -228,10 +229,10 @@ export default function OpenTickets() {
           tickets.slice(0, 5).map((ticket) => (
             <div 
               key={ticket.id}
-            className="flex items-center justify-between p-3 md:p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 transition-colors cursor-pointer group"
+            className="flex items-center justify-between p-3 md:p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-primary-200 dark:hover:border-primary-800 transition-colors cursor-pointer group"
           >
             <div className="flex items-center gap-3 md:gap-4 overflow-hidden flex-1">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg shrink-0">
+              <div className="p-2 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-lg shrink-0">
                 <Ticket className="w-4 h-4 md:w-5 md:h-5" />
               </div>
               <div className="min-w-0">
@@ -243,7 +244,7 @@ export default function OpenTickets() {
                     <>
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Created by</span>
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-white dark:ring-gray-700 shrink-0 transform hover:scale-105 transition-transform cursor-help" title={ticket.creator.full_name}>
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-primary-500 to-primary-700 flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-white dark:ring-gray-700 shrink-0 transform hover:scale-105 transition-transform cursor-help" title={ticket.creator.full_name}>
                           {getUserInitials(ticket.creator.full_name, ticket.creator.email)}
                         </div>
                       </div>
@@ -261,15 +262,20 @@ export default function OpenTickets() {
               <span className="hidden md:inline-block text-xs font-medium px-2 py-1 bg-white dark:bg-gray-600 rounded-md border border-gray-200 dark:border-gray-500 text-gray-600 dark:text-gray-300">
                 {ticket.status}
               </span>
+              {currentTeam && (
+                <PulseButton teamId={currentTeam.id} ticketId={ticket.id} />
+              )}
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
-                <button 
+                <Button 
+                  variant="ghost"
+                  size="icon"
                   onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
                   className={`p-2 rounded-full transition-colors ${
                     !isSessionActive 
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
                       : activeTicketId === ticket.id
                         ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40'
-                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40'
+                        : 'bg-primary-50 text-primary-600 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/40'
                   }`}
                 >
                   {activeTicketId === ticket.id ? (
@@ -277,7 +283,7 @@ export default function OpenTickets() {
                   ) : (
                     <Play className="w-4 h-4 fill-current" />
                   )}
-                </button>
+                </Button>
                 {activeTicketId === ticket.id && (
                   <span className="text-[10px] font-mono font-bold text-red-600 dark:text-red-400 animate-pulse">
                     {ticketDuration}
@@ -291,7 +297,7 @@ export default function OpenTickets() {
       </div>
       
       <div className="mt-4 md:hidden text-center">
-        <Link href="/dashboard/tickets" className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+        <Link href="/dashboard/tickets" className="text-sm text-primary-600 dark:text-primary-400 font-medium">
           See All Tickets
         </Link>
       </div>
@@ -308,40 +314,35 @@ export default function OpenTickets() {
               ? 'Enter a comment for this session:' 
               : 'Enter a comment for the current task before switching:'}
           </p>
-          <textarea
+          <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder="What did you work on?"
-            className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="w-full h-32"
             autoFocus
           />
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
-            <input
+            <Input
               type="url"
               value={link}
               onChange={(e) => setLink(e.target.value)}
               placeholder="Paste a YouTube or Pulse link..."
-              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
           <div className="flex justify-end gap-3">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleConfirm}
-              className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                modalType === 'stop'
-                  ? 'bg-red-600 hover:bg-red-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
+              variant={modalType === 'stop' ? 'danger' : 'primary'}
             >
               {modalType === 'stop' ? 'Stop Timer' : 'Switch Task'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -363,12 +364,11 @@ export default function OpenTickets() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Title
               </label>
-              <input
+              <Input
                 type="text"
                 value={newTicket.title}
                 onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
                 placeholder="Enter ticket title"
-                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
               />
             </div>
 
@@ -376,11 +376,11 @@ export default function OpenTickets() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Description (optional)
               </label>
-              <textarea
+              <Textarea
                 value={newTicket.description}
                 onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
                 placeholder="Add more details..."
-                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500 min-h-[100px]"
+                className="min-h-[100px]"
               />
             </div>
 
@@ -388,44 +388,40 @@ export default function OpenTickets() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Reference Link (optional)
               </label>
-              <input
+              <Input
                 type="url"
                 value={newTicket.reference}
                 onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
                 placeholder="https://..."
-                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Status
-              </label>
-              <select
-                value={newTicket.status}
-                onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
-                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white"
-              >
-                <option value="Open">Open</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Closed">Closed</option>
-              </select>
-            </div>
+            <Select
+              label="Status"
+              value={newTicket.status}
+              onValueChange={(value) => setNewTicket({ ...newTicket, status: value })}
+              options={[
+                { value: 'Open', label: 'Open' },
+                { value: 'In Progress', label: 'In Progress' },
+                { value: 'Closed', label: 'Closed' },
+              ]}
+            />
           </div>
 
           <div className="flex flex-col gap-3 mt-6">
-            <button
+            <Button
               onClick={handleAddTicket}
-              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+              className="w-full py-3 bg-green-600 hover:bg-green-700"
             >
               Create Ticket
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => setIsAddTicketModalOpen(false)}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="w-full py-3"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

@@ -9,6 +9,7 @@ import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { CreateTicketData } from '@/TimeharborAPI/tickets';
 import { useLogger } from '@/hooks/useLogger';
 import Link from 'next/link';
+import { Button, Input, Textarea, Select } from '@mieweb/ui';
 
 export default function CreateTicketPage() {
   const router = useRouter();
@@ -87,13 +88,12 @@ export default function CreateTicketPage() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                             Title <span className="text-red-500">*</span>
                         </label>
-                        <input
+                        <Input
                             type="text"
                             value={newTicket.title}
                             onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
                             placeholder="Enter ticket title"
                             disabled={isLoading}
-                            className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500 transition-shadow"
                         />
                     </div>
 
@@ -101,12 +101,12 @@ export default function CreateTicketPage() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                             Description <span className="text-gray-400 font-normal">(optional)</span>
                         </label>
-                        <textarea
+                        <Textarea
                             value={newTicket.description}
                             onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
                             placeholder="Add more details..."
                             disabled={isLoading}
-                            className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500 min-h-[120px] transition-shadow resize-y"
+                            className="min-h-[120px]"
                         />
                     </div>
 
@@ -114,76 +114,57 @@ export default function CreateTicketPage() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                             Reference Link <span className="text-gray-400 font-normal">(optional)</span>
                         </label>
-                        <input
+                        <Input
                             type="url"
                             value={newTicket.reference}
                             onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
                             placeholder="https://..."
                             disabled={isLoading}
-                            className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500 transition-shadow"
                         />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                Status
-                            </label>
-                            <div className="relative">
-                                <select
-                                    value={newTicket.status}
-                                    onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
-                                    disabled={isLoading}
-                                    className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white appearance-none"
-                                >
-                                    <option value="Open">Open</option>
-                                    <option value="In Progress">In Progress</option>
-                                    <option value="Closed">Closed</option>
-                                </select>
-                                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                Priority
-                            </label>
-                            <div className="relative">
-                                <select
-                                    value={newTicket.priority}
-                                    onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
-                                    disabled={isLoading}
-                                    className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white appearance-none"
-                                >
-                                    <option value="Low">Low</option>
-                                    <option value="Medium">Medium</option>
-                                    <option value="High">High</option>
-                                </select>
-                                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </div>
-                            </div>
-                        </div>
+                        <Select
+                            label="Status"
+                            value={newTicket.status}
+                            onValueChange={(value) => setNewTicket({ ...newTicket, status: value })}
+                            disabled={isLoading}
+                            options={[
+                                { value: 'Open', label: 'Open' },
+                                { value: 'In Progress', label: 'In Progress' },
+                                { value: 'Closed', label: 'Closed' },
+                            ]}
+                        />
+                        <Select
+                            label="Priority"
+                            value={newTicket.priority}
+                            onValueChange={(value) => setNewTicket({ ...newTicket, priority: value })}
+                            disabled={isLoading}
+                            options={[
+                                { value: 'Low', label: 'Low' },
+                                { value: 'Medium', label: 'Medium' },
+                                { value: 'High', label: 'High' },
+                            ]}
+                        />
                     </div>
                 </div>
 
                 <div className="pt-4 flex gap-4 hidden md:flex">
-                     <button
+                     <Button
                         onClick={() => router.push('/dashboard/tickets')}
                         disabled={isLoading}
-                        className="flex-1 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+                        variant="outline"
+                        className="flex-1 py-3"
                     >
                         Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         onClick={handleCreateTicket}
                         disabled={isLoading}
-                        className="flex-1 px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
+                        className="flex-1 py-3 bg-green-600 hover:bg-green-700"
                     >
                         {isLoading ? 'Creating...' : 'Create Ticket'}
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
@@ -192,20 +173,21 @@ export default function CreateTicketPage() {
        {/* Mobile Actions - Pushed to the form instead of fixed bottom */}
        <div className="md:hidden px-0 -mt-3 pb-8">
             <div className="flex gap-4">
-                <button
+                <Button
                     onClick={() => router.push('/dashboard/tickets')}
                     disabled={isLoading}
-                        className="flex-1 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    variant="outline"
+                    className="flex-1 py-3"
                     >
                         Cancel
-                    </button>
-                <button
+                    </Button>
+                <Button
                     onClick={handleCreateTicket}
                     disabled={isLoading}
-                    className="flex-1 px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
+                    className="flex-1 py-3 bg-green-600 hover:bg-green-700"
                 >
                     {isLoading ? 'Creating...' : 'Create Ticket'}
-                </button>
+                </Button>
             </div>
        </div>
 

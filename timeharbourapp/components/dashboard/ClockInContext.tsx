@@ -13,6 +13,7 @@ import { DateTime, Duration } from 'luxon';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { Plus, Play, Ticket, Coffee, PlayCircle } from 'lucide-react';
+import { Button, Input, Textarea } from '@mieweb/ui';
 
 type ClockInContextType = {
   // Global Session
@@ -726,9 +727,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         title="What would you like to do?"
       >
         <div className="space-y-3">
-          <button
+          <Button
             onClick={takeBreak}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 hover:border-amber-400 dark:hover:border-amber-500 transition-colors text-left"
+            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 hover:border-amber-400 dark:hover:border-amber-500 text-left h-auto justify-start"
             aria-label="Take a break"
           >
             <div className="shrink-0 p-2 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 rounded-lg">
@@ -738,11 +739,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-semibold text-gray-900 dark:text-white">Take a Break</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Pause your session. Resume when you're back.</p>
             </div>
-          </button>
+          </Button>
 
-          <button
+          <Button
             onClick={proceedToClockOut}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:border-red-400 dark:hover:border-red-600 transition-colors text-left"
+            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:border-red-400 dark:hover:border-red-600 text-left h-auto justify-start"
             aria-label="Clock out"
           >
             <div className="shrink-0 p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg">
@@ -752,14 +753,14 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-semibold text-gray-900 dark:text-white">Clock Out</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">End your work session for today.</p>
             </div>
-          </button>
+          </Button>
 
-          <button
+          <Button
+  variant="ghost"
             onClick={() => setIsSessionOptionsOpen(false)}
-            className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
             Cancel
-          </button>
+          </Button>
         </div>
       </Modal>
 
@@ -783,36 +784,36 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {clockInTickets.map((t) => (
-                <button
+                <Button
+  variant="outline"
                   key={t.id}
                   onClick={() => handleClockInTicketSelect(t.id, t.title)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 p-3 h-auto justify-start text-left group"
                   aria-label={`Start timer for ${t.title}`}
                 >
-                  <div className="shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md">
+                  <div className="shrink-0 p-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-md">
                     <Ticket className="w-4 h-4" />
                   </div>
                   <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{t.title}</span>
-                  <Play className="w-4 h-4 shrink-0 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
+                  <Play className="w-4 h-4 shrink-0 text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Button>
               ))}
             </div>
           )}
 
           <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700">
-            <button
+            <Button
+  variant="ghost"
               onClick={dismissClockInPrompt}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
               Skip for now
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => { dismissClockInPrompt(); router.push('/dashboard/tickets/create'); }}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
               New Ticket
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -826,36 +827,33 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
           <p className="text-sm text-gray-600 dark:text-gray-300">
             You are clocking out but the ticket timer is still running. Please add a comment to stop the ticket and clock out.
           </p>
-          <textarea
+          <Textarea
             value={stopTicketComment}
             onChange={(e) => setStopTicketComment(e.target.value)}
             placeholder="What did you work on?"
-            className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             autoFocus
           />
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
-            <input
+            <Input
               type="url"
               value={stopTicketLink}
               onChange={(e) => setStopTicketLink(e.target.value)}
               placeholder="Paste a YouTube or Pulse link..."
-              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
           <div className="flex justify-end gap-3">
-            <button
+            <Button
+  variant="ghost"
               onClick={cancelStopTicketAndSession}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={confirmStopTicketAndSession}
-              className="px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors bg-blue-600 hover:bg-blue-700"
             >
               Stop & Clock Out
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

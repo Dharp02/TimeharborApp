@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useClockIn } from './ClockInContext';
 import { useTeam } from './TeamContext';
+import { Button } from '@mieweb/ui';
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -25,13 +26,13 @@ export default function BottomNav() {
         >
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
             isActive('/dashboard') 
-              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
+              ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
             <Home className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+            isActive('/dashboard') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
           }`}>Home</span>
         </Link>
         
@@ -42,25 +43,25 @@ export default function BottomNav() {
         >
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
             isActive('/dashboard/teams') 
-              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
+              ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
             <Users className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard/teams') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+            isActive('/dashboard/teams') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
           }`}>Teams</span>
         </Link>
 
         <div className="relative -top-5">
-          <button 
+          <Button 
             onClick={() => isOnBreak ? resumeFromBreak() : toggleSession(currentTeam?.id)}
             className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-white dark:ring-gray-800 ${
               isOnBreak
                 ? 'bg-amber-400 hover:bg-amber-500 w-16 h-16'
                 : isSessionActive 
                 ? 'bg-red-500 hover:bg-red-600 animate-pulse w-17 h-17' 
-                : 'bg-blue-600 hover:bg-blue-700 w-16 h-16'
+                : 'bg-primary-600 hover:bg-primary-700 w-16 h-16'
             }`}
           >
             {isOnBreak ? (
@@ -73,9 +74,9 @@ export default function BottomNav() {
             ) : (
               <Clock className="w-8 h-8" />
             )}
-          </button>
+          </Button>
           <span className={`absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap ${
-            isOnBreak ? 'text-amber-500' : isSessionActive ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
+            isOnBreak ? 'text-amber-500' : isSessionActive ? 'text-red-500' : 'text-primary-600 dark:text-primary-400'
           }`}>
             {isOnBreak ? 'On Break' : isSessionActive ? 'Clock Out' : 'Clock In'}
           </span>
@@ -87,13 +88,13 @@ export default function BottomNav() {
         >
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
             isActive('/dashboard/tickets') 
-              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
+              ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
             <Ticket className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard/tickets') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+            isActive('/dashboard/tickets') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
           }`}>Ticket</span>
         </Link>
 
@@ -103,13 +104,13 @@ export default function BottomNav() {
         >
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
             isActive('/dashboard/settings') 
-              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
+              ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
             <Menu className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard/settings') ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+            isActive('/dashboard/settings') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
           }`}>Menu</span>
         </Link>
       </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus, Search, X, Shield, ShieldAlert } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
+import { Button, Input } from '@mieweb/ui';
 import { useTeam, Team, Member } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { TeamActivityReport } from '@/components/dashboard/TeamActivityReport';
@@ -206,18 +207,19 @@ export default function TeamsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 text-center text-gray-500 dark:text-gray-400 mx-4 md:mx-0 flex flex-col items-center gap-4">
             <p>Please select or join a team to view members.</p>
             <div className="flex gap-4">
-              <button
+              <Button
                  onClick={() => setIsJoinModalOpen(true)}
-                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                  Join Team
-              </button>
-              <button
+              </Button>
+              <Button
+                 variant="outline"
                  onClick={() => setIsCreateModalOpen(true)}
                  className="px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
               >
                  Create Team
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -226,29 +228,31 @@ export default function TeamsPage() {
             <div className="flex mb-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
                     {currentTeam.role === 'Leader' && (
                       <>
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={() => setActiveTab('teamactivity')}
-                          className={`flex-1 px-3 py-3 text-sm md:text-base font-medium transition-all ${
+                          className={`flex-1 px-3 py-3 text-sm md:text-base font-medium transition-all rounded-none ${
                             activeTab === 'teamactivity'
-                              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                              ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20'
                               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                           }`}
                         >
                           Team Activity
-                        </button>
+                        </Button>
                         <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
                       </>
                     )}
-                    <button
+                    <Button
+                      variant="ghost"
                       onClick={() => setActiveTab('teaminfo')}
-                      className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all ${
+                      className={`flex-1 px-4 py-3 text-sm md:text-base font-medium transition-all rounded-none ${
                         activeTab === 'teaminfo'
-                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                          ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20'
                           : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                       }`}
                     >
                       Team Info
-                    </button>
+                    </Button>
                   </div>
 
                   {/* Tab Content */}
@@ -267,7 +271,7 @@ export default function TeamsPage() {
                               }}
                               className={`text-2xl font-bold text-gray-900 dark:text-white ${
                                 currentTeam.role === 'Leader' 
-                                  ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors' 
+                                  ? 'cursor-pointer hover:text-primary-600 dark:hover:text-primary-400 transition-colors' 
                                   : ''
                               }`}
                             >
@@ -277,28 +281,30 @@ export default function TeamsPage() {
                             {/* Dropdown Menu */}
                             {teamActionsOpen && currentTeam.role === 'Leader' && (
                               <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 animate-in fade-in zoom-in duration-200">
-                                <button
+                                <Button
+                                  variant="ghost"
                                   onClick={() => {
                                     setEditTeamName(currentTeam.name);
                                     setIsEditModalOpen(true);
                                     setTeamActionsOpen(false);
                                   }}
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 rounded-none justify-start"
                                 >
                                   <Edit2 className="w-4 h-4" />
                                   Edit Name
-                                </button>
-                                <button
+                                </Button>
+                                <Button
+                                  variant="ghost"
                                   onClick={() => {
                                     setSelectedTeamForAction(currentTeam);
                                     setIsDeleteModalOpen(true);
                                     setTeamActionsOpen(false);
                                   }}
-                                  className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-none justify-start"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                   Delete Team
-                                </button>
+                                </Button>
                               </div>
                             )}
                           </div>
@@ -309,9 +315,11 @@ export default function TeamsPage() {
                             <span className="text-sm font-mono font-medium text-gray-900 dark:text-white">
                               {currentTeam.code}
                             </span>
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={copyHeaderCode}
-                              className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                              className="p-1 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                               title="Copy team code"
                             >
                               {headerCopied ? (
@@ -319,7 +327,7 @@ export default function TeamsPage() {
                               ) : (
                                 <Copy className="w-3 h-3" />
                               )}
-                            </button>
+                            </Button>
                           </div>
                         </div>
 
@@ -339,7 +347,7 @@ export default function TeamsPage() {
                                 {isSearchOpen ? (
                                    <>
                                      <Search className="w-4 h-4 text-gray-500 flex-shrink-0 mr-2" />
-                                     <input 
+                                     <Input 
                                         autoFocus
                                         type="text"
                                         placeholder="Search members..."
@@ -350,7 +358,9 @@ export default function TeamsPage() {
                                            if (!memberSearchQuery) setIsSearchOpen(false);
                                         }}
                                      />
-                                     <button 
+                                     <Button 
+                                        variant="ghost"
+                                        size="icon"
                                         onClick={() => {
                                            setMemberSearchQuery('');
                                            setIsSearchOpen(false);
@@ -358,23 +368,25 @@ export default function TeamsPage() {
                                         className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
                                       >
                                         <X className="w-3 h-3" />
-                                      </button>
+                                      </Button>
                                    </>
                                 ) : (
-                                   <button onClick={() => setIsSearchOpen(true)} className="flex items-center justify-center w-full h-full text-gray-500 dark:text-gray-400">
+                                   <Button variant="ghost" size="icon" onClick={() => setIsSearchOpen(true)} className="flex items-center justify-center w-full h-full text-gray-500 dark:text-gray-400">
                                       <Search className="w-4 h-4" />
-                                   </button>
+                                   </Button>
                                 )}
                               </div>
 
                               {currentTeam.role === 'Leader' && (
-                                <button
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   onClick={() => setIsAddMemberModalOpen(true)}
-                                  className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                                  className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 rounded-lg transition-colors"
                                   title="Add Member"
                                 >
                                   <Plus className="w-5 h-5" />
-                                </button>
+                                </Button>
                               )}
                             </div>
                           </div>
@@ -400,7 +412,7 @@ export default function TeamsPage() {
                                     className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700"
                                   >
                                     <div className="relative">
-                                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm ${member.status === 'online' ? 'ring-2 ring-green-500 ring-offset-2 dark:ring-offset-gray-900' : ''}`}>
+                                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white font-medium shadow-sm ${member.status === 'online' ? 'ring-2 ring-green-500 ring-offset-2 dark:ring-offset-gray-900' : ''}`}>
                                         {member.name.charAt(0)}
                                       </div>
                                       {member.status === 'online' && (
@@ -413,7 +425,7 @@ export default function TeamsPage() {
                                           {member.name}
                                         </p>
                                         {member.role === 'Leader' && (
-                                          <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                          <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 rounded-full shrink-0">
                                             Leader
                                           </span>
                                         )}
@@ -423,7 +435,9 @@ export default function TeamsPage() {
                                       </p>
                                     </div>
                                     {isLeader && !isSelf && (
-                                      <button
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
                                         onClick={(e) => {
                                           e.preventDefault();
                                           openRemoveMemberModal(member);
@@ -432,7 +446,7 @@ export default function TeamsPage() {
                                         title="Remove Member"
                                       >
                                         <UserMinus className="w-4 h-4" />
-                                      </button>
+                                      </Button>
                                     )}
                                   </div>
                                 );
@@ -445,7 +459,7 @@ export default function TeamsPage() {
                                   className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                                 >
                                   <div className="relative">
-                                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium shadow-sm ${member.status === 'online' ? 'ring-2 ring-green-500 ring-offset-2 dark:ring-offset-gray-900' : ''}`}>
+                                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white font-medium shadow-sm ${member.status === 'online' ? 'ring-2 ring-green-500 ring-offset-2 dark:ring-offset-gray-900' : ''}`}>
                                       {member.name.charAt(0)}
                                     </div>
                                     {member.status === 'online' && (
@@ -458,7 +472,7 @@ export default function TeamsPage() {
                                         {member.name}
                                       </p>
                                       {member.role === 'Leader' && (
-                                        <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded-full shrink-0">
+                                        <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 rounded-full shrink-0">
                                           Leader
                                         </span>
                                       )}
@@ -469,7 +483,9 @@ export default function TeamsPage() {
                                   </div>
                                   {currentTeam.role === 'Leader' && member.id !== user?.id && (
                                     <div className="flex items-center gap-1">
-                                      <button
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
                                         onClick={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
@@ -481,14 +497,16 @@ export default function TeamsPage() {
                                         }}
                                         className={`p-1.5 rounded-lg transition-colors ${
                                           member.role === 'Leader'
-                                            ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40'
-                                            : 'text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                                            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40'
+                                            : 'text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20'
                                         }`}
                                         title={member.role === 'Leader' ? "Remove Admin Rights" : "Make Admin"}
                                       >
                                         {member.role === 'Leader' ? <ShieldAlert className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
-                                      </button>
-                                      <button
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
                                         onClick={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
@@ -498,7 +516,7 @@ export default function TeamsPage() {
                                         title="Remove Member"
                                       >
                                         <UserMinus className="w-4 h-4" />
-                                      </button>
+                                      </Button>
                                     </div>
                                   )}
                                 </Link>
@@ -533,27 +551,27 @@ export default function TeamsPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Team Name
             </label>
-            <input
+            <Input
               type="text"
               value={editTeamName}
               onChange={(e) => setEditTeamName(e.target.value)}
               placeholder="e.g. Engineering Team"
               autoFocus
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="w-full"
             />
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => {
                 setIsEditModalOpen(false);
                 setEditTeamName(currentTeam?.name || '');
               }}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => {
                 if (currentTeam && editTeamName.trim()) {
                   updateTeamName(currentTeam.id, editTeamName);
@@ -561,10 +579,9 @@ export default function TeamsPage() {
                 }
               }}
               disabled={!editTeamName.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Save Changes
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -581,18 +598,18 @@ export default function TeamsPage() {
           </p>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setIsDeleteModalOpen(false)}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="danger"
               onClick={handleDeleteTeam}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
               Delete Team
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -612,12 +629,12 @@ export default function TeamsPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Member Email
             </label>
-            <input
+            <Input
               type="email"
               value={newMemberEmail}
               onChange={(e) => setNewMemberEmail(e.target.value)}
               placeholder="colleague@example.com"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="w-full"
             />
             {addMemberError && (
               <p className="mt-1 text-sm text-red-600 dark:text-red-400">
@@ -627,20 +644,20 @@ export default function TeamsPage() {
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => {
                 setIsAddMemberModalOpen(false);
                 setNewMemberEmail('');
                 setAddMemberError(null);
               }}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleAddMember}
               disabled={!newMemberEmail.trim() || isAddingMember}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="flex items-center gap-2"
             >
               {isAddingMember ? (
                 <>
@@ -650,7 +667,7 @@ export default function TeamsPage() {
               ) : (
                 'Add Member'
               )}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -667,18 +684,18 @@ export default function TeamsPage() {
           </p>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setIsRemoveMemberModalOpen(false)}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="danger"
               onClick={handleRemoveMember}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
               Remove Member
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -698,12 +715,12 @@ export default function TeamsPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Team Code
             </label>
-            <input
+            <Input
               type="text"
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
               placeholder="Enter team code"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="w-full"
             />
             {joinError && (
               <p className="mt-1 text-sm text-red-600 dark:text-red-400">
@@ -713,20 +730,20 @@ export default function TeamsPage() {
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => {
                 setIsJoinModalOpen(false);
                 setJoinCode('');
                 setJoinError(null);
               }}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleJoinTeam}
               disabled={!joinCode.trim() || isJoining}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="flex items-center gap-2"
             >
               {isJoining ? (
                 <>
@@ -736,7 +753,7 @@ export default function TeamsPage() {
               ) : (
                 'Join Team'
               )}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -765,7 +782,9 @@ export default function TeamsPage() {
               <code className="flex-1 font-mono text-lg font-bold text-center tracking-wider text-gray-800 dark:text-gray-200">
                 {createdTeamCode}
               </code>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={async () => {
                   if (createdTeamCode) {
                     await copyText(createdTeamCode);
@@ -773,24 +792,24 @@ export default function TeamsPage() {
                     setTimeout(() => setHeaderCopied(false), 2000);
                   }
                 }}
-                className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+                className="p-2 text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400"
                 title="Copy Code"
               >
                 {headerCopied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-              </button>
+              </Button>
             </div>
             
-            <button
+            <Button
               onClick={() => {
                 setIsCreateModalOpen(false);
                 setNewTeamName('');
                 setCreatedTeamCode(null);
                 refreshTeams();
               }}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full"
             >
               Done
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -798,33 +817,32 @@ export default function TeamsPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Team Name
               </label>
-              <input
+              <Input
                 type="text"
                 value={newTeamName}
                 onChange={(e) => setNewTeamName(e.target.value)}
                 placeholder="e.g. Design Team"
                 autoFocus
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full"
               />
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => {
                   setIsCreateModalOpen(false);
                   setNewTeamName('');
                 }}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleCreateTeam}
                 disabled={!newTeamName.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Team
-              </button>
+              </Button>
             </div>
           </div>
         )}

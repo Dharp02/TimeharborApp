@@ -3,6 +3,7 @@
 import { Clock, Coffee } from 'lucide-react';
 import { useClockIn } from './ClockInContext';
 import { useTeam } from './TeamContext';
+import { Button } from '@mieweb/ui';
 
 export default function DesktopFooter() {
   const { isSessionActive, isOnBreak, sessionDuration, sessionFormat, toggleSession, resumeFromBreak } = useClockIn();
@@ -11,14 +12,14 @@ export default function DesktopFooter() {
   return (
     <div className="hidden md:flex fixed bottom-0 right-0 left-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 justify-center items-center z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
       <div className="relative flex items-center gap-4">
-        <button
+        <Button
           onClick={() => isOnBreak ? resumeFromBreak() : toggleSession(currentTeam?.id)}
           className={`flex items-center justify-center rounded-full transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 ${
             isOnBreak
               ? 'bg-amber-400 text-white hover:bg-amber-500 w-14 h-14'
               : isSessionActive
               ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse w-14 h-14'
-              : 'bg-blue-600 text-white hover:bg-blue-700 w-14 h-14'
+              : 'bg-primary-600 text-white hover:bg-primary-700 w-14 h-14'
           }`}
         >
           {isOnBreak ? (
@@ -31,13 +32,13 @@ export default function DesktopFooter() {
           ) : (
             <Clock className="w-7 h-7" />
           )}
-        </button>
+        </Button>
         <div className="flex flex-col">
           <span className="text-sm font-bold text-gray-900 dark:text-white">
             {isOnBreak ? 'On a Break' : isSessionActive ? 'Session Active' : 'Ready to Work?'}
           </span>
           <span className={`text-xs font-medium ${
-            isOnBreak ? 'text-amber-500' : isSessionActive ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
+            isOnBreak ? 'text-amber-500' : isSessionActive ? 'text-red-500' : 'text-primary-600 dark:text-primary-400'
           }`}>
             {isOnBreak ? 'Click to Resume' : isSessionActive ? 'Click to Clock Out' : 'Click to Clock In'}
           </span>

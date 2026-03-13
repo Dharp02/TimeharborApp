@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: "timeharbor-frontend",
-      cwd: "/Users/mieloaner/mieprojects/TimeharborApp/timeharbourapp",
+      cwd: "/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbourapp",
       script: "npm",
       args: "run dev",
       env: {
@@ -13,7 +13,7 @@ module.exports = {
     },
     {
       name: "timeharbor-backend",
-      cwd: "/Users/mieloaner/mieprojects/TimeharborApp/express-api",
+      cwd: "/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/express-api",
       script: "npm",
       args: "run dev",
       env: {
@@ -24,7 +24,7 @@ module.exports = {
     },
     {
       name: "timeharbor-proxy",
-      cwd: "/Users/mieloaner/mieprojects/TimeharborApp/timeharbor-proxy",
+      cwd: "/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbor-proxy",
       script: "index.js",
       env: {
         PORT: 8080

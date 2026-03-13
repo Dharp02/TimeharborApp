@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 // Temporarily disabled Google Fonts due to build issues - can re-enable later
 // import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import AuthProvider from "@/components/auth/AuthProvider";
 import SyncInitializer from "@/components/SyncInitializer";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import SocketLayout from "@/components/SocketLayout";
+import ThemeWrapper from "@/components/ThemeWrapper";
 
 // const geistSans = Geist({
 //   variable: "--font-geist-sans",
@@ -28,16 +30,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+   
+      </head>
       <body className="antialiased">
-        <AuthProvider>
-          <NotificationProvider>
-            <SocketLayout>
-              <SyncInitializer />
-              {children}
-            </SocketLayout>
-          </NotificationProvider>
-        </AuthProvider>
+        <ThemeWrapper>
+          <AuthProvider>
+            <NotificationProvider>
+              <SocketLayout>
+                <SyncInitializer />
+                {children}
+              </SocketLayout>
+            </NotificationProvider>
+          </AuthProvider>
+        </ThemeWrapper>
+        
+          
+        
       </body>
     </html>
   );

@@ -27,7 +27,7 @@ export function SessionCard({ session, member }: { session: ActivitySession, mem
                   <div className={`absolute -left-[16px] top-2 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 ${
                      isClock 
                         ? (isClockIn ? 'bg-emerald-500' : 'bg-orange-500')
-                        : 'bg-blue-400'
+                        : 'bg-primary-400'
                   } z-10`} />
 
                   {isClock ? (

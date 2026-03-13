@@ -4,8 +4,8 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { useTeam } from './TeamContext';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
+import { Button } from '@mieweb/ui';
 import styles from './StoriesBar.module.css';
-
 export default function StoriesBar() {
   const { user } = useAuth();
   const { currentTeam } = useTeam();
@@ -36,9 +36,9 @@ export default function StoriesBar() {
             <div className={styles.avatarCircle}>
               <span className={styles.initials}>{currentUserInitials}</span>
             </div>
-            <button className={styles.addStoryBtn} aria-label="Add your pulse">
+            <Button variant="ghost" size="icon" className={styles.addStoryBtn} aria-label="Add your pulse">
               <Plus className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
           <span className={styles.storyName}>Your pulse</span>
         </div>

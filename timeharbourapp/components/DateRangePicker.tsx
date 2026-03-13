@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { DateTime } from 'luxon';
 import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react';
+import { Input } from '@mieweb/ui';
 
 export type DateRangePreset = 'today' | 'yesterday' | 'past_week' | 'past_month' | 'custom';
 
@@ -131,19 +132,19 @@ export function DateRangePicker({
       {preset === 'custom' && (
         <div className="flex flex-wrap items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="flex items-center gap-2 w-full sm:w-auto">
-             <input
+             <Input
               type="date"
               value={customRange.from.toFormat('yyyy-MM-dd')}
               onChange={(e) => handleCustomDateChange('from', e.target.value)}
-              className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
               aria-label="Start date"
             />
             <span className="text-gray-400">to</span>
-            <input
+            <Input
               type="date"
               value={customRange.to.toFormat('yyyy-MM-dd')}
               onChange={(e) => handleCustomDateChange('to', e.target.value)}
-              className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
               aria-label="End date"
             />
           </div>

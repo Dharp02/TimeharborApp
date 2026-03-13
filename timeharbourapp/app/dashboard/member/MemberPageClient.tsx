@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Clock, User, Calendar, Loader2, Github, Linkedin, ChevronDown } from 'lucide-react';
+import { Button } from '@mieweb/ui';
 import * as API from '@/TimeharborAPI/dashboard';
 import * as TeamAPI from '@/TimeharborAPI/teams';
 import { useRouter } from 'next/navigation';
@@ -241,7 +242,7 @@ function MemberPageContent({
             
             {/* Left Side: Profile */}
             <div className="flex items-center gap-4 md:gap-5 flex-1 min-w-0">
-                <div className="w-20 h-20 rounded-[1.5rem] bg-violet-600 flex items-center justify-center flex-shrink-0 text-2xl text-white font-medium shadow-lg shadow-violet-900/20">
+                <div className="w-20 h-20 rounded-[1.5rem] bg-primary-600 flex items-center justify-center flex-shrink-0 text-2xl text-white font-medium shadow-lg shadow-primary-900/20">
                   <User className="w-9 h-9" />
                 </div>
 
@@ -263,6 +264,7 @@ function MemberPageContent({
                                     router.push(url);
                                 }
                             }}
+                            aria-label="Select team member"
                         >
                             {teamMembers.map((m) => (
                                 <option key={m.id} value={m.id}>
@@ -377,7 +379,7 @@ function MemberPageContent({
                         </div>
                         {show && (
                             <div className="text-center px-2 pt-0.5 animate-in fade-in zoom-in-95 duration-200">
-                                <div className="text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wider mb-0.5 flex items-center justify-center gap-1.5">
+                                <div className="text-primary-600 dark:text-primary-400 text-[10px] font-bold uppercase tracking-wider mb-0.5 flex items-center justify-center gap-1.5">
                                     <Calendar className="w-3 h-3" />
                                     <span className="truncate max-w-[80px]">{label}</span>
                                 </div>
@@ -408,13 +410,14 @@ function MemberPageContent({
                
                {hasMore && (
                   <div className="flex justify-center py-8">
-                      <button
+                      <Button
+                          variant="outline"
                           onClick={handleShowMore}
                           disabled={loadingMore}
                           className="px-8 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-2 shadow-sm"
                       >
                           {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Show More'}
-                      </button>
+                      </Button>
                   </div>
                )}
              </div>

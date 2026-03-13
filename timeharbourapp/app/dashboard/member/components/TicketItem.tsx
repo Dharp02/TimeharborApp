@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Briefcase, ExternalLink, Link as LinkIcon, Send } from 'lucide-react';
+import { Button, Input } from '@mieweb/ui';
 import { SessionEvent } from '../types';
 import { ExpandableText } from './ExpandableText';
 import * as API from '@/TimeharborAPI/dashboard';
@@ -43,7 +44,7 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
                   {event.title}
               </h3>
               {event.status && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
                       {event.status.replace(/_/g, ' ')}
                   </span>
               )}
@@ -82,7 +83,7 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
 
           {/* Comment / Reply Box Area */}
           <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-violet-700 dark:text-violet-300 font-semibold text-sm flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-700 dark:text-primary-300 font-semibold text-sm flex-shrink-0">
                   {senderInitial}
               </div>
               <div className="flex-1 min-w-0">
@@ -91,7 +92,7 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
                           {event.original?.comment || "No description"}
                       </p>
                   </div>
-                  <p className="text-xs text-blue-500 mt-1 font-medium">
+                  <p className="text-xs text-primary-500 mt-1 font-medium">
                       Tap to reply
                   </p>
               </div>
@@ -101,13 +102,13 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
           {!expanded && replies.length > 0 && (
             <div className="mt-2 pl-3 border-l-2 border-gray-100 dark:border-gray-700 ml-4">
                 <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1">
-                    <span className="font-semibold text-blue-500 mr-1">
+                    <span className="font-semibold text-primary-500 mr-1">
                         {replies[replies.length - 1].user?.full_name || 'You'}:
                     </span>
                     {replies[replies.length - 1].content || replies[replies.length - 1]}
                 </div>
                 {replies.length > 1 && (
-                    <div className="text-xs text-blue-500 mt-0.5 font-medium">
+                    <div className="text-xs text-primary-500 mt-0.5 font-medium">
                         View {replies.length - 1} more replies
                     </div>
                 )}
@@ -141,7 +142,7 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
                 <div className="space-y-2 mt-2">
                     {replies.map((reply, i) => (
                         <div key={reply.id || i} className="text-sm text-gray-700 dark:text-gray-200 pl-2 border-l-2 border-gray-200 dark:border-gray-700">
-                            {reply.user && <span className="font-semibold text-xs text-blue-500 block mb-0.5">{reply.user.full_name}</span>}
+                            {reply.user && <span className="font-semibold text-xs text-primary-500 block mb-0.5">{reply.user.full_name}</span>}
                             <span className={reply.user ? '' : 'italic'}>{reply.content || reply}</span>
                         </div>
                     ))}
@@ -150,21 +151,23 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
 
             {/* Action Bar */}
             <div className="flex gap-2 items-center pt-1">
-                <input
+                <Input
                     type="text"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     placeholder="Add a reply..."
-                    className="flex-1 text-base bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                    className="flex-1 text-base bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors"
                     onKeyDown={(e) => e.key === 'Enter' && !sending && handleSend()}
                 />
-                <button
+                <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={handleSend}
                     disabled={!comment.trim() || sending}
-                    className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors disabled:opacity-50"
+                    className="p-2 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-full transition-colors disabled:opacity-50"
                 >
                     <Send className="w-4 h-4" />
-                </button>
+                </Button>
             </div>
           </div>
        )}
