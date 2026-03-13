@@ -1,24 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { LinkifiedText } from './LinkifiedText';
+import { Button } from '@mieweb/ui';
 
 export function ExpandableText({ text, limit = 60 }: { text: string; limit?: number }) {
   const [expanded, setExpanded] = useState(false);
 
   if (text.length <= limit) {
-    return <LinkifiedText text={text} />;
+    return <span>{text}</span>;
   }
 
   return (
     <span>
-      <LinkifiedText text={expanded ? text : `${text.substring(0, limit)}...`} />
-      <button
+      {expanded ? text : `${text.substring(0, limit)}...`}
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => setExpanded(!expanded)}
-        className="ml-1 text-blue-500 dark:text-blue-400 hover:underline text-xs font-medium focus:outline-none"
+        className="ml-1 text-primary-500 dark:text-primary-400 hover:underline text-xs font-medium focus:outline-none p-0 h-auto"
       >
         {expanded ? 'See Less' : 'See More'}
-      </button>
+      </Button>
     </span>
   );
 }

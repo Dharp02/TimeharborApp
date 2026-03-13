@@ -7,6 +7,7 @@ import { CheckCheck, Trash2, Bell, MessageSquare, Info, AlertTriangle, X } from 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTeam } from '@/components/dashboard/TeamContext';
+import { Button, Checkbox } from '@mieweb/ui';
 
 export default function NotificationsPage() {
   const { notifications, markAsRead, markAllAsRead, unreadCount, refreshNotifications, deleteNotifications } = useNotifications();
@@ -27,7 +28,7 @@ export default function NotificationsPage() {
       case 'success':
         return <CheckCheck className="w-5 h-5 text-green-500" />;
       case 'message':
-        return <MessageSquare className="w-5 h-5 text-blue-500" />;
+        return <MessageSquare className="w-5 h-5 text-primary-500" />;
       default:
         return <Info className="w-5 h-5 text-gray-500" />;
     }
@@ -89,46 +90,54 @@ export default function NotificationsPage() {
         {!selectionMode ? (
           <>
             {unreadCount > 0 && (
-              <button
+              <Button
                 onClick={markAllAsRead}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 transition-colors"
+                variant="secondary"
+                size="sm"
+                leftIcon={<CheckCheck className="w-4 h-4" />}
+                className="text-primary-600 dark:text-primary-400"
               >
-                <CheckCheck className="w-4 h-4" />
                 Mark all read
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               onClick={() => setSelectionMode(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+              variant="ghost"
+              size="sm"
             >
               Select
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <button
+            <Button
               onClick={exitSelectionMode}
-              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              variant="ghost"
+              size="icon"
+              aria-label="Exit selection mode"
             >
               <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            </button>
+            </Button>
             <span className="text-sm font-medium text-gray-900 dark:text-white">
               {selectedIds.size} selected
             </span>
             <div className="flex-1"></div>
-            <button
+            <Button
               onClick={allSelected ? deselectAll : selectAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+              variant="ghost"
+              size="sm"
             >
               {allSelected ? 'Deselect' : 'Select All'}
-            </button>
+            </Button>
             {selectedIds.size > 0 && (
-              <button
+              <Button
                 onClick={deleteSelected}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                variant="danger"
+                size="sm"
+                leftIcon={<Trash2 className="w-4 h-4" />}
               >
-                <Trash2 className="w-4 h-4" />
-              </button>
+                Delete
+              </Button>
             )}
           </>
         )}
@@ -147,18 +156,17 @@ export default function NotificationsPage() {
             <div
               key={notification.id}
               className={`px-4 py-3.5 transition-colors cursor-pointer ${
-                notification.unread ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                notification.unread ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
               } ${!selectionMode ? 'active:bg-gray-100 dark:active:bg-gray-700/50' : ''}`}
               onClick={() => handleNotificationClick(notification)}
             >
               <div className="flex gap-3">
                 {selectionMode && (
                   <div className="flex items-start pt-1">
-                    <input
-                      type="checkbox"
+                    <Checkbox
+                      aria-label="Select notification"
                       checked={selectedIds.has(notification.id)}
                       onChange={() => toggleSelection(notification.id)}
-                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                       onClick={(e) => e.stopPropagation()}
                     />
                   </div>
@@ -185,7 +193,7 @@ export default function NotificationsPage() {
                 </div>
                 {notification.unread && !selectionMode && (
                   <div className="flex items-start pt-2 flex-shrink-0">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
                   </div>
                 )}
               </div>

@@ -38,7 +38,7 @@ module.exports = {
       draftId: {
         type: Sequelize.UUID,
         allowNull: false,
-        unique: true, // stable key used by webhook/poll to locate this row
+        unique: true,
       },
       status: {
         type: Sequelize.ENUM('pending', 'uploaded', 'failed', 'expired'),
@@ -59,11 +59,11 @@ module.exports = {
       },
       expiresAt: {
         type: Sequelize.DATE,
-        allowNull: true, // set at creation; cron uses this to mark expired
+        allowNull: true,
       },
       uploadedAt: {
         type: Sequelize.DATE,
-        allowNull: true, // set when Pulse Vault confirms upload
+        allowNull: true,
       },
       createdAt: {
         type: Sequelize.DATE,
@@ -77,14 +77,12 @@ module.exports = {
       },
     });
 
-    // Indexes for the three main query patterns
     await queryInterface.addIndex('ticket_pulse_attachments', ['ticketId'],
       { name: 'pulse_attachments_ticket_id' });
     await queryInterface.addIndex('ticket_pulse_attachments', ['teamId'],
       { name: 'pulse_attachments_team_id' });
     await queryInterface.addIndex('ticket_pulse_attachments', ['status', 'expiresAt'],
       { name: 'pulse_attachments_status_expires' });
-    // draftId unique index is created automatically by the unique constraint above
   },
 
   async down(queryInterface) {

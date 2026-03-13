@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Video, Loader2, X, ExternalLink, Copy, Check } from 'lucide-react';
-import { PulseLogoIcon } from '@/components/ui/PulseLogoIcon';
 import { Capacitor } from '@capacitor/core';
-import { App as CapacitorApp } from '@capacitor/app';
+import { Button } from '@mieweb/ui';
 import QRCode from 'qrcode';
 import { Modal } from '@/components/ui/Modal';
 import { pulse as pulseApi } from '@/TimeharborAPI';
@@ -15,58 +14,11 @@ interface PulseButtonProps {
   ticketId: string;
 }
 
-const PULSE_APP_STORE_URL = 'https://apps.apple.com/za/app/pulse-cam/id6748621024';
-const PULSE_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mieweb.pulse';
-
-/**
- * Tries to open the `pulsecam://` deeplink via the OS.
- * Uses the Capacitor App plugin to detect whether the app went to background
- * (meaning Pulse Cam opened) or stayed in foreground (not installed).
- * Falls back to document.visibilitychange on web.
- */
-async function openDeeplinkWithStoreFallback(deeplink: string) {
-  const platform = Capacitor.getPlatform(); // 'ios' | 'android' | 'web'
-  const storeUrl = platform === 'android' ? PULSE_PLAY_STORE_URL : PULSE_APP_STORE_URL;
-
-  if (!Capacitor.isNativePlatform()) {
-    window.open(deeplink, '_blank');
-    return;
-  }
-
-  // On native: listen for the app going to background via Capacitor App plugin.
-  // WKWebView (iOS) does NOT fire visibilitychange on app-switch —
-  // Capacitor's appStateChange is the correct event for this.
-  let wentToBackground = false;
-
-  const listener = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-    if (!isActive) {
-      // App moved to background — Pulse Cam launched successfully
-      wentToBackground = true;
-      listener.remove();
-    }
-  });
-
-  // Fire the deeplink — if Pulse Cam is installed the OS opens it
-  window.open(deeplink, '_system');
-
-  // Give the OS 1.5s to respond. If still in foreground, app is not installed.
-  // Use window.location.href (not window.open) — iOS blocks window.open from
-  // setTimeout callbacks since they lack a direct user-gesture context.
-  setTimeout(() => {
-    listener.remove();
-    if (!wentToBackground) {
-      window.location.href = storeUrl;
-    }
-  }, 1500);
-}
-
 /**
  * Pulse recording button that sits beside each ticket.
  *
  * Mobile (Capacitor native): tapping the button calls the backend, then
  *   opens the `pulsecam://` deeplink via the OS — Pulse Cam launches natively.
- *   If Pulse Cam is not installed, automatically redirects to the App Store
- *   (iOS) or Play Store (Android).
  *
  * Desktop / web: shows a QR code modal so the user can scan with their phone
  *   to open Pulse Cam there, plus a fallback copy-link button.
@@ -84,7 +36,6 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
 
   const isNative = Capacitor.isNativePlatform();
 
-  // Load existing uploaded shorts count on mount
   const loadAttachments = useCallback(async () => {
     try {
       const data = await pulseApi.listAttachments(teamId, ticketId);
@@ -94,7 +45,6 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
     }
   }, [teamId, ticketId]);
 
-  // Check if there's an in-progress recording session for this ticket
   const loadPending = useCallback(async () => {
     try {
       const pending = await pulseApi.listPending(teamId, ticketId);
@@ -109,7 +59,6 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
     loadPending();
   }, [loadAttachments, loadPending]);
 
-  // Render QR code into the canvas when the modal opens
   useEffect(() => {
     if (qrModalOpen && session?.qrData && canvasRef.current) {
       QRCode.toCanvas(canvasRef.current, session.qrData, {
@@ -130,11 +79,8 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
       setSession(result);
 
       if (isNative) {
-        // Fire and forget — don't await so loading clears immediately.
-        // The store fallback fires asynchronously after 1.5s if needed.
-        openDeeplinkWithStoreFallback(result.deeplink);
+        window.open(result.deeplink, '_system');
       } else {
-        // Desktop / web: show the QR code modal
         setQrModalOpen(true);
       }
     } catch (err) {
@@ -157,8 +103,6 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
 
   const handleCloseModal = () => {
     setQrModalOpen(false);
-    // Refresh attachments and pending state when modal closes —
-    // the user may have just uploaded a Short and completed the session
     setTimeout(() => {
       loadAttachments();
       loadPending();
@@ -167,29 +111,33 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
 
   return (
     <>
-      {/* Pulse button with optional badges */}
+      {/* Pulse button with optional "uploaded" count badge */}
       <div className="relative">
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={handleClick}
           disabled={loading}
           aria-label={hasPending ? 'Continue Pulse recording for this ticket' : 'Record a Pulse Short for this ticket'}
           title={hasPending ? 'Continue Recording' : 'Record a Pulse Short'}
-          className={`p-1.5 rounded-xl transition-all disabled:opacity-50 hover:scale-110 hover:shadow-md active:scale-95 ${
-            hasPending ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+          className={`p-2 rounded-full transition-colors disabled:opacity-50 ${
+            hasPending
+              ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40'
+              : 'bg-primary-50 text-primary-600 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/40'
           }`}
         >
           {loading ? (
-            <Loader2 className="w-[18px] h-[18px] animate-spin text-blue-600" />
+            <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <PulseLogoIcon size={18} />
+            <Video className="w-4 h-4" />
           )}
-        </button>
+        </Button>
 
         {/* Badge: count of uploaded Shorts */}
         {attachments.length > 0 && (
           <span
             aria-label={`${attachments.length} Pulse Short${attachments.length > 1 ? 's' : ''} attached`}
-            className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center leading-none shadow-sm"
+            className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary-600 text-white text-[9px] font-bold flex items-center justify-center leading-none"
           >
             {attachments.length > 9 ? '9+' : attachments.length}
           </span>
@@ -222,9 +170,10 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
 
           <div className="flex w-full gap-2">
             {/* Copy deeplink */}
-            <button
+            <Button
+              variant="outline"
               onClick={handleCopyLink}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2"
               aria-label="Copy Pulse Cam link to clipboard"
             >
               {copied ? (
@@ -232,7 +181,7 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
               ) : (
                 <><Copy className="w-4 h-4" /> Copy Link</>
               )}
-            </button>
+            </Button>
 
             {/* Open in browser (fallback for desktop) */}
             {session?.deeplink && (
@@ -240,7 +189,7 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
                 href={session.deeplink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                 aria-label="Open Pulse Cam directly"
               >
                 <ExternalLink className="w-4 h-4" /> Open Pulse Cam
@@ -264,8 +213,8 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
                         className="w-12 h-8 object-cover rounded"
                       />
                     ) : (
-                      <div className="w-12 h-8 rounded bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                        <Video className="w-4 h-4 text-purple-500" />
+                      <div className="w-12 h-8 rounded bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                        <Video className="w-4 h-4 text-primary-500" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -284,22 +233,23 @@ export default function PulseButton({ teamId, ticketId }: PulseButtonProps) {
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Watch ${a.title || 'Pulse Short'}`}
-                        className="p-1.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/60 transition-colors shrink-0"
+                        className="p-1.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 hover:bg-primary-200 dark:hover:bg-primary-900/60 transition-colors shrink-0"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                     )}
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={async () => {
                         await pulseApi.deleteAttachment(teamId, ticketId, a.id);
                         loadAttachments();
-                        loadPending();
                       }}
                       aria-label="Remove this Pulse Short attachment"
                       className="p-1.5 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
                     >
                       <X className="w-3.5 h-3.5" />
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>

@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import { db } from '@/TimeharborAPI/db';
+import { Button } from '@mieweb/ui';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -91,9 +92,9 @@ export default function SettingsPage() {
         <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl animate-in slide-in-from-bottom-10 duration-300">
           <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
             <h3 className="font-bold text-lg text-gray-900 dark:text-white">{title}</h3>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
+            <Button variant="ghost" size="icon" onClick={onClose} >
+              <X  />
+            </Button>
           </div>
           <div className="p-4 overflow-y-auto">
             {children}
@@ -148,9 +149,9 @@ export default function SettingsPage() {
             <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
           </Link>
 
-          <button 
+          <Button 
             onClick={() => setActiveModal('calendar')}
-            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 h-auto rounded-none"
           >
             <div className="flex items-center gap-4">
               <div className="p-0">
@@ -159,12 +160,12 @@ export default function SettingsPage() {
               <span className="font-medium text-lg text-gray-900 dark:text-white">Calendar</span>
             </div>
             <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
-          </button>
+          </Button>
 
-          <button 
+          <Button 
             onClick={handleClearCache}
             disabled={isClearingCache}
-            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 h-auto rounded-none"
           >
             <div className="flex items-center gap-4">
               <div className="p-0">
@@ -175,17 +176,20 @@ export default function SettingsPage() {
               </span>
             </div>
             <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
-          </button>
+          </Button>
 
-          <button 
+          <Button 
             onClick={handleSignOut}
-            className="w-full flex items-center gap-4 px-6 py-4 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20 h-auto rounded-none"
           >
-            <div className="p-0">
-              <LogOut className="w-7 h-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
+            <div className="flex items-center gap-4">
+              <div className="p-0">
+                <LogOut className="w-7 h-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
+              </div>
+              <span className="font-medium text-lg text-red-600 dark:text-red-400">Log Out</span>
             </div>
-            <span className="font-medium text-lg text-red-600 dark:text-red-400">Log Out</span>
-          </button>
+            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
+          </Button>
       </div>
 
       {/* Desktop View - Keeping original settings layout */}
@@ -197,8 +201,8 @@ export default function SettingsPage() {
           </h2>
           <div className="space-y-4">
             <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                <User className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-full">
+                <User className="w-6 h-6 text-primary-600 dark:text-primary-400" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Full Name</p>
@@ -206,8 +210,8 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
-              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                <Mail className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-full">
+                <Mail className="w-6 h-6 text-primary-600 dark:text-primary-400" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Email Address</p>
@@ -222,10 +226,10 @@ export default function SettingsPage() {
             App Data
           </h2>
           <div className="space-y-4">
-            <button 
+            <Button 
               onClick={handleClearCache}
               disabled={isClearingCache}
-              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-xl transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-xl h-auto"
             >
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-full">
@@ -239,7 +243,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -248,8 +252,8 @@ export default function SettingsPage() {
       {activeModal === 'calendar' && (
         <Modal title="Calendar" onClose={() => setActiveModal(null)}>
           <div className="text-center py-12">
-            <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Calendar className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+            <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calendar className="w-8 h-8 text-primary-600 dark:text-primary-400" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Calendar Coming Soon</h3>
             <p className="text-gray-500 dark:text-gray-400">

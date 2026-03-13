@@ -26,6 +26,7 @@
     "@capacitor/ios": "^8.0.0",
     "@capacitor/network": "^8.0.0",
     "@capacitor/push-notifications": "^8.0.0",
+    "@mieweb/ui": "^0.2.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

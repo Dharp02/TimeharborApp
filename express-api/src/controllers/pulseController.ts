@@ -34,9 +34,7 @@ export const requestRecording = async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    // Resume an existing pending session if one hasn't expired yet.
-    // Pulse Vault accepts the same draftId again and issues a fresh token,
-    // so the user can continue recording from where they left off.
+    // Check for an existing pending session for this ticket that hasn't expired.
     const existingPending = await PulseAttachment.findOne({
       where: {
         ticketId,
@@ -46,10 +44,25 @@ export const requestRecording = async (req: AuthRequest, res: Response): Promise
       },
     });
 
+    // Short-circuit: if a live session exists with a stored deeplink, return it
+    // immediately without calling Pulse Vault.
+    if (existingPending && existingPending.deeplink && existingPending.qrData) {
+      res.status(200).json({
+        id: existingPending.id,
+        draftId: existingPending.draftId,
+        deeplink: existingPending.deeplink,
+        qrData: existingPending.qrData,
+        status: 'pending',
+        expiresAt: existingPending.expiresAt!.toISOString(),
+        resumed: true,
+      });
+      return;
+    }
+
+    // No cached session — call Pulse Vault for a new token.
     const draftId = existingPending ? existingPending.draftId : uuidv4();
     const resumed = !!existingPending;
 
-    // Call Pulse Vault — works for both new draftIds and existing ones (re-tokenizes)
     let deeplinkResult;
     try {
       deeplinkResult = await requestDeeplink({
@@ -69,8 +82,11 @@ export const requestRecording = async (req: AuthRequest, res: Response): Promise
 
     let attachment: PulseAttachment;
     if (existingPending) {
-      // Extend expiry to match the freshly issued token
-      await existingPending.update({ expiresAt });
+      await existingPending.update({
+        deeplink: deeplinkResult.deeplink,
+        qrData: deeplinkResult.qrData,
+        expiresAt,
+      });
       attachment = existingPending;
     } else {
       attachment = await PulseAttachment.create({
@@ -79,6 +95,8 @@ export const requestRecording = async (req: AuthRequest, res: Response): Promise
         requestedBy: userId,
         draftId,
         status: 'pending',
+        deeplink: deeplinkResult.deeplink,
+        qrData: deeplinkResult.qrData,
         expiresAt,
       });
     }
@@ -150,7 +168,6 @@ export const deleteAttachment = async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    // Only the requester or a team Leader can remove
     const isRequester = attachment.requestedBy === userId;
     const isLeader = (member.get('role') as string) === 'Leader';
     if (!isRequester && !isLeader) {
@@ -168,8 +185,7 @@ export const deleteAttachment = async (req: AuthRequest, res: Response): Promise
 
 /**
  * GET /teams/:teamId/tickets/:ticketId/pulse/pending
- * Returns pending (in-flight) attachments for this ticket so the UI can
- * show a "waiting for upload" indicator.
+ * Returns pending (in-flight) attachments for this ticket.
  */
 export const listPending = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

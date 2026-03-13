@@ -14,10 +14,8 @@
   display: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  .storiesBarContainer {
-    background: linear-gradient(to bottom, #1f2937 0%, #111827 100%);
-  }
+:where([data-theme=dark], [data-theme=dark] *) .storiesBarContainer {
+  background: linear-gradient(to bottom, #1f2937 0%, #111827 100%);
 }
 
 .storiesBar {
@@ -52,23 +50,19 @@
 }
 
 .yourStory {
-  background: linear-gradient(45deg, #e5e5e5, #d4d4d4);
+  background: linear-gradient(45deg, var(--mieweb-primary-200), var(--mieweb-primary-300));
 }
 
-@media (prefers-color-scheme: dark) {
-  .yourStory {
-    background: linear-gradient(45deg, #4b5563, #374151);
-  }
+:where([data-theme=dark], [data-theme=dark] *) .yourStory {
+  background: linear-gradient(45deg, var(--mieweb-primary-700), var(--mieweb-primary-800));
 }
 
 .memberStory {
-  background: #e5e5e5;
+  background: var(--mieweb-primary-200);
 }
 
-@media (prefers-color-scheme: dark) {
-  .memberStory {
-    background: #374151;
-  }
+:where([data-theme=dark], [data-theme=dark] *) .memberStory {
+  background: var(--mieweb-primary-800);
 }
 
 .avatarCircle {
@@ -82,24 +76,20 @@
   border: 3px solid #ffffff;
 }
 
-@media (prefers-color-scheme: dark) {
-  .avatarCircle {
-    background: #1f2937;
-    border-color: #1f2937;
-  }
+:where([data-theme=dark], [data-theme=dark] *) .avatarCircle {
+  background: #1f2937;
+  border-color: #1f2937;
 }
 
 .initials {
   font-size: 18px;
   font-weight: 600;
-  color: #374151;
+  color: var(--mieweb-primary-800);
   user-select: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  .initials {
-    color: #e5e7eb;
-  }
+:where([data-theme=dark], [data-theme=dark] *) .initials {
+  color: var(--mieweb-primary-200);
 }
 
 .addStoryBtn {
@@ -109,7 +99,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--mieweb-primary-500) 0%, var(--mieweb-primary-700) 100%);
   border: 2px solid #ffffff;
   display: flex;
   align-items: center;
@@ -130,10 +120,8 @@
   color: #ffffff;
 }
 
-@media (prefers-color-scheme: dark) {
-  .addStoryBtn {
-    border-color: #1f2937;
-  }
+:where([data-theme=dark], [data-theme=dark] *) .addStoryBtn {
+  border-color: #1f2937;
 }
 
 .storyName {
@@ -147,8 +135,6 @@
   padding: 0 2px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .storyName {
-    color: #d1d5db;
-  }
+:where([data-theme=dark], [data-theme=dark] *) .storyName {
+  color: #d1d5db;
 }

@@ -87,6 +87,7 @@ const startServer = async () => {
 
     // Start token cleanup job
     startCleanupJob();
+    startPulseCleanupJobs();
 
     // Initialize Socket.IO
     initializeSocket(httpServer);

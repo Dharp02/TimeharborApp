@@ -144,8 +144,8 @@ export default function TimesheetPage() {
     if (title.includes('clock') || title.includes('session started')) return <PlayCircle className="w-5 h-5 text-green-500" />;
     if (title.includes('session ended') || title.includes('clock out')) return <StopCircle className="w-5 h-5 text-red-500" />;
     
-    if (title.includes('started ticket') || title.includes('ticket started')) return <PlayCircle className="w-5 h-5 text-blue-500" />;
-    if (title.includes('stopped ticket') || title.includes('ticket stopped')) return <CheckCircle2 className="w-5 h-5 text-indigo-500" />;
+    if (title.includes('started ticket') || title.includes('ticket started')) return <PlayCircle className="w-5 h-5 text-primary-500" />;
+    if (title.includes('stopped ticket') || title.includes('ticket stopped')) return <CheckCircle2 className="w-5 h-5 text-primary-500" />;
     
     if (title.includes('break started')) return <PauseCircle className="w-5 h-5 text-orange-500" />;
     if (title.includes('break ended')) return <PlayCircle className="w-5 h-5 text-green-500" />;
@@ -225,7 +225,7 @@ export default function TimesheetPage() {
           </div>
         ) : isLoading ? (
           <div className="text-center py-12">
-            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
             <p className="text-gray-500">Loading timesheet data...</p>
           </div>
         ) : groupedActivities.length === 0 ? (
@@ -239,10 +239,10 @@ export default function TimesheetPage() {
             <div key={group.date.toISODate()} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
               <div className="bg-gray-50 dark:bg-gray-700/50 p-4 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
                 <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-blue-500" />
+                  <Calendar className="w-4 h-4 text-primary-500" />
                   {getDayName(group.date)}
                 </h3>
-                <span className="text-sm font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full min-w-[6rem] text-center">
+                <span className="text-sm font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-3 py-1 rounded-full min-w-[6rem] text-center">
                   {formatDurationMs(group.totalDuration)}
                 </span>
               </div>
@@ -259,7 +259,7 @@ export default function TimesheetPage() {
                              {getActivityTitle(activity)}
                           </p>
                           {activity.subtitle && (
-                             <p className="text-sm text-blue-600 dark:text-blue-400">
+                             <p className="text-sm text-primary-600 dark:text-primary-400">
                                {activity.subtitle}
                              </p>
                           )}

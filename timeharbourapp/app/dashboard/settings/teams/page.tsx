@@ -5,6 +5,7 @@ import { Users, Plus, Check, Copy } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useTeam } from '@/components/dashboard/TeamContext';
 import { useLogger } from '@/hooks/useLogger';
+import { Button, Input } from '@mieweb/ui';
 import { copyText } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
@@ -89,31 +90,33 @@ export default function TeamSettingsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <button
+        <Button
+  variant="outline"
           onClick={() => setIsJoinModalOpen(true)}
-          className="flex flex-col items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border-2 border-transparent hover:border-blue-500 dark:hover:border-blue-400 transition-all group"
+          className="flex flex-col items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border-2 border-transparent hover:border-primary-500 dark:hover:border-primary-400 group h-auto"
         >
-          <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-            <Users className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+          <div className="w-16 h-16 bg-primary-50 dark:bg-primary-900/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+            <Users className="w-8 h-8 text-primary-600 dark:text-primary-400" />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Join a Team</h3>
           <p className="text-center text-gray-500 dark:text-gray-400 text-sm">
             Enter a code to join an existing team and collaborate with members.
           </p>
-        </button>
+        </Button>
 
-        <button
+        <Button
+  variant="outline"
           onClick={() => setIsCreateModalOpen(true)}
-          className="flex flex-col items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border-2 border-transparent hover:border-purple-500 dark:hover:border-purple-400 transition-all group"
+          className="flex flex-col items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border-2 border-transparent hover:border-primary-500 dark:hover:border-primary-400 group h-auto"
         >
-          <div className="w-16 h-16 bg-purple-50 dark:bg-purple-900/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-            <Plus className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+          <div className="w-16 h-16 bg-primary-50 dark:bg-primary-900/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+            <Plus className="w-8 h-8 text-primary-600 dark:text-primary-400" />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Create a Team</h3>
           <p className="text-center text-gray-500 dark:text-gray-400 text-sm">
             Set up a new team, invite members, and start tracking together.
           </p>
-        </button>
+        </Button>
       </div>
 
       {/* Join Team Modal */}
@@ -141,7 +144,7 @@ export default function TeamSettingsPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Team Code
             </label>
-            <input
+            <Input
               type="text"
               value={joinCode}
               onChange={(e) => {
@@ -151,26 +154,25 @@ export default function TeamSettingsPage() {
               placeholder="e.g. 123456"
               maxLength={6}
               disabled={isJoining}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono text-center tracking-widest text-lg uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+              className="font-mono text-center tracking-widest text-lg uppercase"
             />
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+  variant="ghost"
               onClick={() => {
                 setIsJoinModalOpen(false);
                 setJoinError(null);
                 setJoinCode('');
               }}
               disabled={isJoining}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleJoinTeam}
               disabled={joinCode.length < 6 || isJoining}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isJoining ? (
                 <>
@@ -180,7 +182,7 @@ export default function TeamSettingsPage() {
               ) : (
                 'Join Team'
               )}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -202,29 +204,27 @@ export default function TeamSettingsPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Team Name
                 </label>
-                <input
+                <Input
                   type="text"
                   value={newTeamName}
                   onChange={(e) => setNewTeamName(e.target.value)}
                   placeholder="e.g. Engineering Team"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
               <div className="flex justify-end gap-3 mt-6">
-                <button
+                <Button
+  variant="ghost"
                   onClick={closeCreateModal}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleCreateTeam}
                   disabled={!newTeamName.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Create Team
-                </button>
+                </Button>
               </div>
             </>
           ) : (
@@ -244,21 +244,21 @@ export default function TeamSettingsPage() {
                 <span className="font-mono text-2xl font-bold tracking-widest text-gray-900 dark:text-white">
                   {createdTeamCode}
                 </span>
-                <button
+                <Button
+  variant="ghost"
+  size="icon"
                   onClick={copyToClipboard}
-                  className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                   title="Copy Code"
                 >
                   {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                </button>
+                </Button>
               </div>
 
-              <button
+              <Button
                 onClick={closeCreateModal}
-                className="w-full px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:opacity-90 transition-opacity"
               >
                 Done
-              </button>
+              </Button>
             </div>
           )}
         </div>

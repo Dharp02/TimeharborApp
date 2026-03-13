@@ -22,13 +22,7 @@ export function PulseLogoIcon({ className, size = 20 }: PulseLogoIconProps) {
       {/* Blue rounded-square background */}
       <rect width="100" height="100" rx="22" fill="#2563EB" />
 
-      {/* White ECG / heartbeat line:
-          - Starts flat from left edge
-          - Swoops into an S-curve (stylised Pulse "S" mark)
-          - Short flat bridge
-          - Sharp QRS spike
-          - Returns flat to right edge
-      */}
+      {/* White ECG / heartbeat line */}
       <path
         d="M4 50
            C4 34 16 22 16 34

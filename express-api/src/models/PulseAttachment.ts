@@ -8,13 +8,15 @@ interface PulseAttachmentAttributes {
   ticketId: string;
   teamId: string;
   requestedBy?: string;
-  draftId: string;       // TimeHarbor-generated UUID; stable key across both systems
+  draftId: string;
   status: PulseAttachmentStatus;
-  watchUrl?: string;     // filled by webhook / fallback poll after upload
-  thumbnailUrl?: string; // filled by webhook / fallback poll after upload
-  title?: string;        // filled by webhook / fallback poll after upload
-  expiresAt?: Date;      // TTL — cron marks 'expired' when pending row passes this
-  uploadedAt?: Date;     // timestamp set when Pulse Vault confirms the upload
+  deeplink?: string;
+  qrData?: string;
+  watchUrl?: string;
+  thumbnailUrl?: string;
+  title?: string;
+  expiresAt?: Date;
+  uploadedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -22,7 +24,7 @@ interface PulseAttachmentAttributes {
 interface PulseAttachmentCreationAttributes
   extends Optional<
     PulseAttachmentAttributes,
-    'id' | 'requestedBy' | 'watchUrl' | 'thumbnailUrl' | 'title' | 'expiresAt' | 'uploadedAt' | 'createdAt' | 'updatedAt'
+    'id' | 'requestedBy' | 'deeplink' | 'qrData' | 'watchUrl' | 'thumbnailUrl' | 'title' | 'expiresAt' | 'uploadedAt' | 'createdAt' | 'updatedAt'
   > {}
 
 class PulseAttachment
@@ -35,6 +37,8 @@ class PulseAttachment
   public requestedBy?: string;
   public draftId!: string;
   public status!: PulseAttachmentStatus;
+  public deeplink?: string;
+  public qrData?: string;
   public watchUrl?: string;
   public thumbnailUrl?: string;
   public title?: string;
@@ -75,6 +79,14 @@ PulseAttachment.init(
       type: DataTypes.ENUM('pending', 'uploaded', 'failed', 'expired'),
       allowNull: false,
       defaultValue: 'pending',
+    },
+    deeplink: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    qrData: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     },
     watchUrl: {
       type: DataTypes.TEXT,

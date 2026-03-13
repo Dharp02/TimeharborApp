@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User, ArrowRightLeft, Check, Edit2, ExternalLink, AlignLeft, X } from 'lucide-react';
+import { Button, Input, Textarea, Select } from '@mieweb/ui';
 import { useRouter } from 'next/navigation';
 import { useClockIn } from '@/components/dashboard/ClockInContext';
 import { useTeam } from '@/components/dashboard/TeamContext';
@@ -11,12 +12,11 @@ import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType, CreateTicketData, UpdateTicketData } from '@/TimeharborAPI/tickets';
 import { useLogger } from '@/hooks/useLogger';
 import PulseButton from '@/components/dashboard/PulseButton';
-import { fetchGitHubTitle } from '@/lib/utils';
 
 export default function TicketsPage() {
   const logger = useLogger();
   const router = useRouter();
-  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
+  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
   const { user } = useAuth();
 
@@ -149,8 +149,6 @@ export default function TicketsPage() {
       return;
     }
 
-    if (isOnBreak) return;
-
     // If stopping the current ticket
     if (activeTicketId === ticketId) {
       setPendingTicket({ id: ticketId, title: ticketTitle });
@@ -185,22 +183,6 @@ export default function TicketsPage() {
     setPendingTicket(null);
     setComment('');
     setLink('');
-  };
-
-  const handleReferenceBlur = async (url: string) => {
-    if (!url || newTicket.title.trim()) return;
-    const title = await fetchGitHubTitle(url);
-    if (title) setNewTicket(prev => ({ ...prev, title }));
-  };
-
-  const handleTitleBlur = async (value: string) => {
-    const title = await fetchGitHubTitle(value);
-    if (!title) return;
-    setNewTicket(prev => ({
-      ...prev,
-      title,
-      reference: prev.reference.trim() || value
-    }));
   };
 
   const handleAddTicket = async () => {
@@ -320,11 +302,6 @@ export default function TicketsPage() {
   const handleDeleteTicket = async () => {
     if (selectedTicketForAction && currentTeam) {
       try {
-        // If the ticket being deleted is currently active, stop it first so the
-        // "Started Ticket / Active" log entry gets properly marked Completed.
-        if (isSessionActive && activeTicketId === selectedTicketForAction.id) {
-          await toggleTicketTimer(selectedTicketForAction.id, selectedTicketForAction.title);
-        }
         await ticketsApi.deleteTicket(currentTeam.id, selectedTicketForAction.id);
         
         logger.log('Deleted Ticket', {
@@ -367,7 +344,7 @@ export default function TicketsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Open': return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
-      case 'In Progress': return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
+      case 'In Progress': return 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400';
       case 'Closed': return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
       default: return 'bg-gray-100 text-gray-600';
     }
@@ -377,7 +354,7 @@ export default function TicketsPage() {
     switch (priority) {
       case 'Critical': return 'text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400';
       case 'High': return 'text-orange-600 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400';
-      case 'Medium': return 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400';
+      case 'Medium': return 'text-primary-600 bg-primary-50 dark:bg-primary-900/20 dark:text-primary-400';
       case 'Low': return 'text-gray-600 bg-gray-50 dark:bg-gray-800 dark:text-gray-400';
       default: return 'text-gray-600';
     }
@@ -395,34 +372,35 @@ export default function TicketsPage() {
             You must be clocked in to start a ticket timer. Would you like to clock in now?
           </p>
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+              variant="outline"
               onClick={() => setShowClockInWarning(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => {
                 toggleSession(currentTeam?.id);
                 setShowClockInWarning(false);
               }}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             >
               Clock In
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
-        <button 
+        <Button 
           onClick={() => router.push('/dashboard/tickets/create')}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shadow-sm"
         >
           <Plus className="w-5 h-5" />
           <span>New Ticket</span>
-        </button>
+        </Button>
       </div>
 
       {/* Filters and Search */}
@@ -431,17 +409,18 @@ export default function TicketsPage() {
           {/* Tabs */}
           <div className="flex overflow-x-auto pb-2 md:pb-0 gap-2 no-scrollbar">
             {tabs.map((tab) => (
-              <button
+              <Button
                 key={tab}
+                variant="ghost"
                 onClick={() => setActiveTab(tab)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                   activeTab === tab
-                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                    ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                     : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/50'
                 }`}
               >
                 {tab}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -449,17 +428,17 @@ export default function TicketsPage() {
           <div className="flex gap-2">
             <div className="relative flex-1 md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
+              <Input
                 type="text"
                 placeholder="Search tickets..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             </div>
-            <button className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
+            <Button variant="ghost" size="icon" className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
               <Filter className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -475,29 +454,27 @@ export default function TicketsPage() {
                 key={ticket.id}
                 onClick={() => openDetails(ticket.id)}
                 className={`group p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors first:rounded-t-2xl last:rounded-b-2xl cursor-pointer ${
-                  activeTicketId === ticket.id ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                  activeTicketId === ticket.id ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
                 }`}
               >
                 <div className="flex items-center gap-4">
                   {/* Status Icon/Action */}
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-                    disabled={isOnBreak}
-                    title={isOnBreak ? 'Resume from break to track tickets' : undefined}
                     className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                      isOnBreak
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500'
-                        : activeTicketId === ticket.id
-                          ? 'bg-blue-600 text-white shadow-md scale-105 cursor-pointer'
-                          : 'bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 cursor-pointer'
-                    }`}
+                      activeTicketId === ticket.id
+                        ? 'bg-primary-600 text-white shadow-md scale-105'
+                        : 'bg-gray-100 text-gray-400 hover:bg-primary-100 hover:text-primary-600 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-primary-900/30 dark:hover:text-primary-400'
+                    } cursor-pointer`}
                   >
                     {activeTicketId === ticket.id ? (
                       <Square className="w-4 h-4 fill-current" />
                     ) : (
                       <Play className="w-4 h-4 fill-current ml-0.5" />
                     )}
-                  </button>
+                  </Button>
 
                   {/* Ticket Info */}
                   <div className="flex-1 min-w-0">
@@ -505,32 +482,20 @@ export default function TicketsPage() {
                       <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                         {ticket.id.substring(0, 8)}
                       </span>
-                      <button 
+                      <Button 
+                        variant="ghost"
+                        size="sm"
                         onClick={(e) => openStatusModal(e, ticket)}
                         className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)} hover:opacity-80 transition-opacity`}
                       >
                         {ticket.status}
-                      </button>
+                      </Button>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
                         {ticket.priority}
                       </span>
                     </div>
                     <h3 className="text-base font-medium text-gray-900 dark:text-white truncate">
-                      {(() => {
-                        const githubUrl = ticket.reference
-                          || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
-                        return githubUrl ? (
-                          <a
-                            href={githubUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                          >
-                            {ticket.title}
-                          </a>
-                        ) : ticket.title;
-                      })()}
+                      {ticket.title}
                     </h3>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       Created by <span className="font-medium text-gray-700 dark:text-gray-300">{ticket.creatorName}</span>
@@ -542,7 +507,7 @@ export default function TicketsPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline max-w-full"
+                          className="inline-flex items-center gap-1 text-xs text-primary-500 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:underline max-w-full"
                         >
                           <ExternalLink className="w-3 h-3 flex-shrink-0" />
                           <span className="truncate">{ticket.reference}</span>
@@ -559,7 +524,7 @@ export default function TicketsPage() {
                       </div>
                     </div>
                     {activeTicketId === ticket.id && (
-                      <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-medium font-mono">
+                      <div className="flex items-center gap-1.5 text-primary-600 dark:text-primary-400 font-medium font-mono">
                         <Clock className="w-4 h-4" />
                         {getFormattedTotalTime(ticket.id)}
                       </div>
@@ -574,7 +539,9 @@ export default function TicketsPage() {
                     )}
 
                     {/* Mobile Menu Button */}
-                    <button 
+                    <Button 
+                      variant="ghost"
+                      size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
                         openDetails(ticket.id);
@@ -582,75 +549,79 @@ export default function TicketsPage() {
                       className="md:hidden p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <MoreHorizontal className="w-5 h-5" />
-                    </button>
+                    </Button>
 
-                    {/* Desktop Menu Button + Dropdown */}
-                    <div className="relative hidden md:block">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMenuTicketId(openMenuTicketId === ticket.id ? null : ticket.id);
-                        }}
-                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <MoreHorizontal className="w-5 h-5" />
-                      </button>
-                      
-                      {openMenuTicketId === ticket.id && (
-                        <>
-                          <div 
-                            className="fixed inset-0 z-10" 
-                            onClick={(e) => { e.stopPropagation(); setOpenMenuTicketId(null); }} 
-                          />
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-20 overflow-hidden py-1">
-                            {/* Assign - Creator Only */}
-                            {user && ticket.createdBy === user.id && (
-                              <button
-                                onClick={(e) => openAssignModal(e, ticket)}
-                                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
-                              >
-                                <UserPlus className="w-4 h-4" />
-                                Assign Ticket
-                              </button>
-                            )}
-
-                            {/* Change Status - Everyone */}
-                            <button
-                              onClick={(e) => openStatusModal(e, ticket)}
-                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                    {/* Desktop Menu Button */}
+                    <Button 
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuTicketId(openMenuTicketId === ticket.id ? null : ticket.id);
+                      }}
+                      className="hidden md:block p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <MoreHorizontal className="w-5 h-5" />
+                    </Button>
+                    
+                    {openMenuTicketId === ticket.id && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-10" 
+                          onClick={(e) => { e.stopPropagation(); setOpenMenuTicketId(null); }} 
+                        />
+                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-20 overflow-hidden py-1">
+                          {/* Assign - Creator Only */}
+                          {user && ticket.createdBy === user.id && (
+                            <Button
+                              variant="ghost"
+                              onClick={(e) => openAssignModal(e, ticket)}
+                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left rounded-none justify-start"
                             >
-                              <ArrowRightLeft className="w-4 h-4" />
-                              Change Status
-                            </button>
+                              <UserPlus className="w-4 h-4" />
+                              Assign Ticket
+                            </Button>
+                          )}
 
-                            {/* Edit - Creator Only */}
-                            {user && ticket.createdBy === user.id && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEditModal(ticket);
-                                }}
-                                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                                Edit Ticket
-                              </button>
-                            )}
-                            
-                            {/* Delete - Creator Only */}
-                            {user && ticket.createdBy === user.id && (
-                              <button
-                                onClick={(e) => openDeleteModal(e, ticket)}
-                                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Delete Ticket
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
+                          {/* Change Status - Everyone */}
+                          <Button
+                            variant="ghost"
+                            onClick={(e) => openStatusModal(e, ticket)}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left rounded-none justify-start"
+                          >
+                            <ArrowRightLeft className="w-4 h-4" />
+                            Change Status
+                          </Button>
+
+                          {/* Edit - Creator Only */}
+                          {user && ticket.createdBy === user.id && (
+                            <Button
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditModal(ticket);
+                              }}
+                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left rounded-none justify-start"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                              Edit Ticket
+                            </Button>
+                          )}
+                          
+                          {/* Delete - Creator Only */}
+                          {user && ticket.createdBy === user.id && (
+                            <Button
+                              variant="ghost"
+                              onClick={(e) => openDeleteModal(e, ticket)}
+                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left rounded-none justify-start"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete Ticket
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -681,11 +652,11 @@ export default function TicketsPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Work Description (Optional)
             </label>
-            <textarea
+            <Textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="What did you work on?"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
               rows={3}
             />
           </div>
@@ -694,28 +665,29 @@ export default function TicketsPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Link (optional)
             </label>
-            <input
+            <Input
               type="url"
               value={link}
               onChange={(e) => setLink(e.target.value)}
               placeholder="Paste a YouTube or Pulse link..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white text-sm"
             />
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleConfirm}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
               {modalType === 'stop' ? 'Stop Timer' : 'Switch & Start'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -737,11 +709,10 @@ export default function TicketsPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Title
               </label>
-              <input
+              <Input
                 type="text"
                 value={newTicket.title}
                 onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
-                onBlur={(e) => handleTitleBlur(e.target.value)}
                 placeholder="Enter ticket title"
                 className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
               />
@@ -751,7 +722,7 @@ export default function TicketsPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Description (optional)
               </label>
-              <textarea
+              <Textarea
                 value={newTicket.description}
                 onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
                 placeholder="Add more details..."
@@ -763,82 +734,75 @@ export default function TicketsPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Reference Link (optional)
               </label>
-              <input
+              <Input
                 type="url"
                 value={newTicket.reference}
                 onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
-                onBlur={(e) => handleReferenceBlur(e.target.value)}
                 placeholder="https://..."
                 className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Status
-                </label>
-                <select
-                  value={newTicket.status}
-                  onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
-                  className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white"
-                >
-                  <option value="Open">Open</option>
-                  <option value="In Progress">In Progress</option>
-                <option value="Closed">Closed</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Priority
-                </label>
-                <select
-                  value={newTicket.priority}
-                  onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
-                  className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white"
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                </select>
-              </div>
+              <Select
+                label="Status"
+                value={newTicket.status}
+                onValueChange={(value) => setNewTicket({ ...newTicket, status: value })}
+                options={[
+                  { value: 'Open', label: 'Open' },
+                  { value: 'In Progress', label: 'In Progress' },
+                  { value: 'Closed', label: 'Closed' },
+                ]}
+              />
+              <Select
+                label="Priority"
+                value={newTicket.priority}
+                onValueChange={(value) => setNewTicket({ ...newTicket, priority: value })}
+                options={[
+                  { value: 'Low', label: 'Low' },
+                  { value: 'Medium', label: 'Medium' },
+                  { value: 'High', label: 'High' },
+                ]}
+              />
             </div>
           </div>
 
           <div className="mt-6">
             {/* Desktop Actions */}
             <div className="hidden md:flex flex-col gap-3">
-              <button
+              <Button
                 onClick={handleAddTicket}
                 className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
               >
                 {isEditing ? "Update Ticket" : "Create Ticket"}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setIsAddTicketModalOpen(false)}
                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
 
             {/* Mobile Actions - Icon based */}
             <div className="flex -mx-4 -mb-4 border-t border-gray-100 dark:border-gray-700 md:hidden">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => setIsAddTicketModalOpen(false)}
-                className="flex-1 p-4 flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 active:bg-gray-50 dark:active:bg-gray-750"
+                className="flex-1 p-4 flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 active:bg-gray-50 dark:active:bg-gray-750 rounded-none"
               >
                 <X className="w-5 h-5" />
                 <span className="font-medium">Cancel</span>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={handleAddTicket}
-                className="flex-1 p-4 flex items-center justify-center gap-2 text-green-600 dark:text-green-400 active:bg-green-50 dark:active:bg-green-900/10"
+                className="flex-1 p-4 flex items-center justify-center gap-2 text-green-600 dark:text-green-400 active:bg-green-50 dark:active:bg-green-900/10 rounded-none"
               >
                 <Check className="w-5 h-5" />
                 <span className="font-medium">{isEditing ? "Update" : "Create"}</span>
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -856,10 +820,11 @@ export default function TicketsPage() {
           
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {currentTeam?.members.map((member) => (
-              <button
+              <Button
                 key={member.id}
+                variant="ghost"
                 onClick={() => handleAssignTicket(member.id, member.name)}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all group"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300">
@@ -873,17 +838,18 @@ export default function TicketsPage() {
                 {member.status === 'online' && (
                   <span className="w-2 h-2 bg-green-500 rounded-full" title="Online" />
                 )}
-              </button>
+              </Button>
             ))}
           </div>
 
           <div className="flex justify-end mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setIsAssignModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -901,37 +867,39 @@ export default function TicketsPage() {
           
           <div className="space-y-2">
             {['Open', 'In Progress', 'Closed'].map((status) => (
-              <button
+              <Button
                 key={status}
+                variant="ghost"
                 onClick={() => handleStatusChange(status)}
                 className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
                   selectedTicketForAction && allTickets.find(t => t.id === selectedTicketForAction.id)?.status === status
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <span className={`w-3 h-3 rounded-full ${
                     status === 'Open' ? 'bg-gray-400' :
-                    status === 'In Progress' ? 'bg-blue-500' :
+                    status === 'In Progress' ? 'bg-primary-500' :
                     'bg-green-500'
                   }`} />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">{status}</span>
                 </div>
                 {selectedTicketForAction && allTickets.find(t => t.id === selectedTicketForAction.id)?.status === status && (
-                  <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <Check className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                 )}
-              </button>
+              </Button>
             ))}
           </div>
 
           <div className="flex justify-end mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setIsStatusModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -962,20 +930,7 @@ export default function TicketsPage() {
                   </div>
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
-                  {(() => {
-                    const githubUrl = ticket.reference
-                      || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
-                    return githubUrl ? (
-                      <a
-                        href={githubUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                      >
-                        {ticket.title}
-                      </a>
-                    ) : ticket.title;
-                  })()}
+                  {ticket.title}
                 </h3>
               </div>
 
@@ -984,13 +939,15 @@ export default function TicketsPage() {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</h4>
                   {user && ticket.createdBy === user.id && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => openEditModal(ticket)}
-                      className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      className="p-1 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                       title="Edit Description"
                     >
                       <Edit2 className="w-3 h-3" />
-                    </button>
+                    </Button>
                   )}
                 </div>
                 
@@ -1002,12 +959,13 @@ export default function TicketsPage() {
                   <p className="text-sm text-gray-400 dark:text-gray-500 italic">
                     No description provided.
                     {user && ticket.createdBy === user.id && (
-                      <button 
+                      <Button 
+                        variant="link"
                         onClick={() => openEditModal(ticket)}
-                        className="ml-2 text-blue-600 dark:text-blue-400 hover:underline not-italic font-medium"
+                        className="ml-2 text-primary-600 dark:text-primary-400 hover:underline not-italic font-medium"
                       >
                         Add description
-                      </button>
+                      </Button>
                     )}
                   </p>
                 )}
@@ -1018,7 +976,7 @@ export default function TicketsPage() {
                       href={ticket.reference} 
                       target="_blank" 
                       rel="noopener noreferrer" 
-                      className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline break-all group"
+                      className="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 hover:underline break-all group"
                     >
                       <ExternalLink className="w-3 h-3 flex-shrink-0" />
                       <span className="truncate">{ticket.reference}</span>
@@ -1046,15 +1004,17 @@ export default function TicketsPage() {
                   </div>
                 </div>
                 {user && (ticket.createdBy === user.id || ticket.assigneeName === 'Unassigned') && (
-                  <button 
+                  <Button 
+                    variant="ghost"
+                    size="icon"
                     onClick={(e) => {
                       setIsDetailModalOpen(false);
                       openAssignModal(e, ticket);
                     }}
-                    className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                    className="p-2 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
                   >
                     <UserPlus className="w-5 h-5" />
-                  </button>
+                  </Button>
                 )}
               </div>
 
@@ -1078,7 +1038,8 @@ export default function TicketsPage() {
 
               {/* Actions Grid */}
               <div className="grid grid-cols-2 gap-3">
-                <button
+                <Button
+                  variant="ghost"
                   onClick={(e) => {
                     setIsDetailModalOpen(false);
                     openStatusModal(e, ticket);
@@ -1087,21 +1048,23 @@ export default function TicketsPage() {
                 >
                   <ArrowRightLeft className="w-4 h-4" />
                   Change Status
-                </button>
+                </Button>
                 
                 {user && ticket.createdBy === user.id && (
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={() => openEditModal(ticket)}
                     className="flex items-center justify-center gap-2 p-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
                     <Edit2 className="w-4 h-4" />
                     Edit Ticket
-                  </button>
+                  </Button>
                 )}
               </div>
 
               {user && ticket.createdBy === user.id && (
-                <button
+                <Button
+                  variant="ghost"
                   onClick={(e) => {
                     setIsDetailModalOpen(false);
                     openDeleteModal(e, ticket);
@@ -1110,7 +1073,7 @@ export default function TicketsPage() {
                 >
                   <Trash2 className="w-4 h-4" />
                   Delete Ticket
-                </button>
+                </Button>
               )}
             </div>
           );
@@ -1132,18 +1095,19 @@ export default function TicketsPage() {
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setIsDeleteModalOpen(false)}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleDeleteTicket}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
               Delete Ticket
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

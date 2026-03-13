@@ -2,6 +2,7 @@
 
 import { Calendar, ChevronDown } from 'lucide-react';
 import { DateTime } from 'luxon';
+import { Input } from '@mieweb/ui';
 
 export type TimeRange = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
@@ -89,18 +90,18 @@ export default function TimeRangeFilter({ selected, onChange, startDate, endDate
 
        {selected === 'custom' && onDateChange && (
         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-4 duration-300">
-          <input
+          <Input
             type="date"
             value={startDate || ''}
             onChange={(e) => onDateChange(e.target.value, endDate || '')}
-            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           <span className="text-gray-400">-</span>
-           <input
+           <Input
             type="date"
             value={endDate || ''}
             onChange={(e) => onDateChange(startDate || '', e.target.value)}
-            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
       )}
