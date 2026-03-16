@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
-import PulseButton from '@/components/dashboard/PulseButton';
 import Link from 'next/link';
-import { Button, Input, Textarea, Select } from '@mieweb/ui';
+import { Button, Input, Textarea } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
 import PulseButton from '@/components/dashboard/PulseButton';
 import { Modal } from '@/components/ui/Modal';
@@ -14,7 +13,6 @@ import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
 import { useRefresh } from '../../contexts/RefreshContext';
 import { db } from '@/TimeharborAPI/db';
-import { fetchGitHubTitle } from '@/lib/utils';
 
 const getUserInitials = (name?: string, email?: string) => {
   if (name && name.trim()) {
@@ -31,7 +29,7 @@ const getUserInitials = (name?: string, email?: string) => {
 };
 
 export default function OpenTickets() {
-  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
+  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
   const { addActivity } = useActivityLog();
   const { register, lastRefreshed } = useRefresh();
@@ -109,8 +107,6 @@ export default function OpenTickets() {
       return;
     }
 
-    if (isOnBreak) return;
-
     // If stopping the current ticket
     if (activeTicketId === ticketId) {
       setPendingTicket({ id: ticketId, title: ticketTitle });
@@ -149,49 +145,6 @@ export default function OpenTickets() {
     setLink('');
   };
 
-  const handleReferenceBlur = async (url: string) => {
-    if (!url || newTicket.title.trim()) return;
-    const title = await fetchGitHubTitle(url);
-    if (title) setNewTicket(prev => ({ ...prev, title }));
-  };
-
-  const handleTitleBlur = async (value: string) => {
-    const title = await fetchGitHubTitle(value);
-    if (!title) return;
-    setNewTicket(prev => ({
-      ...prev,
-      title,
-      reference: prev.reference.trim() || value
-    }));
-  };
-
-  const handleAddTicket = async () => {
-    if (!currentTeam) return;
-    
-    try {
-      await ticketsApi.createTicket(currentTeam.id, {
-        title: newTicket.title,
-        description: newTicket.description,
-        status: newTicket.status as any,
-        link: newTicket.reference
-      });
-      
-      addActivity({
-        type: 'SESSION',
-        title: 'Created Ticket',
-        subtitle: newTicket.title,
-        status: 'Completed',
-        duration: 'Now'
-      });
-
-      setIsAddTicketModalOpen(false);
-      setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
-      fetchTickets();
-    } catch (error) {
-      console.error('Failed to create ticket:', error);
-    }
-  };
-
   return (
     <>
     <Modal
@@ -226,13 +179,15 @@ export default function OpenTickets() {
         <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Open Tickets</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
-            <Button 
-              onClick={() => setIsAddTicketModalOpen(true)}
-              disabled={!currentTeam}
-              className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
-            >
-              <Plus className="w-5 h-5" />
-            </Button>
+            <Link href="/dashboard/tickets/create">
+              <Button
+                disabled={!currentTeam}
+                className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
+                aria-label="Create new ticket"
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+            </Link>
           </div>
           <Link href="/dashboard/tickets" className="hidden md:flex items-center text-sm text-primary-600 dark:text-primary-400 hover:underline ml-2">
             See All <ChevronRight className="w-4 h-4" />
@@ -256,25 +211,9 @@ export default function OpenTickets() {
                 <Ticket className="w-4 h-4 md:w-5 md:h-5" />
               </div>
               <div className="min-w-0">
-                {(() => {
-                  const githubUrl = ticket.link
-                    || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
-                  return (
-                    <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm md:text-base">
-                      {githubUrl ? (
-                        <a
-                          href={githubUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                        >
-                          {ticket.title}
-                        </a>
-                      ) : ticket.title}
-                    </h3>
-                  );
-                })()}
+                <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm md:text-base">
+                  {ticket.title}
+                </h3>
                 <div className="flex items-center gap-2 mt-1">
                   {ticket.creator && (
                     <>
@@ -306,10 +245,8 @@ export default function OpenTickets() {
                   variant="ghost"
                   size="icon"
                   onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-                  disabled={isOnBreak}
-                  title={isOnBreak ? 'Resume from break to track tickets' : undefined}
                   className={`p-2 rounded-full transition-colors ${
-                    !isSessionActive || isOnBreak
+                    !isSessionActive 
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
                       : activeTicketId === ticket.id
                         ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40'
@@ -385,86 +322,7 @@ export default function OpenTickets() {
         </div>
       </Modal>
 
-      {/* Add Ticket Modal */}
-      <Modal
-        isOpen={isAddTicketModalOpen}
-        onClose={() => setIsAddTicketModalOpen(false)}
-        title="Add Ticket"
-      >
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 -mt-2 mb-4 text-gray-500 dark:text-gray-400">
-            <Ticket className="w-5 h-5 text-green-500" />
-            <p className="text-sm">Create a new ticket to track your work.</p>
-          </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Title
-              </label>
-              <Input
-                type="text"
-                value={newTicket.title}
-                onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
-                onBlur={(e) => handleTitleBlur(e.target.value)}
-                placeholder="Enter ticket title"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Description (optional)
-              </label>
-              <Textarea
-                value={newTicket.description}
-                onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
-                placeholder="Add more details..."
-                className="min-h-[100px]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Reference Link (optional)
-              </label>
-              <Input
-                type="url"
-                value={newTicket.reference}
-                onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
-                onBlur={(e) => handleReferenceBlur(e.target.value)}
-                placeholder="https://..."
-              />
-            </div>
-
-            <Select
-              label="Status"
-              value={newTicket.status}
-              onValueChange={(value) => setNewTicket({ ...newTicket, status: value })}
-              options={[
-                { value: 'Open', label: 'Open' },
-                { value: 'In Progress', label: 'In Progress' },
-                { value: 'Closed', label: 'Closed' },
-              ]}
-            />
-          </div>
-
-          <div className="flex flex-col gap-3 mt-6">
-            <Button
-              onClick={handleAddTicket}
-              className="w-full py-3 bg-green-600 hover:bg-green-700"
-            >
-              Create Ticket
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsAddTicketModalOpen(false)}
-              className="w-full py-3"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </>
   );
 }

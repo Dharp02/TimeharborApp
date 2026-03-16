@@ -136,7 +136,7 @@ export function DateRangePicker({
               type="date"
               value={customRange.from.toFormat('yyyy-MM-dd')}
               onChange={(e) => handleCustomDateChange('from', e.target.value)}
-              className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              className="flex-1 text-sm"
               aria-label="Start date"
             />
             <span className="text-gray-400">to</span>
@@ -144,7 +144,7 @@ export function DateRangePicker({
               type="date"
               value={customRange.to.toFormat('yyyy-MM-dd')}
               onChange={(e) => handleCustomDateChange('to', e.target.value)}
-              className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              className="flex-1 text-sm"
               aria-label="End date"
             />
           </div>

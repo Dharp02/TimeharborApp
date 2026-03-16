@@ -260,15 +260,13 @@ export function TeamActivityReport() {
         />
 
         {/* Compact Filter Row - Name Filter */}
-        <div className="mx-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 flex items-center gap-2">
-          <Input
-            type="text"
-            placeholder="Filter by name"
-            value={columnFilters.member}
-            onChange={(e) => handleFilterChange('member', e.target.value)}
-            className="flex-1 text-base bg-transparent"
-          />
-        </div>
+        <Input
+          type="text"
+          placeholder="Filter by name"
+          value={columnFilters.member}
+          onChange={(e) => handleFilterChange('member', e.target.value)}
+          className="text-base"
+        />
 
         {/* Mobile Activity List */}
         <div className="px-0">

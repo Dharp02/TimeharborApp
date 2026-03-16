@@ -2,7 +2,7 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
 import { AuthRequest } from '../middleware/authMiddleware';
-import { Ticket, Member, Team, WorkLog, User, WorkLogReply, UserDailyStat, ActivityLog } from '../models';
+import { Ticket, Member, Team, WorkLog, User, WorkLogReply, UserDailyStat } from '../models';
 import sequelize from '../config/sequelize';
 import { sendNotificationToUser } from '../services/notificationService';
 
@@ -176,10 +176,7 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
       // --- Also track active tickets: START_TICKET id → ticketId ---
       // After the pass, any START_TICKET id still in the map has no STOP_TICKET.
       const openTickets = new Map<string, string>(); // ticketId → START_TICKET event id
-      // FIFO queue for START_TICKETs where ticketId is null (can't key by ticketId).
-      // Each STOP_TICKET with null ticketId dequeues the oldest waiting START_TICKET.
-      const nullTicketQueue: string[] = [];            // START_TICKET event ids with no ticketId
-      const activeEventIds = new Set<string>();        // event ids that are "Active"
+      const activeEventIds = new Set<string>();       // event ids that are "Active"
 
       // Track open clock-in (no CLOCK_OUT yet) to mark as Active
       let openClockInId: string | null = null;
@@ -214,21 +211,13 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
             openClockInId = null;
             break;
           case 'START_TICKET': {
-            if (e.ticketId) {
-              openTickets.set(e.ticketId, e.id);
-            } else {
-              // No ticketId — track in a FIFO queue so a matching null STOP_TICKET can close it
-              nullTicketQueue.push(e.id);
-            }
+            const tid = e.ticketId || e.id;
+            openTickets.set(tid, e.id);
             break;
           }
           case 'STOP_TICKET': {
-            if (e.ticketId) {
-              openTickets.delete(e.ticketId);
-            } else {
-              // Pair with the oldest unmatched null-ticketId START_TICKET
-              nullTicketQueue.shift();
-            }
+            const tid = e.ticketId || e.id;
+            openTickets.delete(tid);
             break;
           }
         }
@@ -236,10 +225,6 @@ export const getRecentActivity = async (req: AuthRequest, res: Response) => {
 
       // Any START_TICKET still in openTickets has no matching STOP — mark as Active
       for (const eventId of openTickets.values()) {
-        activeEventIds.add(eventId);
-      }
-      // Any null-ticketId START_TICKETs still unmatched → Active
-      for (const eventId of nullTicketQueue) {
         activeEventIds.add(eventId);
       }
       // Open CLOCK_IN (no CLOCK_OUT) → Active
@@ -863,19 +848,17 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
                      references.push({ type: 'link', url: originalTicket.link, label: 'External Link' });
                  }
 
-                 const segmentDurationMs = endTime ? endTime.getTime() - startTime.getTime() : 0;
-
                  groupedEvents.push({
                      id: pendingTicket.startId, 
                      type: 'TICKET',
                      title: pendingTicket.ticketTitle || 'Ticket Work',
                      timestamp: pendingTicket.startTime,
+                     endTimestamp: pendingTicket.endTime || null,
                      references,
                      original: {
                          ...pendingTicket.originalStart,
                          comment: pendingTicket.comment, 
                      },
-                     durationMs: segmentDurationMs,
                      timeFormatted: durationStr,
                      startTimeFormatted: startTime.toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true}),
                      endTimeFormatted: endTime ? endTime.toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true}) : undefined
@@ -923,15 +906,15 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
                      });
                 }
             } else if (e.type === 'BREAK_START' || e.type === 'BREAK_END') {
-                flushPendingTicket();
-                groupedEvents.push({
-                    id: e.id,
-                    type: 'CLOCK',
-                    title: e.type === 'BREAK_START' ? 'Break Started' : 'Break Ended',
-                    timestamp: e.timestamp,
-                    original: e,
-                    timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
-                });
+                 flushPendingTicket();
+                 groupedEvents.push({
+                     id: e.id,
+                     type: 'CLOCK',
+                     title: e.type === 'BREAK_START' ? 'Break Started' : 'Break Ended',
+                     timestamp: e.timestamp,
+                     original: { ...e, type: e.type },
+                     timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
+                 });
             } else {
                  flushPendingTicket();
                  groupedEvents.push({
@@ -946,48 +929,50 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
         });
         flushPendingTicket();
 
-        // Merge repeated work on the same ticket within a session into a single entry.
-        // Identity key: ticketId (reliable) or title (fallback).
-        const ticketKeyToMergedIdx = new Map<string, number>();
+        // Merge ticket events with the same ticketId into one container
         const mergedEvents: any[] = [];
+        const ticketIndexMap = new Map<string, number>();
 
-        for (const ev of groupedEvents) {
-            if (ev.type !== 'TICKET') {
-                mergedEvents.push(ev);
-                continue;
-            }
-
-            const ticketKey = ev.original?.ticketId || ev.title;
-
-            if (ticketKeyToMergedIdx.has(ticketKey)) {
-                // Accumulate duration into the existing entry
-                const existingIdx = ticketKeyToMergedIdx.get(ticketKey)!;
-                const existing = mergedEvents[existingIdx];
-                existing.durationMs = (existing.durationMs || 0) + (ev.durationMs || 0);
-
-                // Update endTimeFormatted to the latest end
-                if (ev.endTimeFormatted) existing.endTimeFormatted = ev.endTimeFormatted;
-
-                // Collect additional comments (avoid duplicates)
-                if (ev.original?.comment && ev.original.comment !== existing.original?.comment) {
-                    existing.original = {
-                        ...existing.original,
-                        additionalComments: [...(existing.original.additionalComments || []), ev.original.comment]
-                    };
-                }
-
-                // Reformat the total duration string
-                const totalMin = Math.floor(existing.durationMs / 60000);
-                if (totalMin < 1) existing.timeFormatted = '< 1m';
-                else if (totalMin < 60) existing.timeFormatted = `${totalMin}m`;
-                else {
-                    const h = Math.floor(totalMin / 60);
-                    const m = totalMin % 60;
-                    existing.timeFormatted = `${h}h ${m}m`;
+        for (const evt of groupedEvents) {
+            if (evt.type === 'TICKET' && evt.original?.ticketId) {
+                const tid = evt.original.ticketId;
+                if (ticketIndexMap.has(tid)) {
+                    const idx = ticketIndexMap.get(tid)!;
+                    const existing = mergedEvents[idx];
+                    // Update end time to latest
+                    if (evt.endTimestamp) {
+                        existing.endTimestamp = evt.endTimestamp;
+                        existing.endTimeFormatted = evt.endTimeFormatted;
+                    }
+                    // Accumulate comments
+                    if (evt.original.comment) {
+                        const prev = existing.original.comment || '';
+                        existing.original.comment = prev ? `${prev}\n${evt.original.comment}` : evt.original.comment;
+                    }
+                    // Merge replies
+                    if (evt.original.replies?.length) {
+                        existing.original.replies = [...(existing.original.replies || []), ...evt.original.replies];
+                    }
+                    // Recalculate duration
+                    const startMs = new Date(existing.timestamp).getTime();
+                    const endMs = existing.endTimestamp ? new Date(existing.endTimestamp).getTime() : null;
+                    if (endMs) {
+                        const diff = endMs - startMs;
+                        const minutes = Math.floor(diff / 60000);
+                        if (minutes < 1) existing.timeFormatted = '< 1m';
+                        else if (minutes < 60) existing.timeFormatted = `${minutes}m`;
+                        else {
+                            const h = Math.floor(minutes / 60);
+                            const m = minutes % 60;
+                            existing.timeFormatted = `${h}h ${m}m`;
+                        }
+                    }
+                } else {
+                    ticketIndexMap.set(tid, mergedEvents.length);
+                    mergedEvents.push(evt);
                 }
             } else {
-                ticketKeyToMergedIdx.set(ticketKey, mergedEvents.length);
-                mergedEvents.push(ev);
+                mergedEvents.push(evt);
             }
         }
 
@@ -1004,9 +989,7 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
         name: member.full_name || member.email,
         email: member.email,
         role: memberRole,
-        status: member.status || 'offline',
-        github: member.github || null,
-        linkedin: member.linkedin || null
+        status: member.status || 'offline'
       },
       timeTracking: {
         today: {
