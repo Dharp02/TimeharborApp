@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@mieweb/ui';
 import { Clock, Loader2 } from 'lucide-react';
-import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
+import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
+import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
 import { Activity, fetchActivitiesByDateRange } from '@/TimeharborAPI/dashboard';
 import { useRefresh } from '../../../contexts/RefreshContext';
 import { useTeam } from '@/components/dashboard/TeamContext';
@@ -15,11 +16,11 @@ export default function ActivityPage() {
   const { socket } = useSocket();
   const { register } = useRefresh();
   const [visibleCount, setVisibleCount] = useState(20);
-  const [dateRange, setDateRange] = useState<DateRange>({
+  const [dateRange, setDateRange] = useState<LuxonDateRange>({
     from: DateTime.now().startOf('day'),
     to: DateTime.now().endOf('day'),
   });
-  const [preset, setPreset] = useState<DateRangePreset>('today');
+  const [preset, setPreset] = useState<string>('today');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -59,9 +60,9 @@ export default function ActivityPage() {
     return () => { socket.off('stats_updated', handler); };
   }, [socket, preset, fetchData, dateRange]);
 
-  const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
-    setDateRange(range);
-    setPreset(newPreset);
+  const handleRangeChange = (range: { start: Date | null; end: Date | null }, presetKey?: string) => {
+    setDateRange(resolveRange(range, presetKey));
+    setPreset(presetKey || '');
     setVisibleCount(20);
   };
 
@@ -75,9 +76,12 @@ export default function ActivityPage() {
     <div className="max-w-4xl mx-auto px-0 py-2 md:p-6 space-y-4">
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm">
         <div className="flex-1 w-full md:w-auto">
-          <DateRangePicker
-            initialPreset={preset}
-            onRangeChange={handleRangeChange}
+          <DateRangePickerWithPresets
+            value={{ start: dateRange.from.toJSDate(), end: dateRange.to.toJSDate() }}
+            onChange={handleRangeChange}
+            activePreset={preset}
+            presets={dateFilterPresets}
+            variant="responsive"
             className="w-full md:w-auto"
           />
         </div>
