@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import { connectDatabase } from './config/sequelize';
 import authRoutes from './routes/authRoutes';
 import teamRoutes from './routes/teamRoutes';
+import personalTicketRoutes from './routes/personalTicketRoutes';
 import timeRoutes from './routes/timeRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import notificationRoutes from './routes/notificationRoutes';
@@ -44,6 +45,7 @@ app.use(morgan('combined', { stream: morganStream }));
 // Routes
 app.use('/auth', authRoutes);
 app.use('/teams', teamRoutes);
+app.use('/me/tickets', personalTicketRoutes);
 app.use('/time', timeRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/notifications', notificationRoutes);

@@ -10,14 +10,14 @@ interface TicketAttributes {
   status: 'Open' | 'In Progress' | 'Closed';
   priority: 'Low' | 'Medium' | 'High';
   link?: string;
-  teamId: string;
+  teamId: string | null;
   createdBy: string;
   assignedTo?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-interface TicketCreationAttributes extends Optional<TicketAttributes, 'id' | 'description' | 'status' | 'priority' | 'link' | 'assignedTo' | 'createdAt' | 'updatedAt'> {}
+interface TicketCreationAttributes extends Optional<TicketAttributes, 'id' | 'description' | 'status' | 'priority' | 'link' | 'teamId' | 'assignedTo' | 'createdAt' | 'updatedAt'> {}
 
 class Ticket extends Model<TicketAttributes, TicketCreationAttributes> implements TicketAttributes {
   public id!: string;
@@ -26,7 +26,7 @@ class Ticket extends Model<TicketAttributes, TicketCreationAttributes> implement
   public status!: 'Open' | 'In Progress' | 'Closed';
   public priority!: 'Low' | 'Medium' | 'High';
   public link?: string;
-  public teamId!: string;
+  public teamId!: string | null;
   public createdBy!: string;
   public assignedTo?: string;
   public readonly createdAt!: Date;
@@ -64,7 +64,7 @@ Ticket.init(
     },
     teamId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: Team,
         key: 'id',

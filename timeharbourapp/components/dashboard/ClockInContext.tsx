@@ -463,17 +463,17 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       // Prompt user to start or create a ticket
       setClockInPromptTeamId(teamId);
       setIsClockInPromptOpen(true);
-      if (teamId) {
-        fetchClockInTickets(teamId);
-      }
+      fetchClockInTickets(teamId);
     }
   };
 
 
-  const fetchClockInTickets = async (teamId: string) => {
+  const fetchClockInTickets = async (teamId?: string) => {
     setClockInTicketsLoading(true);
     try {
-      const fetched = await ticketsApi.getTickets(teamId, { sort: 'recent', status: 'open' });
+      const fetched = teamId
+        ? await ticketsApi.getTickets(teamId, { sort: 'recent', status: 'open' })
+        : await ticketsApi.getPersonalTickets({ sort: 'recent', status: 'open' });
       setClockInTickets(fetched);
     } catch {
       setClockInTickets([]);

@@ -373,7 +373,8 @@ export const fetchActivitiesByDateRange = async (
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
   if (!token) throw new Error('No access token found');
 
-  const params = new URLSearchParams({ from, to, teamId });
+  const params = new URLSearchParams({ from, to });
+  if (teamId) params.append('teamId', teamId);
   const response = await fetch(`${API_URL}/dashboard/activity?${params}`, {
     headers: {
       Authorization: `Bearer ${token}`,

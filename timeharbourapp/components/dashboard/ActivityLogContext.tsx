@@ -29,8 +29,11 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
   const [activities, setActivities] = useState<Activity[]>([]);
   const isLoadedRef = React.useRef(false);
 
+  const effectiveTeamId = currentTeam?.id || '__personal__';
+
   // Sync with backend when online
   useEffect(() => {
+    // Skip server sync for personal mode — no team endpoint to call
     if (!currentTeam?.id) return;
 
     const syncWithBackend = async () => {
@@ -127,21 +130,14 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
 
   // Load from Dexie when team changes
   useEffect(() => {
-    if (!currentTeam?.id) {
-      setActivities([]);
-      return;
-    }
-
     const loadLogs = async () => {
       isLoadedRef.current = false;
       try {
-        // Read local logs from Dexie
         const localLogs = await db.activityLogs
           .where('teamId')
-          .equals(currentTeam.id)
+          .equals(effectiveTeamId)
           .toArray();
           
-        // Sort by startTime descending
         localLogs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
           
         setActivities(localLogs);
@@ -153,18 +149,16 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     };
 
     loadLogs();
-  }, [currentTeam?.id]);
+  }, [effectiveTeamId]);
 
 
 
   const addActivity = (activity: Partial<Activity> & { title: string }) => {
-    if (!currentTeam?.id) return ''; // Should guard against no team
-
     const id = activity.id || Date.now().toString() + Math.random().toString(36).substr(2, 9);
     const newActivity: Activity = {
       id,
-      teamId: currentTeam.id, // Ensure teamId is attached
-      userId: activity.userId || undefined, // Allow frontend to pass userId if available
+      teamId: effectiveTeamId,
+      userId: activity.userId || undefined,
       type: 'LOG', 
       startTime: activity.startTime || new Date().toISOString(),
       status: 'Completed',
@@ -177,24 +171,25 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     // Persist to Dexie
     db.activityLogs.put(newActivity).catch(e => console.error('Dexie put failed', e));
 
-    // Queue for Sync using SyncManager
-    if (typeof syncManager.addMutation === 'function') {
-      syncManager.addMutation(
-        `/teams/${currentTeam.id}/logs/sync`,
-        'POST',
-        [newActivity],
-        newActivity.id
-      ).catch(e => console.error('SyncManager add failed', e));
-    } else {
-      // Fallback if SyncManager not ready
-      db.offlineMutations.add({
-        url: `/teams/${currentTeam.id}/logs/sync`,
-        method: 'POST',
-        body: [newActivity],
-        timestamp: Date.now(),
-        retryCount: 0,
-        tempId: newActivity.id
-      }).catch(e => console.error('Mutation add failed', e));
+    // Queue for Sync using SyncManager (only for team mode)
+    if (currentTeam?.id) {
+      if (typeof syncManager.addMutation === 'function') {
+        syncManager.addMutation(
+          `/teams/${currentTeam.id}/logs/sync`,
+          'POST',
+          [newActivity],
+          newActivity.id
+        ).catch(e => console.error('SyncManager add failed', e));
+      } else {
+        db.offlineMutations.add({
+          url: `/teams/${currentTeam.id}/logs/sync`,
+          method: 'POST',
+          body: [newActivity],
+          timestamp: Date.now(),
+          retryCount: 0,
+          tempId: newActivity.id
+        }).catch(e => console.error('Mutation add failed', e));
+      }
     }
     
     return id;
@@ -270,7 +265,18 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
   const clearActivities = () => setActivities([]);
 
   const fetchActivitiesByDateRange = async (startDate: string, endDate: string): Promise<Activity[]> => {
-    if (!currentTeam?.id) return [];
+    if (!currentTeam?.id) {
+      // Personal mode: read from Dexie
+      try {
+        const localLogs = await db.activityLogs
+          .where('teamId')
+          .equals('__personal__')
+          .toArray();
+        return localLogs.filter(a => a.startTime >= startDate && a.startTime <= endDate);
+      } catch {
+        return [];
+      }
+    }
     
     try {
       const response = await authenticatedFetch(`${API_URL}/teams/${currentTeam.id}/logs?startDate=${startDate}&endDate=${endDate}`);

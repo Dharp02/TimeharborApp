@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Plus, Copy, Check, Shield, User } from 'lucide-react';
+import { Users, Plus, Copy, Check, Shield, User, X } from 'lucide-react';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/lib/utils';
@@ -122,7 +122,16 @@ export default function TeamSelectionModal({ isOpen, onClose, onTeamSelected }: 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-6 relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            aria-label="Close team selection"
+          >
+            <X className="w-5 h-5" />
+          </Button>
           <div className="text-center space-y-2">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome to Timeharbor</h2>
             {sortedTeams.length > 0 && (

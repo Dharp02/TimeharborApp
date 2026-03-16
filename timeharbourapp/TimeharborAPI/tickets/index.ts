@@ -260,3 +260,135 @@ export const deleteTicket = async (teamId: string, ticketId: string): Promise<vo
     });
   }
 };
+
+// ─── Personal Tickets (no team) ────────────────────────────────────────────
+
+const PERSONAL_TEAM_ID = '__personal__';
+
+export const createPersonalTicket = async (data: CreateTicketData): Promise<Ticket> => {
+  const id = uuidv4();
+  try {
+    const response = await authenticatedFetch(`${API_URL}/me/tickets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data, id }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create ticket');
+    }
+    const ticket = await response.json();
+    await db.tickets.put({ ...ticket, teamId: ticket.teamId || PERSONAL_TEAM_ID });
+    return ticket;
+  } catch (error) {
+    console.error('Create personal ticket failed, storing offline:', error);
+    const user = await getStoredUser();
+    const tempTicket: Ticket = {
+      id,
+      title: data.title,
+      description: data.description,
+      status: data.status || 'Open',
+      priority: data.priority || 'Medium',
+      link: data.link,
+      teamId: PERSONAL_TEAM_ID,
+      createdBy: user?.id || 'offline-user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await db.tickets.put(tempTicket);
+    await db.offlineMutations.add({
+      url: `${API_URL}/me/tickets`,
+      method: 'POST',
+      body: { ...data, id },
+      timestamp: Date.now(),
+      retryCount: 0,
+      tempId: id,
+    });
+    return tempTicket;
+  }
+};
+
+export const getPersonalTickets = async (options?: { sort?: string; status?: string }): Promise<Ticket[]> => {
+  const loadFromCache = async () => {
+    const allTickets = await db.tickets.where('teamId').equals(PERSONAL_TEAM_ID).toArray();
+    if (options?.status === 'open') return allTickets.filter(t => t.status !== 'Closed');
+    if (options?.status) return allTickets.filter(t => t.status.toLowerCase() === options.status!.toLowerCase());
+    return allTickets;
+  };
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return loadFromCache();
+
+  try {
+    const qp = new URLSearchParams();
+    if (options?.sort) qp.append('sort', options.sort);
+    if (options?.status) qp.append('status', options.status);
+    const qs = qp.toString() ? `?${qp.toString()}` : '';
+
+    const response = await authenticatedFetch(`${API_URL}/me/tickets${qs}`, { method: 'GET' });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.message || 'Failed to fetch personal tickets');
+    }
+    const tickets: Ticket[] = await response.json();
+    const withTeamId = tickets.map(t => ({ ...t, teamId: t.teamId || PERSONAL_TEAM_ID }));
+    await db.tickets.bulkPut(withTeamId);
+    return withTeamId;
+  } catch (error) {
+    console.warn('Fetching personal tickets failed, loading from cache:', error);
+    return loadFromCache();
+  }
+};
+
+export const updatePersonalTicket = async (ticketId: string, data: UpdateTicketData): Promise<Ticket> => {
+  try {
+    const response = await authenticatedFetch(`${API_URL}/me/tickets/${ticketId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update ticket');
+    }
+    const ticket = await response.json();
+    await db.tickets.put({ ...ticket, teamId: ticket.teamId || PERSONAL_TEAM_ID });
+    return ticket;
+  } catch (error) {
+    console.error('Update personal ticket failed, storing offline:', error);
+    const existing = await db.tickets.get(ticketId);
+    if (existing) {
+      const updated = { ...existing, ...data, updatedAt: new Date().toISOString() };
+      await db.tickets.put(updated);
+      await db.offlineMutations.add({
+        url: `${API_URL}/me/tickets/${ticketId}`,
+        method: 'PUT',
+        body: data,
+        timestamp: Date.now(),
+        retryCount: 0,
+      });
+      return updated;
+    }
+    throw error;
+  }
+};
+
+export const deletePersonalTicket = async (ticketId: string): Promise<void> => {
+  try {
+    const response = await authenticatedFetch(`${API_URL}/me/tickets/${ticketId}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete ticket');
+    }
+    await db.tickets.delete(ticketId);
+  } catch (error) {
+    console.error('Delete personal ticket failed, storing offline:', error);
+    await db.tickets.delete(ticketId);
+    await db.offlineMutations.add({
+      url: `${API_URL}/me/tickets/${ticketId}`,
+      method: 'DELETE',
+      body: {},
+      timestamp: Date.now(),
+      retryCount: 0,
+    });
+  }
+};

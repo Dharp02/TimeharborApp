@@ -47,8 +47,7 @@ export default function DashboardSummary() {
   };
 
   useEffect(() => {
-    if (!currentTeam?.id) return;
-    const cacheKey = currentTeam.id;
+    const cacheKey = currentTeam?.id || '__personal__';
 
     // 1. Read Dexie cache immediately — no spinner if data exists
     db.dashboardStats.get(cacheKey).then((cached: any) => {
@@ -58,14 +57,14 @@ export default function DashboardSummary() {
       setLoading(false);
 
       // 2. Always fetch fresh from backend in background
-      refreshFromBackend(currentTeam.id);
+      refreshFromBackend(currentTeam?.id);
     }).catch(() => {
       setLoading(false);
-      refreshFromBackend(currentTeam.id);
+      refreshFromBackend(currentTeam?.id);
     });
 
     // 3. Re-fetch on clock events (clock-in / clock-out)
-    const handleStatsRefresh = () => refreshFromBackend(currentTeam.id);
+    const handleStatsRefresh = () => refreshFromBackend(currentTeam?.id);
     window.addEventListener('dashboard-stats-refresh', handleStatsRefresh);
     return () => window.removeEventListener('dashboard-stats-refresh', handleStatsRefresh);
   }, [currentTeam?.id]);
