@@ -853,6 +853,7 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
                      type: 'TICKET',
                      title: pendingTicket.ticketTitle || 'Ticket Work',
                      timestamp: pendingTicket.startTime,
+                     endTimestamp: pendingTicket.endTime || null,
                      references,
                      original: {
                          ...pendingTicket.originalStart,
@@ -904,6 +905,16 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
                          timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
                      });
                 }
+            } else if (e.type === 'BREAK_START' || e.type === 'BREAK_END') {
+                 flushPendingTicket();
+                 groupedEvents.push({
+                     id: e.id,
+                     type: 'CLOCK',
+                     title: e.type === 'BREAK_START' ? 'Break Started' : 'Break Ended',
+                     timestamp: e.timestamp,
+                     original: { ...e, type: e.type },
+                     timeFormatted: new Date(e.timestamp).toLocaleTimeString('en-US', {hour: 'numeric', minute:'2-digit', hour12: true})
+                 });
             } else {
                  flushPendingTicket();
                  groupedEvents.push({
@@ -918,10 +929,57 @@ export const getMemberActivity = async (req: AuthRequest, res: Response) => {
         });
         flushPendingTicket();
 
+        // Merge ticket events with the same ticketId into one container
+        const mergedEvents: any[] = [];
+        const ticketIndexMap = new Map<string, number>();
+
+        for (const evt of groupedEvents) {
+            if (evt.type === 'TICKET' && evt.original?.ticketId) {
+                const tid = evt.original.ticketId;
+                if (ticketIndexMap.has(tid)) {
+                    const idx = ticketIndexMap.get(tid)!;
+                    const existing = mergedEvents[idx];
+                    // Update end time to latest
+                    if (evt.endTimestamp) {
+                        existing.endTimestamp = evt.endTimestamp;
+                        existing.endTimeFormatted = evt.endTimeFormatted;
+                    }
+                    // Accumulate comments
+                    if (evt.original.comment) {
+                        const prev = existing.original.comment || '';
+                        existing.original.comment = prev ? `${prev}\n${evt.original.comment}` : evt.original.comment;
+                    }
+                    // Merge replies
+                    if (evt.original.replies?.length) {
+                        existing.original.replies = [...(existing.original.replies || []), ...evt.original.replies];
+                    }
+                    // Recalculate duration
+                    const startMs = new Date(existing.timestamp).getTime();
+                    const endMs = existing.endTimestamp ? new Date(existing.endTimestamp).getTime() : null;
+                    if (endMs) {
+                        const diff = endMs - startMs;
+                        const minutes = Math.floor(diff / 60000);
+                        if (minutes < 1) existing.timeFormatted = '< 1m';
+                        else if (minutes < 60) existing.timeFormatted = `${minutes}m`;
+                        else {
+                            const h = Math.floor(minutes / 60);
+                            const m = minutes % 60;
+                            existing.timeFormatted = `${h}h ${m}m`;
+                        }
+                    }
+                } else {
+                    ticketIndexMap.set(tid, mergedEvents.length);
+                    mergedEvents.push(evt);
+                }
+            } else {
+                mergedEvents.push(evt);
+            }
+        }
+
         return {
             ...session,
             durationMs: sessionDurationMs,
-            events: groupedEvents
+            events: mergedEvents
         };
     });
 

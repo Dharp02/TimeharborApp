@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { Button, Input, Textarea, Select } from '@mieweb/ui';
+import { Button, Input, Textarea } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
 import PulseButton from '@/components/dashboard/PulseButton';
 import { Modal } from '@/components/ui/Modal';
@@ -145,33 +145,6 @@ export default function OpenTickets() {
     setLink('');
   };
 
-  const handleAddTicket = async () => {
-    if (!currentTeam) return;
-    
-    try {
-      await ticketsApi.createTicket(currentTeam.id, {
-        title: newTicket.title,
-        description: newTicket.description,
-        status: newTicket.status as any,
-        link: newTicket.reference
-      });
-      
-      addActivity({
-        type: 'SESSION',
-        title: 'Created Ticket',
-        subtitle: newTicket.title,
-        status: 'Completed',
-        duration: 'Now'
-      });
-
-      setIsAddTicketModalOpen(false);
-      setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
-      fetchTickets();
-    } catch (error) {
-      console.error('Failed to create ticket:', error);
-    }
-  };
-
   return (
     <>
     <Modal
@@ -206,13 +179,15 @@ export default function OpenTickets() {
         <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Open Tickets</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
-            <Button 
-              onClick={() => setIsAddTicketModalOpen(true)}
-              disabled={!currentTeam}
-              className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
-            >
-              <Plus className="w-5 h-5" />
-            </Button>
+            <Link href="/dashboard/tickets/create">
+              <Button
+                disabled={!currentTeam}
+                className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
+                aria-label="Create new ticket"
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+            </Link>
           </div>
           <Link href="/dashboard/tickets" className="hidden md:flex items-center text-sm text-primary-600 dark:text-primary-400 hover:underline ml-2">
             See All <ChevronRight className="w-4 h-4" />
@@ -347,84 +322,7 @@ export default function OpenTickets() {
         </div>
       </Modal>
 
-      {/* Add Ticket Modal */}
-      <Modal
-        isOpen={isAddTicketModalOpen}
-        onClose={() => setIsAddTicketModalOpen(false)}
-        title="Add Ticket"
-      >
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 -mt-2 mb-4 text-gray-500 dark:text-gray-400">
-            <Ticket className="w-5 h-5 text-green-500" />
-            <p className="text-sm">Create a new ticket to track your work.</p>
-          </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Title
-              </label>
-              <Input
-                type="text"
-                value={newTicket.title}
-                onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
-                placeholder="Enter ticket title"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Description (optional)
-              </label>
-              <Textarea
-                value={newTicket.description}
-                onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
-                placeholder="Add more details..."
-                className="min-h-[100px]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Reference Link (optional)
-              </label>
-              <Input
-                type="url"
-                value={newTicket.reference}
-                onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
-                placeholder="https://..."
-              />
-            </div>
-
-            <Select
-              label="Status"
-              value={newTicket.status}
-              onValueChange={(value) => setNewTicket({ ...newTicket, status: value })}
-              options={[
-                { value: 'Open', label: 'Open' },
-                { value: 'In Progress', label: 'In Progress' },
-                { value: 'Closed', label: 'Closed' },
-              ]}
-            />
-          </div>
-
-          <div className="flex flex-col gap-3 mt-6">
-            <Button
-              onClick={handleAddTicket}
-              className="w-full py-3 bg-green-600 hover:bg-green-700"
-            >
-              Create Ticket
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsAddTicketModalOpen(false)}
-              className="w-full py-3"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </>
   );
 }

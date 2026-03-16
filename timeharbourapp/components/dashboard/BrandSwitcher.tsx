@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Palette } from 'lucide-react';
 import { Button } from '@mieweb/ui';
 import type { BrandConfig } from '@mieweb/ui/brands';
@@ -18,8 +18,13 @@ type BrandKey = (typeof BRAND_OPTIONS)[number]['key'];
 
 const STORAGE_KEY = 'timeharbor-brand';
 
+function getCurrentTheme(): 'light' | 'dark' {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
 function applyBrand(brand: BrandConfig) {
   const root = document.documentElement;
+  const theme = getCurrentTheme();
 
   // Primary color scale
   const scale = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const;
@@ -27,8 +32,8 @@ function applyBrand(brand: BrandConfig) {
     root.style.setProperty(`--mieweb-primary-${step}`, brand.colors.primary[step]);
   }
 
-  // Semantic colors (light mode — dark mode handled via .dark/data-theme override)
-  const semantics = brand.colors.light;
+  // Semantic colors — pick light or dark based on current theme
+  const semantics = theme === 'dark' ? brand.colors.dark : brand.colors.light;
   root.style.setProperty('--mieweb-background', semantics.background);
   root.style.setProperty('--mieweb-foreground', semantics.foreground);
   root.style.setProperty('--mieweb-card', semantics.card);
@@ -79,15 +84,38 @@ export default function BrandSwitcher({ variant = 'dropdown' }: BrandSwitcherPro
   const [activeBrand, setActiveBrand] = useState<BrandKey>('bluehive');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const brandRef = useRef<BrandConfig | null>(null);
+
+  // Re-apply brand when theme changes (light ↔ dark)
+  const reapplyBrand = useCallback(() => {
+    if (brandRef.current) applyBrand(brandRef.current);
+  }, []);
 
   // Load persisted brand on mount
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY) as BrandKey | null;
     if (stored && BRAND_OPTIONS.some((b) => b.key === stored)) {
       setActiveBrand(stored);
-      loadBrand(stored).then(applyBrand);
+      loadBrand(stored).then((brand) => {
+        brandRef.current = brand;
+        applyBrand(brand);
+      });
     }
   }, []);
+
+  // Watch for theme changes on <html> and re-apply brand semantic colors
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.attributeName === 'data-theme' || m.attributeName === 'class') {
+          reapplyBrand();
+          break;
+        }
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+    return () => observer.disconnect();
+  }, [reapplyBrand]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -105,6 +133,7 @@ export default function BrandSwitcher({ variant = 'dropdown' }: BrandSwitcherPro
     setOpen(false);
     localStorage.setItem(STORAGE_KEY, key);
     const brand = await loadBrand(key);
+    brandRef.current = brand;
     applyBrand(brand);
   };
 

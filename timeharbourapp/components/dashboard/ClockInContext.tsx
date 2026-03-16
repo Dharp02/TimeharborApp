@@ -331,7 +331,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       duration: '0m',
     });
     if (user?.id) {
-      const teamId = activeTicketTeamId || null;
+      const teamId = activeTicketTeamId || pendingSessionStopTeamId || null;
       await localTimeStore.breakEnd(user.id, teamId);
     }
   };

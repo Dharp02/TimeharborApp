@@ -19,6 +19,7 @@ export function SessionCard({ session, member }: { session: ActivitySession, mem
          {session.events.map((event, idx) => {
             const isClock = event.type === 'CLOCK';
             const isClockIn = isClock && event.original.type === 'CLOCK_IN';
+            const isBreak = isClock && (event.original.type === 'BREAK_START' || event.original.type === 'BREAK_END');
             const isLast = idx === session.events.length - 1;
             
             return (
@@ -31,7 +32,7 @@ export function SessionCard({ session, member }: { session: ActivitySession, mem
                   } z-10`} />
 
                   {isClock ? (
-                     <ClockEventItem event={event} isClockIn={isClockIn} />
+                     <ClockEventItem event={event} isClockIn={isClockIn} isBreak={isBreak} />
                   ) : (
                      <TicketItem event={event} member={member} />
                   )}

@@ -59,13 +59,13 @@ export default function RecentActivity() {
               }`}
             >
               <div className="flex items-start justify-between gap-3 md:gap-4">
-                <div className="flex items-start gap-3">
-                  <div className={`mt-1 p-1.5 rounded-full ${
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className={`mt-1 p-1.5 rounded-full shrink-0 ${
                     activity.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-primary-100 text-primary-600'
                   }`}>
                     <Clock className="w-4 h-4" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-gray-900 dark:text-white text-sm md:text-base">
                         {activity.title}
@@ -80,7 +80,7 @@ export default function RecentActivity() {
                       {activity.subtitle}
                     </p>
                     {activity.description && (
-                      <p className="text-sm md:text-base font-bold text-gray-700 dark:text-gray-200 mt-0.5">
+                      <p className="text-sm md:text-base font-bold text-gray-700 dark:text-gray-200 mt-0.5 break-all">
                         &quot;{activity.description}&quot;
                       </p>
                     )}

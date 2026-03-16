@@ -7,7 +7,7 @@ import { ActivitySession } from '../types';
 import { ExpandableText } from './ExpandableText';
 import * as API from '@/TimeharborAPI/dashboard';
 
-export function ClockEventItem({ event, isClockIn }: { event: ActivitySession['events'][0], isClockIn: boolean }) {
+export function ClockEventItem({ event, isClockIn, isBreak }: { event: ActivitySession['events'][0], isClockIn: boolean, isBreak?: boolean }) {
     const [expanded, setExpanded] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [sending, setSending] = useState(false);
@@ -45,7 +45,7 @@ export function ClockEventItem({ event, isClockIn }: { event: ActivitySession['e
             >
                 <div className="flex items-center justify-between w-full">
                     <span className={`text-sm font-medium ${isClockIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                        {isClockIn ? 'Clocked In' : 'Clocked Out'}
+                        {event.title || (isClockIn ? 'Clocked In' : 'Clocked Out')}
                     </span>
                     <span className="text-sm font-mono text-gray-400">{event.timeFormatted}</span>
                 </div>

@@ -7,6 +7,28 @@ import { SessionEvent } from '../types';
 import { ExpandableText } from './ExpandableText';
 import * as API from '@/TimeharborAPI/dashboard';
 
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+function linkifyText(text: string) {
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, i) =>
+    URL_REGEX.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary-500 underline break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
 export function TicketItem({ event, member }: { event: SessionEvent, member?: any }) {
   const [expanded, setExpanded] = useState(false);
   const [comment, setComment] = useState('');
@@ -89,7 +111,7 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
               <div className="flex-1 min-w-0">
                   <div className="max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 pr-1">
                       <p className="text-base text-gray-700 dark:text-gray-300 font-medium break-words whitespace-pre-wrap">
-                          {event.original?.comment || "No description"}
+                          {event.original?.comment ? linkifyText(event.original.comment) : "No description"}
                       </p>
                   </div>
                   <p className="text-xs text-primary-500 mt-1 font-medium">
@@ -105,7 +127,7 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
                     <span className="font-semibold text-primary-500 mr-1">
                         {replies[replies.length - 1].user?.full_name || 'You'}:
                     </span>
-                    {replies[replies.length - 1].content || replies[replies.length - 1]}
+                    {linkifyText(String(replies[replies.length - 1].content || replies[replies.length - 1]))}
                 </div>
                 {replies.length > 1 && (
                     <div className="text-xs text-primary-500 mt-0.5 font-medium">
@@ -143,7 +165,7 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
                     {replies.map((reply, i) => (
                         <div key={reply.id || i} className="text-sm text-gray-700 dark:text-gray-200 pl-2 border-l-2 border-gray-200 dark:border-gray-700">
                             {reply.user && <span className="font-semibold text-xs text-primary-500 block mb-0.5">{reply.user.full_name}</span>}
-                            <span className={reply.user ? '' : 'italic'}>{reply.content || reply}</span>
+                            <span className={reply.user ? '' : 'italic'}>{linkifyText(String(reply.content || reply))}</span>
                         </div>
                     ))}
                 </div>
