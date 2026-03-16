@@ -38,8 +38,6 @@ export default function CreateTicketPage() {
   };
 
   const handleCreateTicket = async () => {
-    if (!currentTeam) return;
-
     if (!newTicket.title.trim()) {
         setError("Title is required");
         return;
@@ -57,7 +55,11 @@ export default function CreateTicketPage() {
         priority: newTicket.priority as any,
         link: newTicket.reference
       };
-      await ticketsApi.createTicket(currentTeam.id, ticketData);
+      if (currentTeam) {
+        await ticketsApi.createTicket(currentTeam.id, ticketData);
+      } else {
+        await ticketsApi.createPersonalTicket(ticketData);
+      }
       
       logger.log('Created Ticket', {
         subtitle: newTicket.title,

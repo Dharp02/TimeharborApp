@@ -47,13 +47,13 @@ export default function OpenTickets() {
 
   const isMountedRef = useRef(true);
 
+  const PERSONAL_TEAM_ID = '__personal__';
+
   const fetchTickets = useCallback(async () => {
-    if (!currentTeam?.id) {
-      setTickets([]);
-      return;
-    }
     try {
-      const fetchedTickets = await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' });
+      const fetchedTickets = currentTeam?.id
+        ? await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' })
+        : await ticketsApi.getPersonalTickets({ sort: 'recent', status: 'open' });
       if (isMountedRef.current) {
         setTickets(fetchedTickets);
         db.tickets.bulkPut(fetchedTickets as any).catch(() => {});
@@ -69,22 +69,19 @@ export default function OpenTickets() {
     isMountedRef.current = true;
 
     // Read Dexie cache immediately — tickets appear instantly on repeat visits
-    if (currentTeam?.id) {
-      db.tickets
-        .where('teamId').equals(currentTeam.id)
-        .filter(t => t.status === 'Open' || t.status === 'In Progress')
-        .toArray()
-        .then(cached => {
-          if (cached.length > 0 && isMountedRef.current) {
-            setTickets(cached as TicketType[]);
-          } else {
-            setIsLoading(true);
-          }
-        })
-        .catch(() => setIsLoading(true));
-    } else {
-      setTickets([]);
-    }
+    const cacheTeamId = currentTeam?.id || PERSONAL_TEAM_ID;
+    db.tickets
+      .where('teamId').equals(cacheTeamId)
+      .filter(t => t.status === 'Open' || t.status === 'In Progress')
+      .toArray()
+      .then(cached => {
+        if (cached.length > 0 && isMountedRef.current) {
+          setTickets(cached as TicketType[]);
+        } else {
+          setIsLoading(true);
+        }
+      })
+      .catch(() => setIsLoading(true));
 
     fetchTickets();
 

@@ -48,18 +48,17 @@ export default function TicketsPage() {
   const [allTickets, setAllTickets] = useState<any[]>([]);
 
   useEffect(() => {
-    if (currentTeam) {
-      loadTickets();
-    } else {
-      setAllTickets([]);
-    }
+    loadTickets();
   }, [currentTeam]);
 
+  const isPersonalMode = !currentTeam;
+
   const loadTickets = async () => {
-    if (!currentTeam) return;
     setIsLoading(true);
     try {
-      const fetchedTickets = await ticketsApi.getTickets(currentTeam.id);
+      const fetchedTickets = isPersonalMode
+        ? await ticketsApi.getPersonalTickets()
+        : await ticketsApi.getTickets(currentTeam!.id);
       // Map API response to component state structure if needed, or use directly
       // The API returns TicketType, but the component uses a slightly different structure (assignee initials vs object)
       // Let's adapt the data
@@ -147,8 +146,6 @@ export default function TicketsPage() {
   };
 
   const handleAddTicket = async () => {
-    if (!currentTeam) return;
-
     try {
       if (isEditing && editingTicketId) {
         // Update existing ticket
@@ -159,7 +156,11 @@ export default function TicketsPage() {
           priority: newTicket.priority as any,
           link: newTicket.reference
         };
-        await ticketsApi.updateTicket(currentTeam.id, editingTicketId, updateData);
+        if (isPersonalMode) {
+          await ticketsApi.updatePersonalTicket(editingTicketId, updateData);
+        } else {
+          await ticketsApi.updateTicket(currentTeam!.id, editingTicketId, updateData);
+        }
         
         logger.log('Updated Ticket', {
           subtitle: newTicket.title,
@@ -175,7 +176,11 @@ export default function TicketsPage() {
           priority: newTicket.priority as any,
           link: newTicket.reference
         };
-        await ticketsApi.createTicket(currentTeam.id, ticketData);
+        if (isPersonalMode) {
+          await ticketsApi.createPersonalTicket(ticketData);
+        } else {
+          await ticketsApi.createTicket(currentTeam!.id, ticketData);
+        }
         
         logger.log('Created Ticket', {
           subtitle: newTicket.title,
@@ -238,11 +243,13 @@ export default function TicketsPage() {
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    if (selectedTicketForAction && currentTeam) {
+    if (selectedTicketForAction) {
       try {
-        await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
-          status: newStatus as any
-        });
+        if (isPersonalMode) {
+          await ticketsApi.updatePersonalTicket(selectedTicketForAction.id, { status: newStatus as any });
+        } else {
+          await ticketsApi.updateTicket(currentTeam!.id, selectedTicketForAction.id, { status: newStatus as any });
+        }
         
         logger.log('Status Updated', {
           subtitle: selectedTicketForAction.title,
@@ -261,9 +268,13 @@ export default function TicketsPage() {
   };
 
   const handleDeleteTicket = async () => {
-    if (selectedTicketForAction && currentTeam) {
+    if (selectedTicketForAction) {
       try {
-        await ticketsApi.deleteTicket(currentTeam.id, selectedTicketForAction.id);
+        if (isPersonalMode) {
+          await ticketsApi.deletePersonalTicket(selectedTicketForAction.id);
+        } else {
+          await ticketsApi.deleteTicket(currentTeam!.id, selectedTicketForAction.id);
+        }
         
         logger.log('Deleted Ticket', {
           subtitle: selectedTicketForAction.title,

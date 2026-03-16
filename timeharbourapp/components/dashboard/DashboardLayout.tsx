@@ -77,9 +77,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 
   useEffect(() => {
-    if (!isLoading && !currentTeam) {
-      setIsTeamModalOpen(true);
-    }
+    // Don't force the modal — users can use the app in personal mode without a team
   }, [currentTeam, isLoading]);
 
   // Scroll to top on route change

@@ -37,7 +37,7 @@ export default function TimesheetPage() {
 
   // Fetch both activities and per-day totals from the API whenever the date range changes.
   useEffect(() => {
-    if (!currentTeam?.id || !dateRange.from || !dateRange.to) return;
+    if (!dateRange.from || !dateRange.to) return;
 
     const from = dateRange.from.toISODate();
     const to = dateRange.to.toISODate();
@@ -48,11 +48,11 @@ export default function TimesheetPage() {
       try {
         const [acts, totals] = await Promise.all([
           fetchActivitiesByDateRange(
-            currentTeam.id,
+            currentTeam?.id || '',
             dateRange.from!.toISO() || '',
             dateRange.to!.toISO() || '',
           ),
-          getTimesheetTotals(from, to, currentTeam.id),
+          getTimesheetTotals(from, to, currentTeam?.id),
         ]);
         setActivities(acts);
         setTimesheetTotals(totals);
