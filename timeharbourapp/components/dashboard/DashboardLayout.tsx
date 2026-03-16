@@ -82,6 +82,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [currentTeam, isLoading]);
 
+  // Scroll to top on route change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
   // Handle pending navigation from push notifications
   useEffect(() => {
     const pendingNav = localStorage.getItem('pendingNavigation');
