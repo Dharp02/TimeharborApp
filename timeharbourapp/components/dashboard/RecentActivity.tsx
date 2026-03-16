@@ -1,10 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight, Clock } from 'lucide-react';
+import { ChevronRight, Clock, ExternalLink } from 'lucide-react';
 import type { Activity } from '@/TimeharborAPI/dashboard';
 import { DateTime } from 'luxon';
 import { useActivityLog } from './ActivityLogContext';
+
+const URL_REGEX = /https?:\/\/[^\s]+/g;
+
+/** Split description into text segments and clickable URLs. */
+function parseDescriptionParts(description: string): { text: string | null; urls: string[] } {
+  const urls = description.match(URL_REGEX) ?? [];
+  const text = description.replace(URL_REGEX, '').trim() || null;
+  return { text, urls };
+}
 
 /**
  * Loads recent activity from activity_logs (via ActivityLogContext / GET /teams/:id/logs).
@@ -79,11 +88,33 @@ export default function RecentActivity() {
                     <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                       {activity.subtitle}
                     </p>
-                    {activity.description && (
-                      <p className="text-sm md:text-base font-bold text-gray-700 dark:text-gray-200 mt-0.5 break-all">
-                        &quot;{activity.description}&quot;
-                      </p>
-                    )}
+                    {(activity.description || activity.link) && (() => {
+                      const parsed = activity.description ? parseDescriptionParts(activity.description) : { text: null, urls: [] };
+                      // Collect all unique URLs from description + explicit link field
+                      const allUrls = [...parsed.urls];
+                      if (activity.link && !allUrls.includes(activity.link)) {
+                        allUrls.push(activity.link);
+                      }
+                      return (
+                        <div className="mt-1.5 p-2 bg-gray-100 dark:bg-gray-700/50 rounded-lg text-sm space-y-1">
+                          {parsed.text && (
+                            <p className="text-gray-700 dark:text-gray-200">{parsed.text}</p>
+                          )}
+                          {allUrls.map((url) => (
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:underline break-all"
+                            >
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                              {url}
+                            </a>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       {formatDate(activity.startTime)}, {formatTime(activity.startTime)}
                       {activity.endTime ? ` - ${formatTime(activity.endTime)}` : ''}
