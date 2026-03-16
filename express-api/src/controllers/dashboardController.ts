@@ -1029,11 +1029,23 @@ export const getTimesheetTotals = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) { res.status(401).json({ message: 'Unauthorized' }); return; }
 
-    const { from, to, teamId } = req.query;
+    const { from, to, teamId, memberId } = req.query;
     if (!from || !to) { res.status(400).json({ message: 'from and to query params are required' }); return; }
 
+    // Determine whose data to return. Defaults to the authenticated user.
+    let targetUserId = userId;
+    if (memberId && memberId !== userId) {
+      // Viewing another member — require team context + Leader role
+      if (!teamId) { res.status(400).json({ message: 'teamId is required when querying another member' }); return; }
+      const membership = await Member.findOne({ where: { userId, teamId: teamId as string } });
+      if (!membership || membership.role !== 'Leader') {
+        res.status(403).json({ message: 'Insufficient permissions' }); return;
+      }
+      targetUserId = memberId as string;
+    }
+
     const whereClause: any = {
-      userId,
+      userId: targetUserId,
       date: { [Op.between]: [from as string, to as string] },
     };
     if (teamId) whereClause.teamId = teamId as string;
@@ -1054,7 +1066,7 @@ export const getTimesheetTotals = async (req: AuthRequest, res: Response) => {
     const today = localDate(now);
 
     if (today >= (from as string) && today <= (to as string)) {
-      const lastClockEventWhere: any = { userId, type: { [Op.in]: ['CLOCK_IN', 'CLOCK_OUT'] } };
+      const lastClockEventWhere: any = { userId: targetUserId, type: { [Op.in]: ['CLOCK_IN', 'CLOCK_OUT'] } };
       if (teamId) lastClockEventWhere.teamId = teamId as string;
 
       const lastClockEvent = await WorkLog.findOne({
@@ -1066,7 +1078,7 @@ export const getTimesheetTotals = async (req: AuthRequest, res: Response) => {
       if (lastClockEvent?.type === 'CLOCK_IN') {
         const sessionStartMs = new Date(lastClockEvent.timestamp).getTime();
         const breakEventsWhere: any = {
-          userId,
+          userId: targetUserId,
           type: { [Op.in]: ['BREAK_START', 'BREAK_END'] },
           timestamp: { [Op.gte]: lastClockEvent.timestamp },
         };
