@@ -20,6 +20,8 @@ type Activity = {
   action: string; // e.g., "Clocked in with T-101, T-102", "Clocked out", "Started timer on T-101"
   description?: string;
   link?: string;
+  ticketName?: string;
+  ticketLink?: string;
   tickets?: string[];
   role: string;
 };
@@ -80,6 +82,8 @@ export function TeamActivityReport() {
           const mappedActivities: Activity[] = logs.map((log: any) => {
              let action = '';
              const tickets: string[] = [];
+             let ticketName: string | undefined;
+             let ticketLink: string | undefined;
 
              const date = DateTime.fromISO(log.timestamp);
              const dateStr = date.toFormat('MMM d');
@@ -104,6 +108,8 @@ export function TeamActivityReport() {
              }
 
              if (log.ticket) {
+                 ticketName = log.ticket.title;
+                 ticketLink = log.ticket.link || undefined;
                  if (log.type === 'CLOCK_IN') {
                     action += ` with ${log.ticket.title}`;
                  } else {
@@ -111,6 +117,7 @@ export function TeamActivityReport() {
                  }
                  tickets.push(log.ticket.title);
              } else if (log.ticketTitle) {
+                 ticketName = log.ticketTitle;
                  if (log.type === 'CLOCK_IN') {
                     action += ` with ${log.ticketTitle}`;
                  } else {
@@ -142,6 +149,8 @@ export function TeamActivityReport() {
                  role: log.user?.memberships?.[0]?.role || 'Member',
                  description: description,
                  link: link,
+                 ticketName: ticketName,
+                 ticketLink: ticketLink,
              };
           });
 
@@ -286,7 +295,11 @@ export function TeamActivityReport() {
                       </div>
                       <div className="flex-1 min-w-0 pr-2">
                         <p className="text-base font-medium text-gray-900 dark:text-white truncate">{activity.member}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">{activity.action}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">
+                          {activity.ticketName && activity.ticketLink ? (
+                            <>{activity.action.split(activity.ticketName)[0]}<a href={activity.ticketLink} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline">{activity.ticketName}</a>{activity.action.split(activity.ticketName).slice(1).join(activity.ticketName)}</>
+                          ) : activity.action}
+                        </p>
                         {activity.description && (
                           <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mt-0.5 break-words">&quot;{linkifyText(activity.description)}&quot;</p>
                         )}

@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType, CreateTicketData, UpdateTicketData } from '@/TimeharborAPI/tickets';
 import { useLogger } from '@/hooks/useLogger';
+import { resolveGitHubUrl } from '@/lib/githubUrl';
 import PulseButton from '@/components/dashboard/PulseButton';
 
 export default function TicketsPage() {
@@ -92,54 +93,14 @@ export default function TicketsPage() {
     return matchesSearch && matchesTab;
   });
 
-  const fetchGitHubDescription = async (ticketId: string) => {
-    const ticket = allTickets.find(t => t.id === ticketId);
-    if (!ticket || !currentTeam || ticket.description || !ticket.reference) return;
-
-    // Regex for GitHub PR/Issue URL
-    // https://github.com/owner/repo/pull/123 or issues/123
-    const githubRegex = /github\.com\/([^/]+)\/([^/]+)\/(pull|issues)\/(\d+)/;
-    const match = ticket.reference.match(githubRegex);
-
-    if (match) {
-      try {
-        const [_, owner, repo, type, number] = match;
-        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/${type === 'pull' ? 'pulls' : 'issues'}/${number}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          const title = data.title;
-          const body = data.body || '';
-          
-          // Construct a description
-          const newDescription = `**${title}**\n\n${body}`;
-          
-          // Update ticket via API
-          await ticketsApi.updateTicket(currentTeam.id, ticket.id, {
-            description: newDescription
-          });
-          
-          // Update local state smoothly
-          setAllTickets(prev => prev.map(t => 
-             t.id === ticket.id ? { ...t, description: newDescription } : t
-          ));
-
-          logger.log('Auto-filled Description', {
-            subtitle: ticket.title,
-            description: `Fetched from GitHub PR/Issue #${number}`
-          });
-        }
-      } catch (error) {
-        console.error("Failed to auto-fill GitHub description", error);
-      }
+  const handleTitlePaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    const result = await resolveGitHubUrl(pasted);
+    if (result) {
+      e.preventDefault();
+      setNewTicket(prev => ({ ...prev, title: result.title, reference: result.url }));
     }
   };
-
-  useEffect(() => {
-    if (isDetailModalOpen && detailTicketId) {
-       fetchGitHubDescription(detailTicketId);
-    }
-  }, [isDetailModalOpen, detailTicketId]);
 
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
@@ -713,6 +674,7 @@ export default function TicketsPage() {
                 type="text"
                 value={newTicket.title}
                 onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
+                onPaste={handleTitlePaste}
                 placeholder="Enter ticket title"
                 className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
               />

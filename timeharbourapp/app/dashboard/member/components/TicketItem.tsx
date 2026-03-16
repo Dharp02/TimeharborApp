@@ -42,7 +42,11 @@ export function TicketItem({ event, member }: { event: SessionEvent, member?: an
        >
           <div className="flex items-start justify-between mb-2">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate pr-2">
-                  {event.title}
+                  {event.references?.[0]?.url ? (
+                    <a href={event.references[0].url} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline" onClick={(e) => e.stopPropagation()}>
+                      {event.title}
+                    </a>
+                  ) : event.title}
               </h3>
               {event.status && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
