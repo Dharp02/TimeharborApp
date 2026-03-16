@@ -10,8 +10,9 @@ import * as TeamAPI from '@/TimeharborAPI/teams';
 import { useRouter } from 'next/navigation';
 import { ActivitySession } from './types';
 import { SessionCard } from './components/SessionCard';
-import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
+import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
 import { DateTime } from 'luxon';
+import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
 import { useRefresh } from '../../../contexts/RefreshContext';
 import { formatDurationMs } from '@/lib/formatDuration';
 
@@ -48,11 +49,11 @@ function MemberPageContent({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   
-  const [dateRange, setDateRange] = useState<DateRange>({ 
+  const [dateRange, setDateRange] = useState<LuxonDateRange>({ 
     from: DateTime.now().startOf('day'), 
     to: DateTime.now().endOf('day') 
   });
-  const [preset, setPreset] = useState<DateRangePreset>('today');
+  const [preset, setPreset] = useState<string>('today');
   const [teamMembers, setTeamMembers] = useState<TeamAPI.Member[]>([]);
 
   const filteredSessions = sessions.filter(session => {
@@ -63,12 +64,13 @@ function MemberPageContent({
     return sessionStart >= dateRange.from.toMillis() && sessionStart <= dateRange.to.toMillis();
   });
 
-  const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
-    setDateRange(range);
-    setPreset(newPreset);
+  const handleRangeChange = (range: { start: Date | null; end: Date | null }, presetKey?: string) => {
+    setDateRange(resolveRange(range, presetKey));
+    setPreset(presetKey || '');
   };
 
   // Sum backend-computed durationMs per session (break-excluded). No client-side time math.
+  // Used as fallback only for truly custom date ranges (calendar-picked).
   const customRangeDurationMs = filteredSessions.reduce((acc, s) => acc + ((s as any).durationMs || 0), 0);
 
   const mapSessionFromApi = (s: any): ActivitySession => ({
@@ -334,28 +336,34 @@ function MemberPageContent({
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 flex-shrink-0 mb-4">
             {(() => {
                 const getRangeConfig = () => {
-                    if (preset === 'today') return { show: false, label: '' };
-                    // We don't have a direct 'this_week' preset in DateRangePicker yet (it has past_week), 
-                    // but if we did, we would hide it. 
-                    // If preset is custom, or anything else not covered by Today/This Week stats, show it.
+                    if (preset === 'today') return { show: false, label: '', totalMs: 0 };
                     
                     let label = 'Custom Range';
+                    let totalMs = customRangeDurationMs;
                     switch(preset) {
-                        case 'yesterday': label = 'Yesterday'; break;
-                        case 'past_week': label = 'Past Week'; break;
-                        case 'past_month': label = 'Past Month'; break;
-                        case 'custom': 
+                        case 'yesterday':
+                            label = 'Yesterday';
+                            // No dedicated backend field for yesterday — use client-side sum
+                            break;
+                        case 'last-7-days':
+                            label = 'Past Week';
+                            totalMs = timeTracking.week.totalMs;
+                            break;
+                        case 'last-30-days':
+                            label = 'Past Month';
+                            totalMs = timeTracking.month.totalMs;
+                            break;
+                        default:
                             if (dateRange.from && dateRange.to) {
-                                // Simplified label for custom range
                                 label = `${(dateRange.from as any).toFormat('MM/dd/yyyy')} - ${(dateRange.to as any).toFormat('MM/dd/yyyy')}`;
                             }
                             break;
                     }
 
-                    return { show: true, label };
+                    return { show: true, label, totalMs };
                 };
 
-                const { show, label } = getRangeConfig();
+                const { show, label, totalMs } = getRangeConfig();
 
                 return (
                     <div className={`grid ${show ? 'grid-cols-3' : 'grid-cols-2'} gap-2 divide-x divide-gray-100 dark:divide-gray-700`}>
@@ -383,7 +391,7 @@ function MemberPageContent({
                                     <Calendar className="w-3 h-3" />
                                     <span className="truncate max-w-[80px]">{label}</span>
                                 </div>
-                                <div className="text-xl font-bold text-gray-900 dark:text-white">{formatDurationMs(customRangeDurationMs)}</div>
+                                <div className="text-xl font-bold text-gray-900 dark:text-white">{formatDurationMs(totalMs)}</div>
                             </div>
                         )}
                     </div>
@@ -394,9 +402,12 @@ function MemberPageContent({
        {/* Main Content: Unified Activity Timeline */}
        <div>
          <div className="mb-4">
-            <DateRangePicker 
-                initialPreset={preset} 
-                onRangeChange={handleRangeChange}
+            <DateRangePickerWithPresets 
+                value={{ start: dateRange.from.toJSDate(), end: dateRange.to.toJSDate() }}
+                onChange={handleRangeChange}
+                activePreset={preset}
+                presets={dateFilterPresets}
+                variant="responsive"
                 className="w-full md:w-auto"
             />
          </div>

@@ -2,11 +2,12 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useTeam } from '@/components/dashboard/TeamContext';
-import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
+import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
 import { DateTime } from 'luxon';
+import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
 import { Activity, fetchActivitiesByDateRange, getTimesheetTotals, TimesheetDayTotal } from '@/TimeharborAPI/dashboard';
 import { formatDurationMs } from '@/lib/formatDuration';
-import { Clock, Calendar, CheckCircle2, PauseCircle, PlayCircle, StopCircle, WifiOff } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, ChevronDown, PauseCircle, PlayCircle, StopCircle, WifiOff } from 'lucide-react';
 import { useRefresh } from '../../../../contexts/RefreshContext';
 import { useSocket } from '@/contexts/SocketContext';
 
@@ -14,15 +15,25 @@ export default function TimesheetPage() {
   const { currentTeam } = useTeam();
   const { register, lastRefreshed } = useRefresh();
   const { isOnline } = useSocket();
-  const [dateRange, setDateRange] = useState<DateRange>({ 
+  const [dateRange, setDateRange] = useState<LuxonDateRange>({ 
     from: DateTime.now().startOf('day'),
     to: DateTime.now().endOf('day') 
   });
-  const [preset, setPreset] = useState<DateRangePreset>('today');
+  const [preset, setPreset] = useState<string>('today');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   /** Per-day totalMs from backend (UserDailyStat), break-excluded */
   const [timesheetTotals, setTimesheetTotals] = useState<TimesheetDayTotal[]>([]);
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+
+  const toggleDay = (dateKey: string) => {
+    setExpandedDays(prev => {
+      const next = new Set(prev);
+      if (next.has(dateKey)) next.delete(dateKey);
+      else next.add(dateKey);
+      return next;
+    });
+  };
 
   // Fetch both activities and per-day totals from the API whenever the date range changes.
   useEffect(() => {
@@ -58,9 +69,9 @@ export default function TimesheetPage() {
     return unregister;
   }, [dateRange, currentTeam?.id, lastRefreshed, register]);
 
-  const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
-    setDateRange(range);
-    setPreset(newPreset);
+  const handleRangeChange = (range: { start: Date | null; end: Date | null }, presetKey?: string) => {
+    setDateRange(resolveRange(range, presetKey));
+    setPreset(presetKey || '');
   };
 
   // Group activities by day
@@ -201,10 +212,13 @@ export default function TimesheetPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-0 py-2 space-y-4">
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm mx-4 md:mx-0 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-         <DateRangePicker 
-           initialPreset={preset}
-           onRangeChange={handleRangeChange}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+         <DateRangePickerWithPresets 
+           value={{ start: dateRange.from.toJSDate(), end: dateRange.to.toJSDate() }}
+           onChange={handleRangeChange}
+           activePreset={preset}
+           presets={dateFilterPresets}
+           variant="responsive"
            className="w-full md:w-auto"
          />
          
@@ -235,18 +249,30 @@ export default function TimesheetPage() {
             <p className="text-gray-500 dark:text-gray-400">Try adjusting the date range to see more entries.</p>
           </div>
         ) : (
-          groupedActivities.map((group) => (
-            <div key={group.date.toISODate()} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
-              <div className="bg-gray-50 dark:bg-gray-700/50 p-4 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
+          groupedActivities.map((group) => {
+            const dateKey = group.date.toISODate() || '';
+            const isExpanded = expandedDays.has(dateKey);
+            return (
+            <div key={dateKey} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+              <button
+                type="button"
+                onClick={() => toggleDay(dateKey)}
+                className="w-full bg-gray-50 dark:bg-gray-700/50 p-4 flex justify-between items-center border-b border-gray-100 dark:border-gray-700 cursor-pointer"
+                aria-expanded={isExpanded}
+                aria-label={`${getDayName(group.date)}, ${formatDurationMs(group.totalDuration)}. ${group.activities.length} events`}
+              >
                 <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-primary-500" />
                   {getDayName(group.date)}
                 </h3>
-                <span className="text-sm font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-3 py-1 rounded-full min-w-[6rem] text-center">
-                  {formatDurationMs(group.totalDuration)}
-                </span>
-              </div>
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-3 py-1 rounded-full min-w-[6rem] text-center">
+                    {formatDurationMs(group.totalDuration)}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+              {isExpanded && <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {group.activities.map((activity) => (
                   <div key={activity.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors flex items-start gap-4">
                     <div className="mt-1 p-2 bg-gray-100 dark:bg-gray-700 rounded-full">
@@ -294,9 +320,10 @@ export default function TimesheetPage() {
                     </div>
                   </div>
                 ))}
-              </div>
+              </div>}
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

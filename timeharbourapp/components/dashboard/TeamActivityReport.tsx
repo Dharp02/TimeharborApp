@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Edit2 } from 'lucide-react';
 import { DateTime } from 'luxon';
-import { Button, Input, Select, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@mieweb/ui';
-import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
+import { Button, Input, Select, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, DateRangePicker } from '@mieweb/ui';
+import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
+import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
 import { getTeamActivity } from '@/TimeharborAPI/teams';
@@ -39,11 +40,11 @@ type DesktopActivity = {
 export function TeamActivityReport() {
   const { currentTeam } = useTeam();
   const { register, lastRefreshed } = useRefresh();
-  const [dateRange, setDateRange] = useState<DateRange>({ 
+  const [dateRange, setDateRange] = useState<LuxonDateRange>({ 
     from: DateTime.now().startOf('day'), 
     to: DateTime.now().endOf('day') 
   });
-  const [preset, setPreset] = useState<DateRangePreset>('today');
+  const [preset, setPreset] = useState<string>('today');
   
   const [activities, setActivities] = useState<Activity[]>([]);
   const [desktopActivities, setDesktopActivities] = useState<DesktopActivity[]>([]);
@@ -163,9 +164,9 @@ export function TeamActivityReport() {
     return unregister;
   }, [fetchAttributes, register, lastRefreshed]);
 
-  const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
-    setDateRange(range);
-    setPreset(newPreset);
+  const handleRangeChange = (range: { start: Date | null; end: Date | null }, presetKey?: string) => {
+    setDateRange(resolveRange(range, presetKey));
+    setPreset(presetKey || '');
     setVisibleCount(20); 
   };
 
@@ -253,9 +254,12 @@ export function TeamActivityReport() {
     <>
       {/* Mobile View */}
       <div className="md:hidden space-y-3">
-        <DateRangePicker 
-            initialPreset={preset}
-            onRangeChange={handleRangeChange}
+        <DateRangePickerWithPresets 
+            value={{ start: dateRange.from.toJSDate(), end: dateRange.to.toJSDate() }}
+            onChange={handleRangeChange}
+            activePreset={preset}
+            presets={dateFilterPresets}
+            variant="responsive"
             className="w-full px-0"
         />
 
@@ -337,8 +341,11 @@ export function TeamActivityReport() {
           </h2>
           
           <DateRangePicker 
-            initialPreset={preset}
-            onRangeChange={handleRangeChange}
+            value={{ start: dateRange.from.toJSDate(), end: dateRange.to.toJSDate() }}
+            onChange={handleRangeChange}
+            activePreset={preset}
+            presets={dateFilterPresets}
+            variant="desktop"
             className="w-auto"
           />
         </div>
