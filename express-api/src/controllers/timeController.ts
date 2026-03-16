@@ -209,7 +209,7 @@ async function recomputeStatsForUser(userId: string, teamId: string | null) {
     // Stop at the open session boundary so we never pre-write live time.
     const dayTotals = new Map<string, number>();
     let isClockedIn = lastPreEvent
-      ? ['CLOCK_IN', 'START_TICKET', 'STOP_TICKET', 'BREAK_END'].includes(lastPreEvent.type) &&
+      ? ['CLOCK_IN', 'BREAK_END'].includes(lastPreEvent.type) &&
         (openSessionStartTs === null || new Date(lastPreEvent.timestamp).getTime() < openSessionStartTs)
       : false;
     let segStart = startOfWeek.getTime();
@@ -225,8 +225,6 @@ async function recomputeStatsForUser(userId: string, teamId: string | null) {
       segStart = eventTs;
       switch (event.type) {
         case 'CLOCK_IN':
-        case 'START_TICKET':
-        case 'STOP_TICKET':
         case 'BREAK_END':
           isClockedIn = true;
           break;
@@ -234,6 +232,7 @@ async function recomputeStatsForUser(userId: string, teamId: string | null) {
         case 'BREAK_START':
           isClockedIn = false;
           break;
+        // START_TICKET and STOP_TICKET don't change clock state
       }
     }
 
@@ -427,6 +426,38 @@ export const syncTimeEvents = async (req: AuthRequest, res: Response) => {
       }
 
       const existingLog = id ? existingLogMap.get(id) ?? null : null;
+
+      // Guard: don't insert a new CLOCK_OUT unless there's an unclosed CLOCK_IN.
+      // This prevents stale localStorage from creating orphaned CLOCK_OUT records.
+      if (type === 'CLOCK_OUT' && !existingLog) {
+        const teamCondition = finalTeamId
+          ? `AND "teamId" = :teamId`
+          : `AND "teamId" IS NULL`;
+
+        const [activeSession]: any = await sequelize.query(`
+          SELECT ci.id FROM work_logs ci
+          WHERE ci."userId" = :userId
+            AND ci.type = 'CLOCK_IN'
+            ${teamCondition}
+            AND NOT EXISTS (
+              SELECT 1 FROM work_logs co
+              WHERE co."userId" = ci."userId"
+                AND co.type = 'CLOCK_OUT'
+                AND co.timestamp > ci.timestamp
+                ${teamCondition}
+            )
+          LIMIT 1
+        `, {
+          replacements: { userId, ...(finalTeamId ? { teamId: finalTeamId } : {}) },
+          type: 'SELECT' as any,
+          transaction,
+        });
+
+        if (!activeSession || activeSession.length === 0) {
+          console.warn(`[syncTimeEvents] Skipping CLOCK_OUT for user ${userId} — no active CLOCK_IN`);
+          continue;
+        }
+      }
 
       if (existingLog) {
         await existingLog.update({

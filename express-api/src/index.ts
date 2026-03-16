@@ -14,6 +14,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import logger, { morganStream } from './utils/logger';
 import { startCleanupJob } from './jobs/cleanupTokens';
 import { startPulseCleanupJobs } from './jobs/cleanupPulseAttachments';
+import { startAutoCloseJob } from './jobs/autoCloseOrphanedSessions';
 import { initializeFirebase, initializeAPNs } from './services/notificationService';
 import { initializeSocket } from './socket/socketManager';
 
@@ -85,6 +86,7 @@ const startServer = async () => {
     // Start token cleanup job
     startCleanupJob();
     startPulseCleanupJobs();
+    startAutoCloseJob();
 
     // Initialize Socket.IO
     initializeSocket(httpServer);

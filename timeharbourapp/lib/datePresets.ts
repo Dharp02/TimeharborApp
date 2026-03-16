@@ -25,8 +25,13 @@ export function resolveRange(
   const { start, end } = range;
 
   // If we already have concrete dates, convert and return.
+  // The calendar picker sends midnight for both dates, so snap to start/end of day
+  // to ensure the full day is included in queries.
   if (start && end) {
-    return { from: DateTime.fromJSDate(start), to: DateTime.fromJSDate(end) };
+    return {
+      from: DateTime.fromJSDate(start).startOf('day'),
+      to: DateTime.fromJSDate(end).endOf('day'),
+    };
   }
 
   // Compute from presetKey when dates are null (mobile chip tap).

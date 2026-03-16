@@ -69,8 +69,6 @@ async function recomputeForPair(userId: string, teamId: string | null) {
     segStart = eventTs;
     switch (event.type) {
       case 'CLOCK_IN':
-      case 'START_TICKET':
-      case 'STOP_TICKET':
       case 'BREAK_END':
         isClockedIn = true;
         break;
@@ -78,6 +76,7 @@ async function recomputeForPair(userId: string, teamId: string | null) {
       case 'BREAK_START':
         isClockedIn = false;
         break;
+      // START_TICKET and STOP_TICKET don't change clock state
     }
   }
 

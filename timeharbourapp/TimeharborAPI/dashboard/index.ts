@@ -390,12 +390,14 @@ export const getTimesheetTotals = async (
   from: string,
   to: string,
   teamId?: string,
+  memberId?: string,
 ): Promise<TimesheetDayTotal[]> => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
   if (!token) throw new Error('No access token found');
 
   const params = new URLSearchParams({ from, to });
   if (teamId) params.append('teamId', teamId);
+  if (memberId) params.append('memberId', memberId);
 
   const response = await fetch(`${API_URL}/dashboard/timesheet?${params}`, {
     headers: {

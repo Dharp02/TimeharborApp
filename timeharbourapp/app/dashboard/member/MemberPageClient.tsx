@@ -55,6 +55,7 @@ function MemberPageContent({
   });
   const [preset, setPreset] = useState<string>('today');
   const [teamMembers, setTeamMembers] = useState<TeamAPI.Member[]>([]);
+  const [rangeTotalMs, setRangeTotalMs] = useState<number>(0);
 
   const filteredSessions = sessions.filter(session => {
     if (!dateRange.from || !dateRange.to) return true;
@@ -69,9 +70,24 @@ function MemberPageContent({
     setPreset(presetKey || '');
   };
 
-  // Sum backend-computed durationMs per session (break-excluded). No client-side time math.
-  // Used as fallback only for truly custom date ranges (calendar-picked).
-  const customRangeDurationMs = filteredSessions.reduce((acc, s) => acc + ((s as any).durationMs || 0), 0);
+  // Fetch accurate total for the selected range from the backend
+  useEffect(() => {
+    if (!memberId || !dateRange.from || !dateRange.to) return;
+    const from = dateRange.from.toISODate();
+    const to = dateRange.to.toISODate();
+    if (!from || !to) return;
+
+    let cancelled = false;
+    API.getTimesheetTotals(from, to, teamId, memberId).then(totals => {
+      if (!cancelled) {
+        setRangeTotalMs(totals.reduce((acc, t) => acc + t.totalMs, 0));
+      }
+    }).catch(err => {
+      console.error('Failed to fetch range totals:', err);
+      if (!cancelled) setRangeTotalMs(0);
+    });
+    return () => { cancelled = true; };
+  }, [dateRange, memberId, teamId]);
 
   const mapSessionFromApi = (s: any): ActivitySession => ({
         id: s.id,
@@ -339,20 +355,10 @@ function MemberPageContent({
                     if (preset === 'today') return { show: false, label: '', totalMs: 0 };
                     
                     let label = 'Custom Range';
-                    let totalMs = customRangeDurationMs;
                     switch(preset) {
-                        case 'yesterday':
-                            label = 'Yesterday';
-                            // No dedicated backend field for yesterday — use client-side sum
-                            break;
-                        case 'last-7-days':
-                            label = 'Past Week';
-                            totalMs = timeTracking.week.totalMs;
-                            break;
-                        case 'last-30-days':
-                            label = 'Past Month';
-                            totalMs = timeTracking.month.totalMs;
-                            break;
+                        case 'yesterday': label = 'Yesterday'; break;
+                        case 'last-7-days': label = 'Past Week'; break;
+                        case 'last-30-days': label = 'Past Month'; break;
                         default:
                             if (dateRange.from && dateRange.to) {
                                 label = `${(dateRange.from as any).toFormat('MM/dd/yyyy')} - ${(dateRange.to as any).toFormat('MM/dd/yyyy')}`;
@@ -360,7 +366,7 @@ function MemberPageContent({
                             break;
                     }
 
-                    return { show: true, label, totalMs };
+                    return { show: true, label, totalMs: rangeTotalMs };
                 };
 
                 const { show, label, totalMs } = getRangeConfig();
