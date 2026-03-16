@@ -8,6 +8,7 @@ import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPres
 import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
 import { useTeam } from './TeamContext';
 import { Modal } from '@/components/ui/Modal';
+import { linkifyText } from '@/lib/linkify';
 import { getTeamActivity } from '@/TimeharborAPI/teams';
 import { useRefresh } from '../../contexts/RefreshContext';
 
@@ -121,9 +122,9 @@ export function TeamActivityReport() {
              let description: string | undefined;
              let link: string | undefined;
              if (log.comment && (log.type === 'CLOCK_OUT' || log.type === 'STOP_TICKET')) {
-               const urlMatch = log.comment.match(/(https?:\/\/[^\s]+)$/);
+               const urlMatch = log.comment.match(/((?:https?:\/\/|www\.)[^\s]+)$/);
                if (urlMatch) {
-                 link = urlMatch[1];
+                 link = urlMatch[1].startsWith('http') ? urlMatch[1] : `https://${urlMatch[1]}`;
                  const text = log.comment.replace(urlMatch[0], '').trim();
                  description = text || undefined;
                } else {
@@ -287,7 +288,7 @@ export function TeamActivityReport() {
                         <p className="text-base font-medium text-gray-900 dark:text-white truncate">{activity.member}</p>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">{activity.action}</p>
                         {activity.description && (
-                          <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mt-0.5 break-words">&quot;{activity.description}&quot;</p>
+                          <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mt-0.5 break-words">&quot;{linkifyText(activity.description)}&quot;</p>
                         )}
                         {activity.link && (
                           <a

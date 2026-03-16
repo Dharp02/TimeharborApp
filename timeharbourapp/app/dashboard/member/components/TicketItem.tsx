@@ -6,28 +6,7 @@ import { Button, Input } from '@mieweb/ui';
 import { SessionEvent } from '../types';
 import { ExpandableText } from './ExpandableText';
 import * as API from '@/TimeharborAPI/dashboard';
-
-const URL_REGEX = /(https?:\/\/[^\s]+)/g;
-
-function linkifyText(text: string) {
-  const parts = text.split(URL_REGEX);
-  return parts.map((part, i) =>
-    URL_REGEX.test(part) ? (
-      <a
-        key={i}
-        href={part}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-primary-500 underline break-all"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {part}
-      </a>
-    ) : (
-      part
-    )
-  );
-}
+import { linkifyText } from '@/lib/linkify';
 
 export function TicketItem({ event, member }: { event: SessionEvent, member?: any }) {
   const [expanded, setExpanded] = useState(false);
