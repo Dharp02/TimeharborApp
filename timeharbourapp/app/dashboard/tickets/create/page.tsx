@@ -8,6 +8,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { CreateTicketData } from '@/TimeharborAPI/tickets';
 import { useLogger } from '@/hooks/useLogger';
+import { resolveGitHubUrl } from '@/lib/githubUrl';
 import Link from 'next/link';
 import { Button, Input, Textarea, Select } from '@mieweb/ui';
 
@@ -26,6 +27,15 @@ export default function CreateTicketPage() {
     priority: 'Medium', 
     reference: '' 
   });
+
+  const handleTitlePaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    const result = await resolveGitHubUrl(pasted);
+    if (result) {
+      e.preventDefault();
+      setNewTicket(prev => ({ ...prev, title: result.title, reference: result.url }));
+    }
+  };
 
   const handleCreateTicket = async () => {
     if (!currentTeam) return;
@@ -92,6 +102,7 @@ export default function CreateTicketPage() {
                             type="text"
                             value={newTicket.title}
                             onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
+                            onPaste={handleTitlePaste}
                             placeholder="Enter ticket title"
                             disabled={isLoading}
                         />

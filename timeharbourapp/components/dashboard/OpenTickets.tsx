@@ -29,7 +29,7 @@ const getUserInitials = (name?: string, email?: string) => {
 };
 
 export default function OpenTickets() {
-  const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
+  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
   const { currentTeam } = useTeam();
   const { addActivity } = useActivityLog();
   const { register, lastRefreshed } = useRefresh();
@@ -102,8 +102,8 @@ export default function OpenTickets() {
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
     
-    if (!isSessionActive) {
-      setShowClockInWarning(true);
+    if (!isSessionActive || isOnBreak) {
+      if (!isSessionActive) setShowClockInWarning(true);
       return;
     }
 
@@ -246,7 +246,7 @@ export default function OpenTickets() {
                   size="icon"
                   onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
                   className={`p-2 rounded-full transition-colors ${
-                    !isSessionActive 
+                    !isSessionActive || isOnBreak
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
                       : activeTicketId === ticket.id
                         ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40'

@@ -386,7 +386,7 @@ export const getTeamActivity = async (req: AuthRequest, res: Response): Promise<
         {
           model: Ticket,
           as: 'ticket',
-          attributes: ['id', 'title']
+          attributes: ['id', 'title', 'link']
         }
       ]
     });
