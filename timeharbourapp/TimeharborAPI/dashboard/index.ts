@@ -230,8 +230,9 @@ export interface MemberProfile {
   email: string;
   role: string;
   status: string;
-  github?: string;
-  linkedin?: string;
+  github_url?: string;
+  linkedin_url?: string;
+  redmine_url?: string;
 }
 
 export interface ClockEvent {

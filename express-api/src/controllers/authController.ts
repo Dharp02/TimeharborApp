@@ -110,7 +110,7 @@ export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
   }
 
   const user = await User.findByPk(req.user.id, {
-    attributes: ['id', 'email', 'full_name', 'email_verified', 'created_at', 'updated_at']
+    attributes: ['id', 'email', 'full_name', 'email_verified', 'github_url', 'linkedin_url', 'redmine_url', 'created_at', 'updated_at']
   });
 
   if (!user) {
@@ -126,7 +126,7 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
     throw new AppError('User not authenticated', 401);
   }
 
-  const { full_name, email, github, linkedin } = req.body;
+  const { full_name, email, github_url, linkedin_url, redmine_url } = req.body;
 
   const user = await User.findByPk(req.user.id);
   
@@ -136,8 +136,6 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
 
   // Update fields
   if (full_name) user.full_name = full_name;
-  if (github !== undefined) user.github = github || undefined;
-  if (linkedin !== undefined) user.linkedin = linkedin || undefined;
   
   // If email is changing, we should verify it doesn't exist
   if (email && email !== user.email) {
@@ -149,6 +147,11 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
       user.email_verified = false; // Require verification again
   }
 
+  // Update social links (allow setting to empty string to clear)
+  if (github_url !== undefined) user.github_url = github_url || undefined;
+  if (linkedin_url !== undefined) user.linkedin_url = linkedin_url || undefined;
+  if (redmine_url !== undefined) user.redmine_url = redmine_url || undefined;
+
   await user.save();
 
   res.json({ 
@@ -156,9 +159,10 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
       id: user.id,
       email: user.email,
       full_name: user.full_name,
-      github: user.github,
-      linkedin: user.linkedin,
       email_verified: user.email_verified,
+      github_url: user.github_url,
+      linkedin_url: user.linkedin_url,
+      redmine_url: user.redmine_url,
       created_at: user.created_at,
       updated_at: user.updated_at
     } 
