@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { User } from '../models';
 import logger from '../utils/logger';
+import { ADMIN_USER_ID } from '../controllers/authController';
 
 // Extend Express Request type to include user
 export interface AuthRequest extends Request {
@@ -34,7 +35,14 @@ export const authenticateToken = async (
     }
 
     // Verify token
-    const decoded = jwt.verify(token, jwtSecret) as { id: string; email: string };
+    const decoded = jwt.verify(token, jwtSecret) as { id: string; email: string; full_name?: string };
+
+    // Admin bypass — skip DB lookup
+    if (decoded.id === ADMIN_USER_ID) {
+      req.user = { id: decoded.id, email: decoded.email, full_name: decoded.full_name || 'Admin' };
+      next();
+      return;
+    }
 
     // Fetch user from database
     const user = await User.findByPk(decoded.id, {
@@ -91,7 +99,15 @@ export const optionalAuth = async (
       return;
     }
 
-    const decoded = jwt.verify(token, jwtSecret) as { id: string; email: string };
+    const decoded = jwt.verify(token, jwtSecret) as { id: string; email: string; full_name?: string };
+
+    // Admin bypass
+    if (decoded.id === ADMIN_USER_ID) {
+      req.user = { id: decoded.id, email: decoded.email, full_name: decoded.full_name || 'Admin' };
+      next();
+      return;
+    }
+
     const user = await User.findByPk(decoded.id, {
       attributes: ['id', 'email', 'full_name', 'email_verified']
     });

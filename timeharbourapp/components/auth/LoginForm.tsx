@@ -7,8 +7,8 @@ import { Input, Button, Checkbox, Alert, AlertDescription } from '@mieweb/ui';
 
 export default function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin');
+  const [password, setPassword] = useState('admin');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,13 +46,13 @@ export default function LoginForm() {
         )}
         <Input
           id="email"
-          label="Email"
-          type="email"
+          label="Username"
+          type="text"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          placeholder="you@example.com"
-          autoComplete="email"
+          placeholder="admin"
+          autoComplete="username"
         />
 
         <Input

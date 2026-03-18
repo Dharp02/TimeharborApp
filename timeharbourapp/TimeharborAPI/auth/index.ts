@@ -3,6 +3,22 @@ import { db } from '../db';
 
 const API_URL = getApiUrl();
 
+// Hardcoded admin bypass — no backend required
+const ADMIN_EMAIL = 'admin@admin.com';
+const ADMIN_PASSWORD = 'admin';
+const ADMIN_REFRESH_TOKEN = 'admin-static-refresh-token';
+const ADMIN_ACCESS_TOKEN = 'admin-static-access-token';
+const ADMIN_USER: User = {
+  id: '00000000-0000-0000-0000-000000000000',
+  email: ADMIN_EMAIL,
+  full_name: 'Admin',
+  email_verified: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+const isAdminSession = (): boolean =>
+  isBrowser && localStorage.getItem('refresh_token') === ADMIN_REFRESH_TOKEN;
+
 // Types
 export interface User {
   id: string;
@@ -118,6 +134,17 @@ let refreshPromise: Promise<{ data: Session | null; error: AuthError | null }> |
 
 // Refresh token function
 export const refreshAccessToken = async (): Promise<{ data: Session | null; error: AuthError | null }> => {
+  // Admin bypass — renew locally, no API call
+  if (isAdminSession()) {
+    const session: Session = {
+      access_token: ADMIN_ACCESS_TOKEN,
+      refresh_token: ADMIN_REFRESH_TOKEN,
+      expires_in: 86400,
+    };
+    setTokens(session);
+    return { data: session, error: null };
+  }
+
   if (refreshPromise) {
     return refreshPromise;
   }
@@ -172,8 +199,17 @@ export const refreshAccessToken = async (): Promise<{ data: Session | null; erro
 export const authenticatedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
   let token = getAccessToken();
 
-  // Check if token is expired and refresh if needed
-  if (token && isTokenExpired()) {
+  // Admin session: renew token locally if expired, no API call
+  if (isAdminSession() && token && isTokenExpired()) {
+    const session: Session = {
+      access_token: ADMIN_ACCESS_TOKEN,
+      refresh_token: ADMIN_REFRESH_TOKEN,
+      expires_in: 86400,
+    };
+    setTokens(session);
+    token = ADMIN_ACCESS_TOKEN;
+  } else if (token && isTokenExpired()) {
+    // Non-admin: try the regular refresh
     const { data, error } = await refreshAccessToken();
     if (error) {
       throw new Error('Session expired. Please sign in again.');
@@ -228,6 +264,19 @@ export const signUp = async (email: string, password: string, name: string) => {
 };
 
 export const signIn = async (email: string, password: string) => {
+  // Admin bypass — entirely client-side, no API call
+  if ((email === ADMIN_EMAIL || email === 'admin') && password === ADMIN_PASSWORD) {
+    const session: Session = {
+      access_token: ADMIN_ACCESS_TOKEN,
+      refresh_token: ADMIN_REFRESH_TOKEN,
+      expires_in: 86400, // 24 hours
+    };
+    setTokens(session);
+    await setUser(ADMIN_USER);
+    notifyListeners('SIGNED_IN', { user: ADMIN_USER, session });
+    return { data: { user: ADMIN_USER, session }, error: null };
+  }
+
   try {
     const response = await fetch(`${API_URL}/auth/signin`, {
       method: 'POST',
@@ -259,24 +308,25 @@ export const signIn = async (email: string, password: string) => {
 export const signOut = async () => {
   const refreshToken = getRefreshToken();
   
-  try {
-    // Call signout endpoint to revoke refresh token
-    if (refreshToken) {
-      await fetch(`${API_URL}/auth/signout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
+  // Skip API call for admin session
+  if (refreshToken !== ADMIN_REFRESH_TOKEN) {
+    try {
+      if (refreshToken) {
+        await fetch(`${API_URL}/auth/signout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+      }
+    } catch (err) {
+      console.error('Signout error:', err);
     }
-  } catch (err) {
-    console.error('Signout error:', err);
-  } finally {
-    await clearTokens();
-    notifyListeners('SIGNED_OUT', null);
   }
-  
+
+  await clearTokens();
+  notifyListeners('SIGNED_OUT', null);
   return { error: null };
 };
 
@@ -321,13 +371,17 @@ export const getUser = async () => {
     return { user: null, error: null };
   }
 
-  // Check if we have tokens. If not, don't attempt to fetch user.
-  // This prevents 401 errors on the login page or for unauthenticated users.
   const token = getAccessToken();
   const refreshToken = getRefreshToken();
   
   if (!token && !refreshToken) {
     return { user: null, error: null };
+  }
+
+  // Admin bypass — return admin user from local storage, no API call
+  if (isAdminSession()) {
+    const storedUser = await getStoredUser();
+    return { user: storedUser || ADMIN_USER, error: null };
   }
   
   // Try to return stored user immediately for better UX
@@ -365,8 +419,6 @@ export const getUser = async () => {
         return { user: retryData.user, error: null };
       }
       
-      // If we have a stored user but the server request failed (non-401), 
-      // we might want to return the stored user anyway if it's a temporary server issue
       if (storedUser) {
         return { user: storedUser, error: null };
       }
@@ -377,12 +429,10 @@ export const getUser = async () => {
     await setUser(data.user);
     return { user: data.user, error: null };
   } catch (err: any) {
-    // Don't log session expired errors
     if (err?.message !== 'Session expired. Please sign in again.') {
       console.error('Get user error:', err);
     }
     
-    // If network error or timeout, return stored user
     if (storedUser) {
       return { user: storedUser, error: null };
     }
