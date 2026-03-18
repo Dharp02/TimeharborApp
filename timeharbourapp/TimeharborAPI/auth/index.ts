@@ -3,21 +3,9 @@ import { db } from '../db';
 
 const API_URL = getApiUrl();
 
-// Hardcoded admin bypass — no backend required
-const ADMIN_EMAIL = 'admin@admin.com';
-const ADMIN_PASSWORD = 'admin';
+// Admin refresh token — used to skip server-side revocation on sign-out
+// (no DB record exists for admin sessions)
 const ADMIN_REFRESH_TOKEN = 'admin-static-refresh-token';
-const ADMIN_ACCESS_TOKEN = 'admin-static-access-token';
-const ADMIN_USER: User = {
-  id: '00000000-0000-0000-0000-000000000000',
-  email: ADMIN_EMAIL,
-  full_name: 'Admin',
-  email_verified: true,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-const isAdminSession = (): boolean =>
-  isBrowser && localStorage.getItem('refresh_token') === ADMIN_REFRESH_TOKEN;
 
 // Types
 export interface User {
@@ -134,17 +122,6 @@ let refreshPromise: Promise<{ data: Session | null; error: AuthError | null }> |
 
 // Refresh token function
 export const refreshAccessToken = async (): Promise<{ data: Session | null; error: AuthError | null }> => {
-  // Admin bypass — renew locally, no API call
-  if (isAdminSession()) {
-    const session: Session = {
-      access_token: ADMIN_ACCESS_TOKEN,
-      refresh_token: ADMIN_REFRESH_TOKEN,
-      expires_in: 86400,
-    };
-    setTokens(session);
-    return { data: session, error: null };
-  }
-
   if (refreshPromise) {
     return refreshPromise;
   }
@@ -199,17 +176,7 @@ export const refreshAccessToken = async (): Promise<{ data: Session | null; erro
 export const authenticatedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
   let token = getAccessToken();
 
-  // Admin session: renew token locally if expired, no API call
-  if (isAdminSession() && token && isTokenExpired()) {
-    const session: Session = {
-      access_token: ADMIN_ACCESS_TOKEN,
-      refresh_token: ADMIN_REFRESH_TOKEN,
-      expires_in: 86400,
-    };
-    setTokens(session);
-    token = ADMIN_ACCESS_TOKEN;
-  } else if (token && isTokenExpired()) {
-    // Non-admin: try the regular refresh
+  if (token && isTokenExpired()) {
     const { data, error } = await refreshAccessToken();
     if (error) {
       throw new Error('Session expired. Please sign in again.');
@@ -264,19 +231,6 @@ export const signUp = async (email: string, password: string, name: string) => {
 };
 
 export const signIn = async (email: string, password: string) => {
-  // Admin bypass — entirely client-side, no API call
-  if ((email === ADMIN_EMAIL || email === 'admin') && password === ADMIN_PASSWORD) {
-    const session: Session = {
-      access_token: ADMIN_ACCESS_TOKEN,
-      refresh_token: ADMIN_REFRESH_TOKEN,
-      expires_in: 86400, // 24 hours
-    };
-    setTokens(session);
-    await setUser(ADMIN_USER);
-    notifyListeners('SIGNED_IN', { user: ADMIN_USER, session });
-    return { data: { user: ADMIN_USER, session }, error: null };
-  }
-
   try {
     const response = await fetch(`${API_URL}/auth/signin`, {
       method: 'POST',
@@ -378,12 +332,6 @@ export const getUser = async () => {
     return { user: null, error: null };
   }
 
-  // Admin bypass — return admin user from local storage, no API call
-  if (isAdminSession()) {
-    const storedUser = await getStoredUser();
-    return { user: storedUser || ADMIN_USER, error: null };
-  }
-  
   // Try to return stored user immediately for better UX
   const storedUser = await getStoredUser();
   

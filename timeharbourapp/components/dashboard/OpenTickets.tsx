@@ -5,9 +5,7 @@ import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { Button, Input, Textarea } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
-import PulseButton from '@/components/dashboard/PulseButton';
 import { Modal } from '@/components/ui/Modal';
-import { useTeam } from './TeamContext';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
@@ -30,7 +28,6 @@ const getUserInitials = (name?: string, email?: string) => {
 
 export default function OpenTickets() {
   const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
-  const { currentTeam } = useTeam();
   const { addActivity } = useActivityLog();
   const { register, lastRefreshed } = useRefresh();
 
@@ -51,9 +48,7 @@ export default function OpenTickets() {
 
   const fetchTickets = useCallback(async () => {
     try {
-      const fetchedTickets = currentTeam?.id
-        ? await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' })
-        : await ticketsApi.getPersonalTickets({ sort: 'recent', status: 'open' });
+      const fetchedTickets = await ticketsApi.getPersonalTickets({ sort: 'recent', status: 'open' });
       if (isMountedRef.current) {
         setTickets(fetchedTickets);
         db.tickets.bulkPut(fetchedTickets as any).catch(() => {});
@@ -63,13 +58,13 @@ export default function OpenTickets() {
     } finally {
       if (isMountedRef.current) setIsLoading(false);
     }
-  }, [currentTeam?.id]);
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
 
-    // Read Dexie cache immediately — tickets appear instantly on repeat visits
-    const cacheTeamId = currentTeam?.id || PERSONAL_TEAM_ID;
+    // Read Dexie cache immediately
+    const cacheTeamId = PERSONAL_TEAM_ID;
     db.tickets
       .where('teamId').equals(cacheTeamId)
       .filter(t => t.status === 'Open' || t.status === 'In Progress')
@@ -94,7 +89,7 @@ export default function OpenTickets() {
       unregister();
       window.removeEventListener('pull-to-refresh', handleRefresh);
     };
-  }, [currentTeam?.id, register, lastRefreshed, fetchTickets]);
+  }, [register, lastRefreshed, fetchTickets]);
 
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
@@ -120,7 +115,7 @@ export default function OpenTickets() {
         setIsModalOpen(true);
       } else {
         // Just starting a new ticket
-        toggleTicketTimer(ticketId, ticketTitle, currentTeam?.id);
+        toggleTicketTimer(ticketId, ticketTitle);
       }
     }
   };
@@ -133,7 +128,7 @@ export default function OpenTickets() {
       toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined);
     } else {
       // Switch to a new ticket
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment || undefined, link || undefined);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined);
     }
 
     setIsModalOpen(false);
@@ -162,7 +157,7 @@ export default function OpenTickets() {
           </Button>
           <Button
             onClick={() => {
-              toggleSession(currentTeam?.id);
+              toggleSession();
               setShowClockInWarning(false);
             }}
           >
@@ -178,7 +173,6 @@ export default function OpenTickets() {
           <div className="flex gap-2">
             <Link href="/dashboard/tickets/create">
               <Button
-                disabled={!currentTeam}
                 className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
                 aria-label="Create new ticket"
               >
@@ -234,9 +228,6 @@ export default function OpenTickets() {
               <span className="hidden md:inline-block text-xs font-medium px-2 py-1 bg-white dark:bg-gray-600 rounded-md border border-gray-200 dark:border-gray-500 text-gray-600 dark:text-gray-300">
                 {ticket.status}
               </span>
-              {currentTeam && (
-                <PulseButton teamId={currentTeam.id} ticketId={ticket.id} />
-              )}
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                 <Button 
                   variant="ghost"

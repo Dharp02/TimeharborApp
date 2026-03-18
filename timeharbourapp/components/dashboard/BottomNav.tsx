@@ -1,16 +1,14 @@
 'use client';
 
-import { Home, Users, Clock, Ticket, Menu, Coffee } from 'lucide-react';
+import { Home, Clock, Ticket, CalendarDays, UserCircle, Coffee } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useClockIn } from './ClockInContext';
-import { useTeam } from './TeamContext';
 import { Button } from '@mieweb/ui';
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { isSessionActive, isOnBreak, sessionDuration, sessionFormat, toggleSession, resumeFromBreak } = useClockIn();
-  const { refreshTeams, currentTeam } = useTeam();
 
   const isActive = (path: string) => {
     if (path === '/dashboard') return pathname === '/dashboard';
@@ -35,27 +33,26 @@ export default function BottomNav() {
             isActive('/dashboard') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
           }`}>Home</span>
         </Link>
-        
+
         <Link
-          href="/dashboard/teams"
-          onClick={() => refreshTeams()}
+          href="/dashboard/tickets"
           className="flex flex-col items-center justify-center w-full h-full"
         >
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
-            isActive('/dashboard/teams') 
+            isActive('/dashboard/tickets') 
               ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
-            <Users className="w-6 h-6" />
+            <Ticket className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard/teams') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
-          }`}>Teams</span>
+            isActive('/dashboard/tickets') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
+          }`}>Tickets</span>
         </Link>
 
         <div className="relative -top-5">
           <Button 
-            onClick={() => isOnBreak ? resumeFromBreak() : toggleSession(currentTeam?.id)}
+            onClick={() => isOnBreak ? resumeFromBreak() : toggleSession()}
             className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-white dark:ring-gray-800 ${
               isOnBreak
                 ? 'bg-amber-400 hover:bg-amber-500 w-16 h-16'
@@ -83,19 +80,19 @@ export default function BottomNav() {
         </div>
 
         <Link
-          href="/dashboard/tickets"
+          href="/dashboard/settings/timesheet"
           className="flex flex-col items-center justify-center w-full h-full"
         >
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
-            isActive('/dashboard/tickets') 
+            isActive('/dashboard/settings/timesheet') 
               ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
-            <Ticket className="w-6 h-6" />
+            <CalendarDays className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard/tickets') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
-          }`}>Ticket</span>
+            isActive('/dashboard/settings/timesheet') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
+          }`}>Timesheet</span>
         </Link>
 
         <Link
@@ -103,15 +100,15 @@ export default function BottomNav() {
           className="flex flex-col items-center justify-center w-full h-full"
         >
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
-            isActive('/dashboard/settings') 
+            isActive('/dashboard/settings') && !pathname?.startsWith('/dashboard/settings/timesheet')
               ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
-            <Menu className="w-6 h-6" />
+            <UserCircle className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard/settings') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
-          }`}>Menu</span>
+            isActive('/dashboard/settings') && !pathname?.startsWith('/dashboard/settings/timesheet') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
+          }`}>Profile</span>
         </Link>
       </div>
     </div>

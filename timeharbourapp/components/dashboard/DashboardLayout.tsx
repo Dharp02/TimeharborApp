@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
 // Isolated component — only this tiny subtree de-opts for useSearchParams.
@@ -11,28 +11,22 @@ function MemberName() {
 }
 import Header from './Header';
 import BottomNav from './BottomNav';
-import TeamSelectionModal from './TeamSelectionModal';
 import { ClockInProvider } from './ClockInContext';
 import DesktopFooter from './DesktopFooter';
-import { ChevronLeft, Users, Plus } from 'lucide-react';
-import { useTeam } from './TeamContext';
+import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import ProfileAvatarMenu from './ProfileAvatarMenu';
 import PullToRefresh from '@/components/ui/PullToRefresh';
 import { Button } from '@mieweb/ui';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { currentTeam, isLoading } = useTeam();
   const { user } = useAuth();
-  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
-  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   const getHeaderTitle = () => {
     if (!pathname) return 'Timeharbor';
-    if (pathname.startsWith('/dashboard/teams')) return 'Teams';
+
     if (pathname === '/dashboard/tickets/create') return 'New Ticket';
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
     if (pathname.startsWith('/dashboard/activity')) return 'All Activity';
@@ -61,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     
     // Explicitly hide back button on main tab pages
-    const mainTabs = ['/dashboard', '/dashboard/teams', '/dashboard/tickets', '/dashboard/settings', '/dashboard/notifications'];
+    const mainTabs = ['/dashboard', '/dashboard/tickets', '/dashboard/settings', '/dashboard/notifications'];
     if (mainTabs.includes(normalizedPath)) return false;
 
     return pathname.startsWith('/dashboard/member') || pathname.startsWith('/dashboard/settings') || pathname.startsWith('/dashboard/notifications') || pathname.startsWith('/dashboard/activity') || pathname.startsWith('/dashboard/tickets/');
@@ -74,11 +68,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.back();
     }
   };
-
-
-  useEffect(() => {
-    // Don't force the modal — users can use the app in personal mode without a team
-  }, [currentTeam, isLoading]);
 
   // Scroll to top on route change
   useEffect(() => {
@@ -103,16 +92,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ClockInProvider>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <TeamSelectionModal 
-          isOpen={isTeamModalOpen}
-          onClose={() => setIsTeamModalOpen(false)}
-        />
-
         {/* Desktop Header */}
-        <Header 
-          onTeamSwitch={() => setIsTeamModalOpen(true)} 
-          currentTeamName={currentTeam?.name || null}
-        />
+        <Header />
 
         {/* Mobile Header */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-16 flex justify-between items-center">
@@ -134,11 +115,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </h1>
           </div>
           <div className="flex items-center gap-2">
+<<<<<<< HEAD
             <div className={`text-right mr-1 ${currentTeam ? '' : 'invisible'}`}>
               <div className="text-xs text-gray-500 dark:text-gray-400 leading-none">Team</div>
               <div className="text-sm font-semibold text-gray-900 dark:text-white leading-tight truncate max-w-[120px]">{currentTeam?.name ?? ''}</div>
             </div>
             <ProfileAvatarMenu onTeamSwitchClick={() => setIsTeamModalOpen(true)} />
+=======
+            <ProfileAvatarMenu />
+>>>>>>> 2b98ea1 (removed teams dependency code from most of the components)
           </div>
         </div>
 

@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useTeam } from './TeamContext';
 import { useSocket } from '@/contexts/SocketContext';
 import * as API from '@/TimeharborAPI';
 import { db } from '@/TimeharborAPI/db';
-import Link from 'next/link';
 import { formatDurationMs } from '@/lib/formatDuration';
 
 interface DashboardStats {
@@ -13,7 +11,6 @@ interface DashboardStats {
   totalHoursWeek: string;
   totalMsToday: number;
   totalMsWeek: number;
-  teamMembers: number;
 }
 
 const DEFAULT_STATS: DashboardStats = {
@@ -21,21 +18,17 @@ const DEFAULT_STATS: DashboardStats = {
   totalHoursWeek: '0h 0m',
   totalMsToday: 0,
   totalMsWeek: 0,
-  teamMembers: 0,
 };
 
 export default function DashboardSummary() {
-  const { currentTeam } = useTeam();
   const { socket } = useSocket();
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
   const [loading, setLoading] = useState(true);
 
-  const onlineCount = currentTeam?.members?.filter(m => m.status === 'online').length || 0;
-
   // Fetch fresh stats from backend and update Dexie + state
-  const refreshFromBackend = async (teamId?: string) => {
+  const refreshFromBackend = async () => {
     try {
-      const data = await API.dashboard.getStats(teamId);
+      const data = await API.dashboard.getStats();
       setStats({
         ...data,
         totalMsToday: data.totalMsToday ?? 0,
@@ -47,9 +40,9 @@ export default function DashboardSummary() {
   };
 
   useEffect(() => {
-    const cacheKey = currentTeam?.id || '__personal__';
+    const cacheKey = '__personal__';
 
-    // 1. Read Dexie cache immediately — no spinner if data exists
+    // 1. Read Dexie cache immediately
     db.dashboardStats.get(cacheKey).then((cached: any) => {
       if (cached?.data) {
         setStats(cached.data);
@@ -57,21 +50,21 @@ export default function DashboardSummary() {
       setLoading(false);
 
       // 2. Always fetch fresh from backend in background
-      refreshFromBackend(currentTeam?.id);
+      refreshFromBackend();
     }).catch(() => {
       setLoading(false);
-      refreshFromBackend(currentTeam?.id);
+      refreshFromBackend();
     });
 
     // 3. Re-fetch on clock events (clock-in / clock-out)
-    const handleStatsRefresh = () => refreshFromBackend(currentTeam?.id);
+    const handleStatsRefresh = () => refreshFromBackend();
     window.addEventListener('dashboard-stats-refresh', handleStatsRefresh);
     return () => window.removeEventListener('dashboard-stats-refresh', handleStatsRefresh);
-  }, [currentTeam?.id]);
+  }, []);
 
-  // 4. Live update via WebSocket — backend pushes fresh totals after each sync
+  // 4. Live update via WebSocket
   useEffect(() => {
-    if (!socket || !currentTeam?.id) return;
+    if (!socket) return;
     const handleStatsUpdated = (payload: {
       teamId: string | null;
       totalHoursToday: string;
@@ -79,7 +72,6 @@ export default function DashboardSummary() {
       totalMsToday?: number;
       totalMsWeek?: number;
     }) => {
-      if (payload.teamId !== currentTeam.id && payload.teamId !== null) return;
       setStats(prev => ({
         ...prev,
         totalHoursToday: payload.totalHoursToday,
@@ -87,31 +79,15 @@ export default function DashboardSummary() {
         totalMsToday: payload.totalMsToday ?? prev.totalMsToday,
         totalMsWeek: payload.totalMsWeek ?? prev.totalMsWeek,
       }));
-      // Also update Dexie cache so next page load is instant
-      db.dashboardStats.get(currentTeam.id).then((cached: any) => {
-        if (cached) {
-          db.dashboardStats.put({
-            ...cached,
-            data: {
-              ...cached.data,
-              totalHoursToday: payload.totalHoursToday,
-              totalHoursWeek: payload.totalHoursWeek,
-              totalMsToday: payload.totalMsToday,
-              totalMsWeek: payload.totalMsWeek,
-            },
-            updatedAt: Date.now()
-          });
-        }
-      });
     };
     socket.on('stats_updated', handleStatsUpdated);
     return () => { socket.off('stats_updated', handleStatsUpdated); };
-  }, [socket, currentTeam?.id]);
+  }, [socket]);
 
   if (loading) {
     return (
-      <div className="grid grid-cols-3 gap-3 md:gap-6 animate-pulse">
-        {[...Array(3)].map((_, i) => (
+      <div className="grid grid-cols-2 gap-3 md:gap-6 animate-pulse">
+        {[...Array(2)].map((_, i) => (
           <div key={i} className="h-32 bg-gray-100 dark:bg-gray-800 rounded-xl" />
         ))}
       </div>
@@ -119,7 +95,7 @@ export default function DashboardSummary() {
   }
 
   return (
-    <div className="grid grid-cols-3 gap-3 md:gap-6">
+    <div className="grid grid-cols-2 gap-3 md:gap-6">
       <div className="p-3 md:p-6 bg-primary-50 dark:bg-primary-900/20 rounded-xl border border-primary-100 dark:border-primary-800 flex flex-col justify-between">
         <div>
           <h3 className="text-xs md:text-lg font-semibold text-primary-900 dark:text-primary-100 mb-1 md:mb-2 truncate">
@@ -143,18 +119,6 @@ export default function DashboardSummary() {
         </div>
         <p className="text-[10px] md:text-sm text-primary-600/60 dark:text-primary-400/60 mt-1 truncate">Total hours</p>
       </div>
-
-      <Link href="/dashboard/teams" className="block">
-        <div className="p-3 md:p-6 bg-primary-50 dark:bg-primary-900/20 rounded-xl border border-primary-100 dark:border-primary-800 flex flex-col justify-between cursor-pointer hover:shadow-lg transition-shadow">
-          <div>
-            <h3 className="text-xs md:text-lg font-semibold text-primary-900 dark:text-primary-100 mb-1 md:mb-2">
-              Team Members
-            </h3>
-            <p className="text-lg md:text-3xl font-bold text-primary-600 dark:text-primary-400 truncate">{onlineCount}</p>
-          </div>
-          <p className="text-[10px] md:text-sm text-primary-600/60 dark:text-primary-400/60 mt-1 truncate">Online now</p>
-        </div>
-      </Link>
     </div>
   );
 }

@@ -27,14 +27,13 @@ type ClockInContextType = {
   // Ticket Timer
   activeTicketId: string | null;
   activeTicketTitle: string | null;
-  activeTicketTeamId: string | null;
   ticketStartTime: number | null;
   ticketDuration: string;
   ticketFormat: string;
   ticketDurations: Record<string, number>;
 
   // Actions
-  toggleSession: (teamId?: string) => void;
+  toggleSession: () => void;
   resumeFromBreak: () => void;
   toggleTicketTimer: (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string) => void;
   getFormattedTotalTime: (ticketId: string) => string;
@@ -69,18 +68,15 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [isStopTicketModalOpen, setIsStopTicketModalOpen] = useState(false);
   const [stopTicketComment, setStopTicketComment] = useState('');
   const [stopTicketLink, setStopTicketLink] = useState('');
-  const [pendingSessionStopTeamId, setPendingSessionStopTeamId] = useState<string | undefined>(undefined);
 
   // Clock-In Ticket Prompt State
   const [isClockInPromptOpen, setIsClockInPromptOpen] = useState(false);
-  const [clockInPromptTeamId, setClockInPromptTeamId] = useState<string | undefined>(undefined);
   const [clockInTickets, setClockInTickets] = useState<TicketType[]>([]);
   const [clockInTicketsLoading, setClockInTicketsLoading] = useState(false);
 
   // Ticket State
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const [activeTicketTitle, setActiveTicketTitle] = useState<string | null>(null);
-  const [activeTicketTeamId, setActiveTicketTeamId] = useState<string | null>(null);
   const [ticketStartTime, setTicketStartTime] = useState<number | null>(null);
   const [ticketBreakMs, setTicketBreakMs] = useState(0); // Break time accumulated while this ticket was active
   const [ticketDuration, setTicketDuration] = useState('00:00');
@@ -93,7 +89,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     const storedTicketStart = localStorage.getItem('ticketStartTime');
     const storedTicketId = localStorage.getItem('activeTicketId');
     const storedTicketTitle = localStorage.getItem('activeTicketTitle');
-    const storedTicketTeamId = localStorage.getItem('activeTicketTeamId');
     const storedDurations = localStorage.getItem('ticketDurations');
     
     if (storedSessionStart) {
@@ -115,7 +110,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       setTicketStartTime(parseInt(storedTicketStart, 10));
       setActiveTicketId(storedTicketId);
       if (storedTicketTitle) setActiveTicketTitle(storedTicketTitle);
-      if (storedTicketTeamId) setActiveTicketTeamId(storedTicketTeamId);
     }
 
     if (storedDurations) {
@@ -148,7 +142,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       setTotalBreakMs(0);
       setActiveTicketId(null);
       setActiveTicketTitle(null);
-      setActiveTicketTeamId(null);
       setTicketStartTime(null);
       setTicketBreakMs(0);
       localStorage.removeItem('sessionStartTime');
@@ -156,7 +149,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('totalBreakMs');
       localStorage.removeItem('activeTicketId');
       localStorage.removeItem('activeTicketTitle');
-      localStorage.removeItem('activeTicketTeamId');
       localStorage.removeItem('ticketStartTime');
       localStorage.removeItem('ticketBreakMs');
     };
@@ -230,11 +222,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         if (activeTicketId && isCurrentTicketStopped && !isSwitchingTicketRef.current) {
           setActiveTicketId(null);
           setActiveTicketTitle(null);
-          setActiveTicketTeamId(null);
           setTicketStartTime(null);
           localStorage.removeItem('activeTicketId');
           localStorage.removeItem('activeTicketTitle');
-          localStorage.removeItem('activeTicketTeamId');
           localStorage.removeItem('ticketStartTime');
         }
       }
@@ -324,9 +314,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     });
     setBreakActivityId(breakId);
     if (user?.id) {
-      // Use the team from the active ticket or the pending stop team
-      const teamId = activeTicketTeamId || pendingSessionStopTeamId || null;
-      await localTimeStore.breakStart(user.id, teamId);
+      await localTimeStore.breakStart(user.id, null);
     }
   };
 
@@ -367,14 +355,12 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       duration: '0m',
     });
     if (user?.id) {
-      const teamId = activeTicketTeamId || pendingSessionStopTeamId || null;
-      await localTimeStore.breakEnd(user.id, teamId);
+      await localTimeStore.breakEnd(user.id, null);
     }
   };
 
   const proceedToClockOut = async () => {
     if (!user?.id) return;
-    const teamId = pendingSessionStopTeamId;
     setIsSessionOptionsOpen(false);
 
     // If on break, end it first so break time is counted
@@ -390,7 +376,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     // Check if ticket is running
     if (activeTicketId) {
-      setPendingSessionStopTeamId(teamId);
       setIsStopTicketModalOpen(true);
       return;
     }
@@ -419,13 +404,13 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       duration: durationStr
     });
 
-    await localTimeStore.clockOut(user.id, null, teamId || null);
+    await localTimeStore.clockOut(user.id, null, null);
     await syncManager.syncNow();
     window.dispatchEvent(new Event('pull-to-refresh'));
     window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
   };
 
-  const toggleSession = async (teamId?: string) => {
+  const toggleSession = async () => {
     if (!user?.id) {
       console.error('Cannot toggle session: User not logged in');
       return;
@@ -433,7 +418,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     if (isSessionActive) {
       // Open the Take a Break / Clock Out options modal
-      setPendingSessionStopTeamId(teamId);
       setIsSessionOptionsOpen(true);
       return;
     } else {
@@ -452,7 +436,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         startTime: now.toISO() || new Date().toISOString()
       });
 
-      await localTimeStore.clockIn(user.id, teamId || null);
+      await localTimeStore.clockIn(user.id, null);
 
       // Attempt to sync immediately
       await syncManager.syncNow();
@@ -461,19 +445,16 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       window.dispatchEvent(new Event('pull-to-refresh'));
 
       // Prompt user to start or create a ticket
-      setClockInPromptTeamId(teamId);
       setIsClockInPromptOpen(true);
-      fetchClockInTickets(teamId);
+      fetchClockInTickets();
     }
   };
 
 
-  const fetchClockInTickets = async (teamId?: string) => {
+  const fetchClockInTickets = async () => {
     setClockInTicketsLoading(true);
     try {
-      const fetched = teamId
-        ? await ticketsApi.getTickets(teamId, { sort: 'recent', status: 'open' })
-        : await ticketsApi.getPersonalTickets({ sort: 'recent', status: 'open' });
+      const fetched = await ticketsApi.getPersonalTickets({ sort: 'recent', status: 'open' });
       setClockInTickets(fetched);
     } catch {
       setClockInTickets([]);
@@ -484,7 +465,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
   const handleClockInTicketSelect = (ticketId: string, ticketTitle: string) => {
     setIsClockInPromptOpen(false);
-    toggleTicketTimer(ticketId, ticketTitle, clockInPromptTeamId);
+    toggleTicketTimer(ticketId, ticketTitle);
   };
 
   const dismissClockInPrompt = () => {
@@ -525,16 +506,14 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       });
 
       // Stop the ticket
-      await localTimeStore.stopTicket(user.id, activeTicketId, stopTicketComment, activeTicketTeamId, stopTicketLink || null);
+      await localTimeStore.stopTicket(user.id, activeTicketId, stopTicketComment, null, stopTicketLink || null);
 
       setActiveTicketId(null);
       setActiveTicketTitle(null);
-      setActiveTicketTeamId(null);
       setTicketStartTime(null);
       setTicketBreakMs(0);
       localStorage.removeItem('activeTicketId');
       localStorage.removeItem('activeTicketTitle');
-      localStorage.removeItem('activeTicketTeamId');
       localStorage.removeItem('ticketStartTime');
       localStorage.removeItem('ticketBreakMs');
     }
@@ -567,7 +546,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         duration: durationStr
     });
 
-    await localTimeStore.clockOut(user.id, null, pendingSessionStopTeamId || null);
+    await localTimeStore.clockOut(user.id, null, null);
 
     // Attempt to sync immediately
     await syncManager.syncNow();
@@ -579,7 +558,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setIsStopTicketModalOpen(false);
     setStopTicketComment('');
     setStopTicketLink('');
-    setPendingSessionStopTeamId(undefined);
 
     // 🔄 FORCE REFRESH DASHBOARD STATS
     // This event listener should be picked up by DashboardSummary to refetch API
@@ -590,7 +568,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setIsStopTicketModalOpen(false);
     setStopTicketComment('');
     setStopTicketLink('');
-    setPendingSessionStopTeamId(undefined);
   };
 
 
@@ -635,17 +612,15 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      await localTimeStore.stopTicket(user.id, ticketId, comment, activeTicketTeamId, link || null);
+      await localTimeStore.stopTicket(user.id, ticketId, comment, null, link || null);
 
       // Clear active ticket state
       setActiveTicketId(null);
       setActiveTicketTitle(null);
-      setActiveTicketTeamId(null);
       setTicketStartTime(null);
       setTicketBreakMs(0);
       localStorage.removeItem('activeTicketId');
       localStorage.removeItem('activeTicketTitle');
-      localStorage.removeItem('activeTicketTeamId');
       localStorage.removeItem('ticketStartTime');
       localStorage.removeItem('ticketBreakMs');
     } else {
@@ -681,12 +656,12 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         });
 
         // Stop the previous ticket
-        await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId, link || null);
+        await localTimeStore.stopTicket(user.id, activeTicketId, comment, null, link || null);
       } else if (activeTicketId) {
-        await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId, link || null);
+        await localTimeStore.stopTicket(user.id, activeTicketId, comment, null, link || null);
       }
 
-      await localTimeStore.startTicket(user.id, ticketId, ticketTitle, teamId || null);
+      await localTimeStore.startTicket(user.id, ticketId, ticketTitle, null);
 
       addActivity({
         type: 'SESSION',
@@ -700,12 +675,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       // Start new ticket state (reset break accumulator for the new ticket)
       setActiveTicketId(ticketId);
       setActiveTicketTitle(ticketTitle);
-      setActiveTicketTeamId(teamId || null);
       setTicketStartTime(now.toMillis());
       setTicketBreakMs(0);
       localStorage.setItem('activeTicketId', ticketId);
       localStorage.setItem('activeTicketTitle', ticketTitle);
-      if (teamId) localStorage.setItem('activeTicketTeamId', teamId);
       localStorage.setItem('ticketStartTime', now.toMillis().toString());
       localStorage.removeItem('ticketBreakMs');
       isSwitchingTicketRef.current = false; // Handoff complete, allow useEffect again
@@ -745,7 +718,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       sessionFormat,
       activeTicketId, 
       activeTicketTitle,
-      activeTicketTeamId,
       ticketStartTime,
       ticketDuration,
       ticketFormat,
@@ -815,7 +787,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             <div className="text-center py-6 text-sm text-gray-400">Loading tickets…</div>
           ) : clockInTickets.length === 0 ? (
             <div className="text-center py-4 text-sm text-gray-400">
-              {clockInPromptTeamId ? 'No open tickets found.' : 'Select a team to see tickets.'}
+              No open tickets found.
             </div>
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">

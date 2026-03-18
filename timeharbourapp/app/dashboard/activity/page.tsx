@@ -8,11 +8,9 @@ import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPres
 import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
 import { Activity, fetchActivitiesByDateRange } from '@/TimeharborAPI/dashboard';
 import { useRefresh } from '../../../contexts/RefreshContext';
-import { useTeam } from '@/components/dashboard/TeamContext';
 import { useSocket } from '@/contexts/SocketContext';
 
 export default function ActivityPage() {
-  const { currentTeam } = useTeam();
   const { socket } = useSocket();
   const { register } = useRefresh();
   const [visibleCount, setVisibleCount] = useState(20);
@@ -24,13 +22,11 @@ export default function ActivityPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Always fetch from work_logs (the source of truth) for all date presets, including today.
   const fetchData = useCallback(async (from: DateTime, to: DateTime) => {
-    if (!currentTeam?.id) return;
     setIsLoading(true);
     try {
       const data = await fetchActivitiesByDateRange(
-        currentTeam.id,
+        '',
         from.toISO() || '',
         to.toISO() || '',
       );
@@ -40,7 +36,7 @@ export default function ActivityPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentTeam?.id]);
+  }, []);
 
   // Fetch on mount, date range change, or refresh
   useEffect(() => {

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useTeam } from '@/components/dashboard/TeamContext';
 import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
 import { DateTime } from 'luxon';
 import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
@@ -12,7 +11,6 @@ import { useRefresh } from '../../../../contexts/RefreshContext';
 import { useSocket } from '@/contexts/SocketContext';
 
 export default function TimesheetPage() {
-  const { currentTeam } = useTeam();
   const { register, lastRefreshed } = useRefresh();
   const { isOnline } = useSocket();
   const [dateRange, setDateRange] = useState<LuxonDateRange>({ 
@@ -48,11 +46,11 @@ export default function TimesheetPage() {
       try {
         const [acts, totals] = await Promise.all([
           fetchActivitiesByDateRange(
-            currentTeam?.id || '',
+            '',
             dateRange.from!.toISO() || '',
             dateRange.to!.toISO() || '',
           ),
-          getTimesheetTotals(from, to, currentTeam?.id),
+          getTimesheetTotals(from, to),
         ]);
         setActivities(acts);
         setTimesheetTotals(totals);
@@ -67,7 +65,7 @@ export default function TimesheetPage() {
 
     const unregister = register(loadData);
     return unregister;
-  }, [dateRange, currentTeam?.id, lastRefreshed, register]);
+  }, [dateRange, lastRefreshed, register]);
 
   const handleRangeChange = (range: { start: Date | null; end: Date | null }, presetKey?: string) => {
     setDateRange(resolveRange(range, presetKey));

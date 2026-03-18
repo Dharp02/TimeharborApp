@@ -1,18 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bell, ArrowRightLeft, Palette, Sun, Moon } from 'lucide-react';
+import { Bell, Palette, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button, ThemeToggle } from '@mieweb/ui';
 import BrandSwitcher from './BrandSwitcher';
 
-interface ProfileAvatarMenuProps {
-  onTeamSwitchClick: () => void;
-}
-
-export default function ProfileAvatarMenu({ onTeamSwitchClick }: ProfileAvatarMenuProps) {
+export default function ProfileAvatarMenu() {
   const { user } = useAuth();
   const { unreadCount } = useNotifications();
   const router = useRouter();
@@ -51,11 +47,6 @@ export default function ProfileAvatarMenu({ onTeamSwitchClick }: ProfileAvatarMe
     router.push('/dashboard/notifications');
   };
 
-  const handleTeamSwitchClick = () => {
-    setIsMenuOpen(false);
-    onTeamSwitchClick();
-  };
-
   return (
     <div className="relative" ref={menuRef}>
       {/* Avatar Circle */}
@@ -88,19 +79,6 @@ export default function ProfileAvatarMenu({ onTeamSwitchClick }: ProfileAvatarMe
               {unreadCount > 0 && (
                 <div className="text-xs text-gray-500 dark:text-gray-400">{unreadCount} unread</div>
               )}
-            </div>
-          </Button>
-
-          <Button
-            variant="ghost"
-            onClick={handleTeamSwitchClick}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-gray-700"
-          >
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <ArrowRightLeft className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-medium text-gray-900 dark:text-white">Switch Team</div>
             </div>
           </Button>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, Users, Ticket, Settings, LogOut, ArrowRightLeft } from 'lucide-react';
+import { Home, Ticket, Settings, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
@@ -8,12 +8,7 @@ import NotificationBell from './NotificationBell';
 import BrandSwitcher from './BrandSwitcher';
 import { Button, ThemeToggle } from '@mieweb/ui';
 
-interface HeaderProps {
-  onTeamSwitch: () => void;
-  currentTeamName: string | null;
-}
-
-export default function Header({ onTeamSwitch, currentTeamName }: HeaderProps) {
+export default function Header() {
   const pathname = usePathname();
   const isActive = (path: string) => pathname === path;
   
@@ -27,7 +22,6 @@ export default function Header({ onTeamSwitch, currentTeamName }: HeaderProps) {
 
   const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
-    { name: 'Teams', href: '/dashboard/teams', icon: Users },
     { name: 'Tickets', href: '/dashboard/tickets', icon: Ticket },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
@@ -66,16 +60,6 @@ export default function Header({ onTeamSwitch, currentTeamName }: HeaderProps) {
         {/* Notification Icon */}
         <NotificationBell isMobile={false} />
 
-        <Button
-          variant="outline"
-          onClick={onTeamSwitch}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors text-sm font-medium border border-gray-200 dark:border-gray-700"
-          title="Switch Team"
-        >
-          <ArrowRightLeft className="w-4 h-4" />
-          <span>{currentTeamName || 'Switch Team'}</span>
-        </Button>
-        
         <Button
           variant="ghost"
           onClick={handleSignOut}

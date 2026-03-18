@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Ticket, ArrowLeft, Check, X } from 'lucide-react';
-import { useTeam } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { CreateTicketData } from '@/TimeharborAPI/tickets';
@@ -15,7 +14,6 @@ import { Button, Input, Textarea, Select } from '@mieweb/ui';
 export default function CreateTicketPage() {
   const router = useRouter();
   const logger = useLogger();
-  const { currentTeam } = useTeam();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,11 +53,7 @@ export default function CreateTicketPage() {
         priority: newTicket.priority as any,
         link: newTicket.reference
       };
-      if (currentTeam) {
-        await ticketsApi.createTicket(currentTeam.id, ticketData);
-      } else {
-        await ticketsApi.createPersonalTicket(ticketData);
-      }
+      await ticketsApi.createPersonalTicket(ticketData);
       
       logger.log('Created Ticket', {
         subtitle: newTicket.title,

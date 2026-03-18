@@ -1,29 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, UserPlus, Trash2, User, ArrowRightLeft, Check, Edit2, ExternalLink, AlignLeft, X } from 'lucide-react';
+import { Plus, Search, Ticket, Play, Square, Filter, MoreHorizontal, Clock, Trash2, ArrowRightLeft, Check, Edit2, ExternalLink, X } from 'lucide-react';
 import { Button, Input, Textarea, Select } from '@mieweb/ui';
 import { useRouter } from 'next/navigation';
 import { useClockIn } from '@/components/dashboard/ClockInContext';
-import { useTeam } from '@/components/dashboard/TeamContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Modal } from '@/components/ui/Modal';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType, CreateTicketData, UpdateTicketData } from '@/TimeharborAPI/tickets';
 import { useLogger } from '@/hooks/useLogger';
 import { resolveGitHubUrl } from '@/lib/githubUrl';
-import PulseButton from '@/components/dashboard/PulseButton';
 
 export default function TicketsPage() {
   const logger = useLogger();
   const router = useRouter();
   const { isSessionActive, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
-  const { currentTeam } = useTeam();
   const { user } = useAuth();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -49,16 +45,12 @@ export default function TicketsPage() {
 
   useEffect(() => {
     loadTickets();
-  }, [currentTeam]);
-
-  const isPersonalMode = !currentTeam;
+  }, []);
 
   const loadTickets = async () => {
     setIsLoading(true);
     try {
-      const fetchedTickets = isPersonalMode
-        ? await ticketsApi.getPersonalTickets()
-        : await ticketsApi.getTickets(currentTeam!.id);
+      const fetchedTickets = await ticketsApi.getPersonalTickets();
       // Map API response to component state structure if needed, or use directly
       // The API returns TicketType, but the component uses a slightly different structure (assignee initials vs object)
       // Let's adapt the data
@@ -125,7 +117,7 @@ export default function TicketsPage() {
         setIsModalOpen(true);
       } else {
         // Just starting a new ticket
-        toggleTicketTimer(ticketId, ticketTitle, currentTeam?.id);
+        toggleTicketTimer(ticketId, ticketTitle);
       }
     }
   };
@@ -136,7 +128,7 @@ export default function TicketsPage() {
     if (modalType === 'stop') {
       toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment, link || undefined);
     } else {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment, link || undefined);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment, link || undefined);
     }
 
     setIsModalOpen(false);
@@ -156,11 +148,7 @@ export default function TicketsPage() {
           priority: newTicket.priority as any,
           link: newTicket.reference
         };
-        if (isPersonalMode) {
-          await ticketsApi.updatePersonalTicket(editingTicketId, updateData);
-        } else {
-          await ticketsApi.updateTicket(currentTeam!.id, editingTicketId, updateData);
-        }
+        await ticketsApi.updatePersonalTicket(editingTicketId, updateData);
         
         logger.log('Updated Ticket', {
           subtitle: newTicket.title,
@@ -176,11 +164,7 @@ export default function TicketsPage() {
           priority: newTicket.priority as any,
           link: newTicket.reference
         };
-        if (isPersonalMode) {
-          await ticketsApi.createPersonalTicket(ticketData);
-        } else {
-          await ticketsApi.createTicket(currentTeam!.id, ticketData);
-        }
+        await ticketsApi.createPersonalTicket(ticketData);
         
         logger.log('Created Ticket', {
           subtitle: newTicket.title,
@@ -219,37 +203,12 @@ export default function TicketsPage() {
     setIsDetailModalOpen(true);
   };
 
-  const handleAssignTicket = async (memberId: string, memberName: string) => {
-    if (selectedTicketForAction && currentTeam) {
-      try {
-        await ticketsApi.updateTicket(currentTeam.id, selectedTicketForAction.id, {
-          assignedTo: memberId
-        });
-        
-        logger.log('Assigned Ticket', {
-          subtitle: selectedTicketForAction.title,
-          description: `Assigned to ${memberName}`
-        });
 
-        setIsAssignModalOpen(false);
-        setSelectedTicketForAction(null);
-        setOpenMenuTicketId(null);
-        loadTickets();
-      } catch (error: any) {
-        console.error('Failed to assign ticket:', error);
-        alert(error.message || 'Failed to assign ticket');
-      }
-    }
-  };
 
   const handleStatusChange = async (newStatus: string) => {
     if (selectedTicketForAction) {
       try {
-        if (isPersonalMode) {
-          await ticketsApi.updatePersonalTicket(selectedTicketForAction.id, { status: newStatus as any });
-        } else {
-          await ticketsApi.updateTicket(currentTeam!.id, selectedTicketForAction.id, { status: newStatus as any });
-        }
+        await ticketsApi.updatePersonalTicket(selectedTicketForAction.id, { status: newStatus as any });
         
         logger.log('Status Updated', {
           subtitle: selectedTicketForAction.title,
@@ -270,11 +229,7 @@ export default function TicketsPage() {
   const handleDeleteTicket = async () => {
     if (selectedTicketForAction) {
       try {
-        if (isPersonalMode) {
-          await ticketsApi.deletePersonalTicket(selectedTicketForAction.id);
-        } else {
-          await ticketsApi.deleteTicket(currentTeam!.id, selectedTicketForAction.id);
-        }
+        await ticketsApi.deletePersonalTicket(selectedTicketForAction.id);
         
         logger.log('Deleted Ticket', {
           subtitle: selectedTicketForAction.title,
@@ -292,12 +247,6 @@ export default function TicketsPage() {
     }
   };
 
-  const openAssignModal = (e: React.MouseEvent, ticket: {id: string, title: string}) => {
-    e.stopPropagation();
-    setSelectedTicketForAction(ticket);
-    setIsAssignModalOpen(true);
-    setOpenMenuTicketId(null);
-  };
 
   const openStatusModal = (e: React.MouseEvent, ticket: {id: string, title: string}) => {
     e.stopPropagation();
@@ -353,7 +302,7 @@ export default function TicketsPage() {
             </Button>
             <Button
               onClick={() => {
-                toggleSession(currentTeam?.id);
+                toggleSession();
                 setShowClockInWarning(false);
               }}
               className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
@@ -505,11 +454,6 @@ export default function TicketsPage() {
 
                   {/* Actions Menu */}
                   <div className="flex items-center gap-1">
-                    {/* Pulse Button */}
-                    {currentTeam && (
-                      <PulseButton teamId={currentTeam.id} ticketId={ticket.id} />
-                    )}
-
                     {/* Mobile Menu Button */}
                     <Button 
                       variant="ghost"
@@ -543,18 +487,6 @@ export default function TicketsPage() {
                           onClick={(e) => { e.stopPropagation(); setOpenMenuTicketId(null); }} 
                         />
                         <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 z-20 overflow-hidden py-1">
-                          {/* Assign - Creator Only */}
-                          {user && ticket.createdBy === user.id && (
-                            <Button
-                              variant="ghost"
-                              onClick={(e) => openAssignModal(e, ticket)}
-                              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left rounded-none justify-start"
-                            >
-                              <UserPlus className="w-4 h-4" />
-                              Assign Ticket
-                            </Button>
-                          )}
-
                           {/* Change Status - Everyone */}
                           <Button
                             variant="ghost"
@@ -780,53 +712,6 @@ export default function TicketsPage() {
           </div>
         </div>
       </Modal>
-      {/* Assign Ticket Modal */}
-      <Modal
-        isOpen={isAssignModalOpen}
-        onClose={() => setIsAssignModalOpen(false)}
-        title="Assign Ticket"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Select a team member to assign <span className="font-semibold">{selectedTicketForAction?.title}</span> to.
-          </p>
-          
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {currentTeam?.members.map((member) => (
-              <Button
-                key={member.id}
-                variant="ghost"
-                onClick={() => handleAssignTicket(member.id, member.name)}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300">
-                    {member.name.charAt(0)}
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{member.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{member.role}</p>
-                  </div>
-                </div>
-                {member.status === 'online' && (
-                  <span className="w-2 h-2 bg-green-500 rounded-full" title="Online" />
-                )}
-              </Button>
-            ))}
-          </div>
-
-          <div className="flex justify-end mt-6">
-            <Button
-              variant="ghost"
-              onClick={() => setIsAssignModalOpen(false)}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
       {/* Change Status Modal */}
       <Modal
         isOpen={isStatusModalOpen}
@@ -976,19 +861,6 @@ export default function TicketsPage() {
                     </p>
                   </div>
                 </div>
-                {user && (ticket.createdBy === user.id || ticket.assigneeName === 'Unassigned') && (
-                  <Button 
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      setIsDetailModalOpen(false);
-                      openAssignModal(e, ticket);
-                    }}
-                    className="p-2 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
-                  >
-                    <UserPlus className="w-5 h-5" />
-                  </Button>
-                )}
               </div>
 
               {/* Creator Info */}
