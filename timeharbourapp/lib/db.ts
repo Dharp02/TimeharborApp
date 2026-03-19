@@ -49,7 +49,7 @@ export interface Ticket {
   id: string;
   title: string;
   description?: string;
-  status: 'Open' | 'In Progress' | 'Closed';
+  status: 'Open' | 'In Progress' | 'Closed' | 'Done';
   priority: 'Low' | 'Medium' | 'High';
   link?: string;
   teamId: string;
@@ -57,6 +57,17 @@ export interface Ticket {
   assignedTo?: string;
   createdAt: string;
   updatedAt: string;
+  source?: 'personal' | 'timehuddle';
+  syncedWithTimehuddle?: boolean;
+  sharedToTimehuddle?: boolean;
+  pulseVideo?: {
+    url: string;
+    recordedAt: string;
+    duration: string;
+  };
+  trackedTime?: string;
+  trackedMs?: number;
+  teamName?: string;
   creator?: {
     id: string;
     full_name: string;

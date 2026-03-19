@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
+import { Plus, Play, Square, ChevronRight, Clock, Video, Users, RefreshCw, Share2, Check } from 'lucide-react';
 import Link from 'next/link';
-import { Button, Input, Textarea } from '@mieweb/ui';
+import { Button, Input, Textarea, Badge, Card, CardContent, Text, SmallMuted } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
 import { Modal } from '@/components/ui/Modal';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
@@ -12,32 +12,28 @@ import { useActivityLog } from './ActivityLogContext';
 import { useRefresh } from '../../contexts/RefreshContext';
 import { db } from '@/TimeharborAPI/db';
 
-const getUserInitials = (name?: string, email?: string) => {
-  if (name && name.trim()) {
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return parts[0].substring(0, 2).toUpperCase();
-  }
-  if (email) {
-    return email.substring(0, 2).toUpperCase();
-  }
-  return 'U';
+const getStatusDisplay = (status: string) =>
+  status === 'Closed' ? 'Done' : status;
+
+const formatRelativeTime = (dateStr: string) => {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + ' days ago';
 };
 
 export default function OpenTickets() {
-  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
+  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, getFormattedTotalTime, toggleSession } = useClockIn();
   const { addActivity } = useActivityLog();
   const { register, lastRefreshed } = useRefresh();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
   const [link, setLink] = useState('');
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
-  const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showClockInWarning, setShowClockInWarning] = useState(false);
@@ -137,6 +133,15 @@ export default function OpenTickets() {
     setLink('');
   };
 
+  const handleShareToTimehuddle = async (ticketId: string) => {
+    try {
+      await ticketsApi.shareToTimehuddle(ticketId);
+      fetchTickets();
+    } catch (error: any) {
+      console.error('Failed to share:', error);
+    }
+  };
+
   return (
     <>
     <Modal
@@ -145,9 +150,9 @@ export default function OpenTickets() {
       title="Clock In Required"
     >
       <div className="space-y-4">
-        <p className="text-gray-600 dark:text-gray-300">
+        <SmallMuted className="text-sm">
           You must be clocked in to start a ticket timer. Would you like to clock in now?
-        </p>
+        </SmallMuted>
         <div className="flex justify-end gap-3 mt-6">
           <Button
             variant="ghost"
@@ -166,21 +171,21 @@ export default function OpenTickets() {
         </div>
       </div>
     </Modal>
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6 relative">
+    <Card className="p-4 md:p-6 relative">
       <div className="flex items-center justify-between mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">My Tickets</h2>
+        <Text className="text-lg md:text-xl font-bold">My Tickets</Text>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
             <Link href="/dashboard/tickets/create">
               <Button
-                className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
+                size="icon"
                 aria-label="Create new ticket"
               >
                 <Plus className="w-5 h-5" />
               </Button>
             </Link>
           </div>
-          <Link href="/dashboard/tickets" className="hidden md:flex items-center text-sm text-primary-600 dark:text-primary-400 hover:underline ml-2">
+          <Link href="/dashboard/tickets" className="hidden md:flex items-center text-sm text-primary-700 dark:text-primary-400 hover:underline ml-2">
             See All <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
@@ -188,83 +193,171 @@ export default function OpenTickets() {
 
       <div className="space-y-3">
         {isLoading ? (
-          <div className="text-center py-4 text-gray-500">Loading tickets...</div>
+          <SmallMuted className="text-center py-4 block">Loading tickets...</SmallMuted>
         ) : tickets.length === 0 ? (
-          <div className="text-center py-4 text-gray-500">No tickets found. Create one to get started!</div>
+          <SmallMuted className="text-center py-4 block">No tickets found. Create one to get started!</SmallMuted>
         ) : (
-          tickets.slice(0, 5).map((ticket) => (
-            <div 
-              key={ticket.id}
-            className="flex items-center justify-between p-3 md:p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-primary-200 dark:hover:border-primary-800 transition-colors cursor-pointer group"
-          >
-            <div className="flex items-center gap-3 md:gap-4 overflow-hidden flex-1">
-              <div className="p-2 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-lg shrink-0">
-                <Ticket className="w-4 h-4 md:w-5 md:h-5" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm md:text-base">
-                  {ticket.title}
-                </h3>
-                <div className="flex items-center gap-2 mt-1">
-                  {ticket.creator && (
-                    <>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Created by</span>
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-primary-500 to-primary-700 flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-white dark:ring-gray-700 shrink-0 transform hover:scale-105 transition-transform cursor-help" title={ticket.creator.full_name}>
-                          {getUserInitials(ticket.creator.full_name, ticket.creator.email)}
-                        </div>
+          tickets.slice(0, 5).map((ticket) => {
+            const isTimehuddle = ticket.source === 'timehuddle';
+            const isPersonal = !isTimehuddle;
+            const assignerName = ticket.creator?.full_name?.split(' ')[0] || 'Someone';
+
+            return (
+              <Card key={ticket.id} className="border">
+                <CardContent className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <Text className="text-base font-bold leading-tight">
+                      {ticket.title}
+                    </Text>
+                    <Badge
+                      variant={
+                        ticket.status === 'Open'
+                          ? 'secondary'
+                          : ticket.status === 'In Progress'
+                            ? 'warning'
+                            : 'success'
+                      }
+                      size="sm"
+                    >
+                      {getStatusDisplay(ticket.status)}
+                    </Badge>
+                  </div>
+
+                  <SmallMuted className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {isTimehuddle ? (
+                      <>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5" />
+                          {ticket.teamName}
+                        </span>
+                        <span>&middot;</span>
+                        <span>Assigned by {assignerName}</span>
+                        <span>&middot;</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex items-center gap-1">
+                          &#128100; Personal ticket
+                        </span>
+                        <span>&middot;</span>
+                      </>
+                    )}
+                    <span>{ticket.trackedTime || '0m'} tracked</span>
+                    {isTimehuddle && ticket.syncedWithTimehuddle && (
+                      <Badge variant="default" size="sm" icon={<RefreshCw className="w-3 h-3" />}>
+                        synced
+                      </Badge>
+                    )}
+                  </SmallMuted>
+
+                  {ticket.pulseVideo ? (
+                    <div className="flex items-center gap-3 bg-muted rounded-xl px-4 py-3">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-600">
+                        <Play className="w-5 h-5 text-white fill-white" />
                       </div>
-                      <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
-                    </>
-                  )}
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                    {getFormattedTotalTime(ticket.id)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 shrink-0 ml-2">
-              <span className="hidden md:inline-block text-xs font-medium px-2 py-1 bg-white dark:bg-gray-600 rounded-md border border-gray-200 dark:border-gray-500 text-gray-600 dark:text-gray-300">
-                {ticket.status}
-              </span>
-              <div className="flex flex-col items-center gap-1 min-w-[60px]">
-                <Button 
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-                  className={`p-2 rounded-full transition-colors ${
-                    !isSessionActive || isOnBreak
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      : activeTicketId === ticket.id
-                        ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40'
-                        : 'bg-primary-50 text-primary-600 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/40'
-                  }`}
-                >
-                  {activeTicketId === ticket.id ? (
-                    <Square className="w-4 h-4 fill-current" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 text-primary-600 dark:text-primary-400">
+                          <Video className="w-4 h-4" />
+                          <Text className="text-sm font-semibold text-primary-600 dark:text-primary-400">
+                            Pulse Video
+                          </Text>
+                        </div>
+                        <SmallMuted>
+                          Recorded {formatRelativeTime(ticket.pulseVideo.recordedAt)}{' '}
+                          &middot; {ticket.pulseVideo.duration}
+                        </SmallMuted>
+                      </div>
+                      <a
+                        href={ticket.pulseVideo.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-muted-foreground underline decoration-dashed underline-offset-2 hover:text-foreground shrink-0"
+                      >
+                        Open Vault &#8599;
+                      </a>
+                    </div>
                   ) : (
-                    <Play className="w-4 h-4 fill-current" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full border-dashed border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 bg-transparent hover:bg-red-50 dark:hover:bg-red-950"
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                      Record Pulse
+                    </Button>
                   )}
-                </Button>
-                {activeTicketId === ticket.id && (
-                  <span className="text-[10px] font-mono font-bold text-red-600 dark:text-red-400 animate-pulse">
-                    {ticketDuration}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          ))
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      variant={activeTicketId === ticket.id ? 'danger' : 'secondary'}
+                      size="sm"
+                      onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
+                      className="rounded-full px-3 py-1 text-xs font-medium"
+                    >
+                      {activeTicketId === ticket.id ? (
+                        <>
+                          <Square className="w-3 h-3 mr-1 fill-current" /> Stop
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3 h-3 mr-1 fill-current" /> Start
+                        </>
+                      )}
+                    </Button>
+
+                    {activeTicketId === ticket.id && (
+                      <SmallMuted className="flex items-center gap-1 font-mono text-primary-600 dark:text-primary-400">
+                        <Clock className="w-3 h-3" />
+                        {getFormattedTotalTime(ticket.id)}
+                      </SmallMuted>
+                    )}
+
+                    {isPersonal && !ticket.sharedToTimehuddle && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleShareToTimehuddle(ticket.id)}
+                        className="rounded-full ml-auto"
+                      >
+                        <Share2 className="w-3 h-3 mr-1" /> Share to Timehuddle
+                      </Button>
+                    )}
+
+                    {isPersonal && ticket.sharedToTimehuddle && (
+                      <Badge
+                        variant="success"
+                        size="sm"
+                        icon={<Check className="w-3 h-3" />}
+                        className="ml-auto"
+                      >
+                        Shared
+                      </Badge>
+                    )}
+
+                    {isTimehuddle && (
+                      <Badge
+                        variant="warning"
+                        size="sm"
+                        icon={<Users className="w-3 h-3" />}
+                        className="ml-auto"
+                      >
+                        Timehuddle
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
       
       <div className="mt-4 md:hidden text-center">
-        <Link href="/dashboard/tickets" className="text-sm text-primary-600 dark:text-primary-400 font-medium">
-          See All Tickets
+        <Link href="/dashboard/tickets">
+          <Button variant="link" size="sm">See All Tickets</Button>
         </Link>
       </div>
-    </div>
+    </Card>
 
     <Modal
         isOpen={isModalOpen}
@@ -272,11 +365,11 @@ export default function OpenTickets() {
         title={modalType === 'stop' ? 'Stop Timer?' : 'Switching Tasks'}
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
+          <SmallMuted>
             {modalType === 'stop' 
               ? 'Enter a comment for this session:' 
               : 'Enter a comment for the current task before switching:'}
-          </p>
+          </SmallMuted>
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -285,7 +378,7 @@ export default function OpenTickets() {
             autoFocus
           />
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
+            <SmallMuted className="block text-xs font-medium mb-1">Link (optional)</SmallMuted>
             <Input
               type="url"
               value={link}

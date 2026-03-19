@@ -23,9 +23,11 @@ import {
   Settings,
   HelpCircle,
   LogOut,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
+import { db } from '@/TimeharborAPI/db';
 
 const NAV_SECTIONS = [
   {
@@ -84,6 +86,34 @@ export default function AppSidebar() {
     closeMobile();
   };
 
+  const handleClearCache = async () => {
+    if (!window.confirm('Clear all local data? This won\'t log you out, but will remove offline data until it syncs again.')) return;
+    try {
+      await Promise.all([
+        db.activityLogs.clear(),
+        db.offlineMutations.clear(),
+        db.events.clear(),
+        db.tickets.clear(),
+        db.dashboardStats.clear(),
+        db.dashboardActivity.clear(),
+      ]);
+      const preserved: Record<string, string> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('auth') || key.includes('supabase') || key.includes('token'))) {
+          preserved[key] = localStorage.getItem(key) || '';
+        }
+      }
+      localStorage.clear();
+      Object.entries(preserved).forEach(([k, v]) => localStorage.setItem(k, v));
+      sessionStorage.clear();
+      alert('Cache cleared successfully!');
+      window.location.reload();
+    } catch {
+      alert('Failed to clear cache. Please try again.');
+    }
+  };
+
   return (
     <Sidebar className="lg:sticky lg:top-0 z-50 pt-12 lg:pt-0">
       <SidebarToggle position="floating" />
@@ -110,10 +140,10 @@ export default function AppSidebar() {
             </div>
             {!isCollapsed && (
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                <p className="text-sm font-semibold text-foreground truncate">
                   {user?.full_name || 'User'}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                <p className="text-xs text-muted-foreground truncate">
                   Personal workspace
                 </p>
               </div>
@@ -141,6 +171,11 @@ export default function AppSidebar() {
 
       <SidebarFooter>
         <SidebarNavItem
+          label="Clear Cache"
+          icon={<Trash2 className="w-5 h-5" />}
+          onClick={handleClearCache}
+        />
+        <SidebarNavItem
           label="Sign Out"
           icon={<LogOut className="w-5 h-5" />}
           onClick={() => auth.signOut()}
@@ -148,7 +183,7 @@ export default function AppSidebar() {
         />
         {!isCollapsed && (
           <div className="flex items-center justify-center px-2 mt-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-muted-foreground">
               TimeHarbor v1.0.0
             </span>
           </div>

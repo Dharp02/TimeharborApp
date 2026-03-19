@@ -16,7 +16,7 @@ export default function BottomNav() {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 pb-safe lg:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border pb-safe lg:hidden">
       <div className="flex items-center justify-around h-20 px-2">
         <Link
           href="/dashboard"
@@ -25,12 +25,12 @@ export default function BottomNav() {
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
             isActive('/dashboard') 
               ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
-              : 'text-gray-500 dark:text-gray-400'
+              : 'text-muted-foreground'
           }`}>
             <Timer className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
+            isActive('/dashboard') ? 'text-primary-600 dark:text-primary-400' : 'text-muted-foreground'
           }`}>Tracker</span>
         </Link>
 
@@ -41,19 +41,19 @@ export default function BottomNav() {
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
             isActive('/dashboard/tickets') 
               ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
-              : 'text-gray-500 dark:text-gray-400'
+              : 'text-muted-foreground'
           }`}>
             <Ticket className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard/tickets') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
+            isActive('/dashboard/tickets') ? 'text-primary-600 dark:text-primary-400' : 'text-muted-foreground'
           }`}>Tickets</span>
         </Link>
 
         <div className="relative -top-5">
           <Button 
             onClick={() => isOnBreak ? resumeFromBreak() : toggleSession()}
-            className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-white dark:ring-gray-800 ${
+            className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-card ${
               isOnBreak
                 ? 'bg-amber-400 hover:bg-amber-500 w-16 h-16'
                 : isSessionActive 
@@ -86,12 +86,12 @@ export default function BottomNav() {
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
             isActive('/dashboard/settings/timesheet') 
               ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
-              : 'text-gray-500 dark:text-gray-400'
+              : 'text-muted-foreground'
           }`}>
             <CalendarDays className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard/settings/timesheet') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
+            isActive('/dashboard/settings/timesheet') ? 'text-primary-600 dark:text-primary-400' : 'text-muted-foreground'
           }`}>Timesheet</span>
         </Link>
 
@@ -102,12 +102,12 @@ export default function BottomNav() {
           <div className={`p-1.5 rounded-xl transition-all duration-200 ${
             isActive('/dashboard/settings') && !pathname?.startsWith('/dashboard/settings/timesheet')
               ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
-              : 'text-gray-500 dark:text-gray-400'
+              : 'text-muted-foreground'
           }`}>
             <UserCircle className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
-            isActive('/dashboard/settings') && !pathname?.startsWith('/dashboard/settings/timesheet') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
+            isActive('/dashboard/settings') && !pathname?.startsWith('/dashboard/settings/timesheet') ? 'text-primary-600 dark:text-primary-400' : 'text-muted-foreground'
           }`}>Profile</span>
         </Link>
       </div>

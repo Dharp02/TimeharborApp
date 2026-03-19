@@ -7,14 +7,25 @@ export interface Ticket {
   id: string;
   title: string;
   description?: string;
-  status: 'Open' | 'In Progress' | 'Closed';
+  status: 'Open' | 'In Progress' | 'Closed' | 'Done';
   priority: 'Low' | 'Medium' | 'High';
   link?: string;
   teamId: string;
+  teamName?: string;
   createdBy: string;
   assignedTo?: string;
   createdAt: string;
   updatedAt: string;
+  source?: 'personal' | 'timehuddle';
+  syncedWithTimehuddle?: boolean;
+  sharedToTimehuddle?: boolean;
+  pulseVideo?: {
+    url: string;
+    recordedAt: string;
+    duration: string;
+  };
+  trackedTime?: string;
+  trackedMs?: number;
   creator?: {
     id: string;
     full_name: string;
@@ -30,7 +41,7 @@ export interface Ticket {
 export interface CreateTicketData {
   title: string;
   description?: string;
-  status?: 'Open' | 'In Progress' | 'Closed';
+  status?: 'Open' | 'In Progress' | 'Closed' | 'Done';
   priority?: 'Low' | 'Medium' | 'High';
   link?: string;
   assignedTo?: string;
@@ -39,10 +50,11 @@ export interface CreateTicketData {
 export interface UpdateTicketData {
   title?: string;
   description?: string;
-  status?: 'Open' | 'In Progress' | 'Closed';
+  status?: 'Open' | 'In Progress' | 'Closed' | 'Done';
   priority?: 'Low' | 'Medium' | 'High';
   link?: string;
   assignedTo?: string;
+  sharedToTimehuddle?: boolean;
 }
 
 // Seed Dexie with mock data on first read
@@ -106,6 +118,25 @@ export const createPersonalTicket = async (data: CreateTicketData): Promise<Tick
 
 export const getPersonalTickets = async (options?: { sort?: string; status?: string }): Promise<Ticket[]> => {
   return getTickets(PERSONAL_TEAM_ID, options);
+};
+
+export const getAllTickets = async (): Promise<Ticket[]> => {
+  await ensureSeeded();
+  return db.tickets.toArray();
+};
+
+export const getTimehuddleTickets = async (): Promise<Ticket[]> => {
+  await ensureSeeded();
+  const all = await db.tickets.toArray();
+  return all.filter(t => t.source === 'timehuddle');
+};
+
+export const shareToTimehuddle = async (ticketId: string): Promise<Ticket> => {
+  const existing = await db.tickets.get(ticketId);
+  if (!existing) throw new Error('Ticket not found');
+  const updated = { ...existing, sharedToTimehuddle: true, updatedAt: new Date().toISOString() };
+  await db.tickets.put(updated);
+  return updated;
 };
 
 export const updatePersonalTicket = async (ticketId: string, data: UpdateTicketData): Promise<Ticket> => {

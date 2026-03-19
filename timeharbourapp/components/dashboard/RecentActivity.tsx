@@ -41,9 +41,9 @@ export default function RecentActivity() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6">
+    <div className="bg-card text-card-foreground rounded-2xl shadow-sm p-4 md:p-6">
       <div className="flex items-center justify-between mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+        <h2 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
           Recent Activity
         </h2>
       </div>
@@ -52,11 +52,11 @@ export default function RecentActivity() {
         {loading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-20 bg-gray-100 dark:bg-gray-700 rounded-xl animate-pulse" />
+              <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
             ))}
           </div>
         ) : activities.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400 text-center py-4">No recent activity</p>
+          <p className="text-muted-foreground text-center py-4">No recent activity</p>
         ) : (
           activities.slice(0, 10).map((activity) => (
             <div
@@ -64,7 +64,7 @@ export default function RecentActivity() {
               className={`p-3 md:p-4 rounded-xl border transition-colors ${
                 activity.status === 'Active'
                   ? 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30'
-                  : 'bg-gray-50 dark:bg-gray-700/30 border-gray-100 dark:border-gray-700'
+                  : 'bg-muted border-border'
               }`}
             >
               <div className="flex items-start justify-between gap-3 md:gap-4">
@@ -76,7 +76,7 @@ export default function RecentActivity() {
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm md:text-base">
+                      <h3 className="font-semibold text-foreground text-sm md:text-base">
                         {activity.title}
                       </h3>
                       {activity.status === 'Active' && (
@@ -85,7 +85,7 @@ export default function RecentActivity() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
                       {activity.subtitle}
                     </p>
                     {(activity.description || activity.link) && (() => {
@@ -96,9 +96,9 @@ export default function RecentActivity() {
                         allUrls.push(activity.link);
                       }
                       return (
-                        <div className="mt-1.5 p-2 bg-gray-100 dark:bg-gray-700/50 rounded-lg text-sm space-y-1">
+                        <div className="mt-1.5 p-2 bg-muted rounded-lg text-sm space-y-1">
                           {parsed.text && (
-                            <p className="text-gray-700 dark:text-gray-200">{parsed.text}</p>
+                            <p className="text-foreground">{parsed.text}</p>
                           )}
                           {allUrls.map((url) => (
                             <a
@@ -115,7 +115,7 @@ export default function RecentActivity() {
                         </div>
                       );
                     })()}
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {formatDate(activity.startTime)}, {formatTime(activity.startTime)}
                       {activity.endTime ? ` - ${formatTime(activity.endTime)}` : ''}
                     </p>
@@ -127,7 +127,7 @@ export default function RecentActivity() {
                   <div className={`shrink-0 px-2 md:px-3 py-1 rounded-lg text-xs md:text-sm font-mono font-medium ${
                     activity.status === 'Active'
                       ? 'bg-green-500 text-white'
-                      : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      : 'bg-muted text-muted-foreground'
                   }`}>
                     {activity.duration}
                   </div>

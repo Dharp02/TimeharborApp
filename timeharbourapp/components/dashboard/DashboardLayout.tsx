@@ -94,7 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ClockInProvider>
       <SidebarProvider>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 lg:flex">
+        <div className="min-h-screen bg-background lg:flex">
           {/* Sidebar (desktop: always visible, mobile: slide-in overlay) */}
           <AppSidebar />
 
@@ -104,7 +104,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Header />
 
             {/* Mobile Header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-16 flex justify-between items-center">
+            <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-card border-b border-border px-4 py-3 pt-16 flex justify-between items-center">
               <div className="flex items-center">
                 {shouldShowBackButton() ? (
                   <Button
@@ -116,7 +116,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <ChevronLeft className="w-5 h-5" />
                   </Button>
                 ) : (
-                  <SidebarMobileToggle className="p-1 text-gray-600 dark:text-gray-300" />
+                  <SidebarMobileToggle className="p-1 text-muted-foreground" />
                 )}
                 <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400 truncate max-w-[200px]">
                   {pathname?.startsWith('/dashboard/member')
@@ -140,7 +140,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               overflow-x-hidden
             `}>
               <PullToRefresh>
-                <div className="px-2 py-4 lg:px-6 lg:py-4">
+                <div className="px-4 py-4 lg:px-6 lg:py-4">
                   {children}
                 </div>
               </PullToRefresh>

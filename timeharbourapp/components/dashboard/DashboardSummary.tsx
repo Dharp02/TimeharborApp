@@ -48,7 +48,7 @@ export default function DashboardSummary() {
     return (
       <div className="grid grid-cols-2 gap-3 md:gap-6 animate-pulse">
         {[...Array(2)].map((_, i) => (
-          <div key={i} className="h-32 bg-gray-100 dark:bg-gray-800 rounded-xl" />
+          <div key={i} className="h-32 bg-muted rounded-xl" />
         ))}
       </div>
     );

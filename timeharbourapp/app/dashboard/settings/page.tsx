@@ -1,253 +1,107 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { auth } from '@/TimeharborAPI';
-import { LogOut, User, Mail, FileText, Calendar, ChevronRight, X, Trash2 } from 'lucide-react';
+import {
+  User,
+  Lock,
+  Bell,
+  Globe,
+  CalendarDays,
+  Users,
+  ChevronRight,
+  Mail,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import RecentActivity from '@/components/dashboard/RecentActivity';
-import { db } from '@/TimeharborAPI/db';
-import { Button } from '@mieweb/ui';
+import { Card, CardContent, Text, SmallMuted } from '@mieweb/ui';
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [activeModal, setActiveModal] = useState<'calendar' | null>(null);
-  const [isClearingCache, setIsClearingCache] = useState(false);
 
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const handleSignOut = async () => {
-    try {
-      await auth.signOut();
-      router.push('/login');
-    } catch (error) {
-      console.error('Sign out error:', error);
+  const getInitials = () => {
+    if (!user?.full_name) return user?.email?.charAt(0).toUpperCase() || 'U';
+    const parts = user.full_name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }
+    return user.full_name.substring(0, 2).toUpperCase();
   };
 
-  const handleClearCache = async () => {
-    if (!window.confirm('Are you sure you want to clear all local data? This will not log you out, but will remove offline data until it syncs again.')) {
-      return;
-    }
-
-    setIsClearingCache(true);
-    try {
-      // 1. Clear all IndexedDB tables
-      await Promise.all([
-        db.activityLogs.clear(),
-        db.offlineMutations.clear(),
-        db.events.clear(),
-        db.tickets.clear(),
-        db.dashboardStats.clear(),
-        db.dashboardActivity.clear(),
-      ]);
-
-      // 2. Clear LocalStorage (preserve auth tokens)
-      const authKeys = ['supabase.auth.token', 'sb-api-auth-token']; // Add any specific auth keys here
-      const preservedData: Record<string, string> = {};
-      
-      // Save auth data
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('auth') || key.includes('supabase') || key.includes('token'))) {
-          preservedData[key] = localStorage.getItem(key) || '';
-        }
-      }
-
-      // Clear all
-      localStorage.clear();
-
-      // Restore auth data
-      Object.entries(preservedData).forEach(([key, value]) => {
-        localStorage.setItem(key, value);
-      });
-
-      // 3. Clear SessionStorage
-      sessionStorage.clear();
-
-      alert('Cache cleared successfully!');
-      
-      // Reload to re-fetch fresh data
-      window.location.reload();
-    } catch (error) {
-      console.error('Failed to clear cache:', error);
-      alert('Failed to clear cache. Please try again.');
-    } finally {
-      setIsClearingCache(false);
-    }
-  };
-
-  const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => {
-    if (!isMounted) return null;
-    return createPortal(
-      <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center p-4 animate-in fade-in duration-200">
-        <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl animate-in slide-in-from-bottom-10 duration-300">
-          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-            <h3 className="font-bold text-lg text-gray-900 dark:text-white">{title}</h3>
-            <Button variant="ghost" size="icon" onClick={onClose} >
-              <X  />
-            </Button>
-          </div>
-          <div className="p-4 overflow-y-auto">
-            {children}
-          </div>
-        </div>
-      </div>,
-      document.body
-    );
-  };
+  const menuItems = [
+    { label: 'Edit Profile', icon: User, href: '/dashboard/settings/profile' },
+    { label: 'Change Password', icon: Lock, href: '/dashboard/settings/password' },
+    { label: 'Notification Preferences', icon: Bell, href: '/dashboard/notifications' },
+    { label: 'Language', icon: Globe, href: '/dashboard/settings/language' },
+    { label: 'Timesheet Settings', icon: CalendarDays, href: '/dashboard/settings/timesheet' },
+  ];
 
   return (
-    <>
-      {/* Mobile View */}
-      <div className="md:hidden -mt-2 -ml-7.5 px-0 py-2 space-y-0 w-[calc(100%+56px)]">
-
-          <Link 
-            href="/dashboard/settings/profile"
-            className="flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-0">
-                <User className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
-              </div>
-              <span className="font-medium text-lg text-gray-900 dark:text-white">My Profile</span>
-            </div>
-            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
-          </Link>
-
-          <Link 
-            href="/dashboard/settings/timesheet"
-            className="flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-0">
-                <FileText className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
-              </div>
-              <span className="font-medium text-lg text-gray-900 dark:text-white">My Timesheet</span>
-            </div>
-            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
-          </Link>
-
-          <Button 
-            onClick={() => setActiveModal('calendar')}
-            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 h-auto rounded-none"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-0">
-                <Calendar className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
-              </div>
-              <span className="font-medium text-lg text-gray-900 dark:text-white">Calendar</span>
-            </div>
-            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
-          </Button>
-
-          <Button 
-            onClick={handleClearCache}
-            disabled={isClearingCache}
-            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 h-auto rounded-none"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-0">
-                <Trash2 className="w-7 h-7 text-gray-900 dark:text-white" strokeWidth={1.5} />
-              </div>
-              <span className="font-medium text-lg text-gray-900 dark:text-white">
-                {isClearingCache ? 'Clearing...' : 'Clear Cache'}
-              </span>
-            </div>
-            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
-          </Button>
-
-          <Button 
-            onClick={handleSignOut}
-            className="w-full flex items-center justify-between px-6 py-4 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20 h-auto rounded-none"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-0">
-                <LogOut className="w-7 h-7 text-red-600 dark:text-red-400" strokeWidth={1.5} />
-              </div>
-              <span className="font-medium text-lg text-red-600 dark:text-red-400">Log Out</span>
-            </div>
-            <ChevronRight className="w-6 h-6 text-gray-400" strokeWidth={1.5} />
-          </Button>
+    <div className="space-y-6 pb-8">
+      {/* Profile Header */}
+      <div className="flex flex-col items-center pt-6 pb-2">
+        <div className="w-24 h-24 rounded-full bg-primary-400 flex items-center justify-center text-white text-3xl font-semibold mb-4">
+          {getInitials()}
+        </div>
+        <Text className="text-xl font-bold">{user?.full_name || 'User'}</Text>
+        <SmallMuted>{user?.email}</SmallMuted>
       </div>
 
-      {/* Desktop View - Keeping original settings layout */}
-      <div className="hidden md:block max-w-2xl mx-auto space-y-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 space-y-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-4">
-            Profile Information
-          </h2>
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
+      {/* Menu Items */}
+      <div className="divide-y divide-border -mx-4">
+        {menuItems.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className="flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
+          >
+            <div className="flex items-center gap-4">
+              <item.icon className="w-5 h-5 text-muted-foreground" />
+              <Text className="font-medium">{item.label}</Text>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          </Link>
+        ))}
+
+        {/* Open Timehuddle */}
+        <button
+          onClick={() => window.open('https://timehuddle.com', '_blank')}
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
+        >
+          <div className="flex items-center gap-4">
+            <Users className="w-5 h-5 text-amber-500" />
+            <Text className="font-medium text-amber-600 dark:text-amber-400">Open Timehuddle</Text>
+          </div>
+          <ChevronRight className="w-5 h-5 text-amber-500" />
+        </button>
+      </div>
+
+      {/* Desktop: also show profile info inline */}
+      <div className="hidden md:block max-w-2xl mx-auto">
+        <Card>
+          <CardContent className="space-y-4 py-6">
+            <Text className="text-lg font-semibold border-b border-border pb-4">Profile Information</Text>
+            <div className="flex items-center gap-4 p-4 bg-muted rounded-xl">
               <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-full">
                 <User className="w-6 h-6 text-primary-600 dark:text-primary-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Full Name</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user?.full_name || 'Not set'}</p>
+                <SmallMuted>Full Name</SmallMuted>
+                <Text className="font-medium">{user?.full_name || 'Not set'}</Text>
               </div>
             </div>
-            <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
+            <div className="flex items-center gap-4 p-4 bg-muted rounded-xl">
               <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-full">
                 <Mail className="w-6 h-6 text-primary-600 dark:text-primary-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Email Address</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user?.email}</p>
+                <SmallMuted>Email Address</SmallMuted>
+                <Text className="font-medium">{user?.email}</Text>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 space-y-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-4">
-            App Data
-          </h2>
-          <div className="space-y-4">
-            <Button 
-              onClick={handleClearCache}
-              disabled={isClearingCache}
-              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-xl h-auto"
-            >
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-full">
-                  <Trash2 className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div className="text-left">
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {isClearingCache ? 'Clearing Cache...' : 'Clear Cache'}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Clear local data and offline storage</p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
-            </Button>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
-
-      {/* Modals */}
-      {activeModal === 'calendar' && (
-        <Modal title="Calendar" onClose={() => setActiveModal(null)}>
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Calendar className="w-8 h-8 text-primary-600 dark:text-primary-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Calendar Coming Soon</h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              We're working on a new calendar view to help you manage your schedule better.
-            </p>
-          </div>
-        </Modal>
-      )}
-    </>
+    </div>
   );
 }
