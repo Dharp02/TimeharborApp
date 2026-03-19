@@ -18,6 +18,23 @@ const nextConfig: NextConfig = {
   },
   // Ensure trailing slashes for better routing
   trailingSlash: true,
+  // Proxy /api/auth/* to the timehuddle backend so cookies stay same-origin.
+  // Rewrites are incompatible with `output: 'export'` (Capacitor builds) —
+  // those builds set NEXT_PUBLIC_BETTER_AUTH_URL to the backend URL directly.
+  ...(!isCapacitorBuild
+    ? {
+        async rewrites() {
+          const backendUrl =
+            process.env.BETTER_AUTH_BACKEND_URL || 'http://localhost:3001';
+          return [
+            {
+              source: '/api/auth/:path*',
+              destination: `${backendUrl}/api/auth/:path*`,
+            },
+          ];
+        },
+      }
+    : {}),
   // Fix "multiple lockfiles" warning — tell Turbopack the workspace root
   // is this package, not the monorepo root
   turbopack: {

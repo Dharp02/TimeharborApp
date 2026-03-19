@@ -20,6 +20,7 @@
   "dependencies": {
     "@capacitor/android": "^8.0.0",
     "@capacitor/app": "^8.0.0",
+    "@capacitor/browser": "^8.0.2",
     "@capacitor/cli": "^8.0.0",
     "@capacitor/clipboard": "^8.0.0",
     "@capacitor/core": "^8.0.0",
@@ -27,6 +28,7 @@
     "@capacitor/network": "^8.0.0",
     "@capacitor/push-notifications": "^8.0.0",
     "@mieweb/ui": "^0.2.4",
+    "better-auth": "^1.5.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

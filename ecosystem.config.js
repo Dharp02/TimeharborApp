@@ -13,9 +13,9 @@ module.exports = {
     },
     {
       name: "timeharbor-backend",
-      cwd: "/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/express-api",
-      script: "npm",
-      args: "run dev",
+      cwd: "/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbor-timehuddle-backend/apps/api",
+      script: "npx",
+      args: "tsx src/server.ts",
       env: {
         NODE_ENV: "development",
         PORT: 3001,

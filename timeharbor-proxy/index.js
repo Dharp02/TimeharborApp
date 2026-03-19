@@ -36,7 +36,8 @@ const server = http.createServer((req, res) => {
   const hasAuthHeader = !!req.headers['authorization'];
   if (req.url.startsWith('/api') || req.url.startsWith('/socket.io') || hasAuthHeader) {
     // Strip /api prefix only if it starts with /api
-    if (req.url.startsWith('/api')) {
+    // BUT keep /api for /api/auth/* — Better Auth backend expects the full path
+    if (req.url.startsWith('/api') && !req.url.startsWith('/api/auth')) {
       req.url = req.url.replace(/^\/api/, '');
       if (req.url === '') req.url = '/';
     }

@@ -9,11 +9,10 @@ import {
   CalendarDays,
   Users,
   ChevronRight,
-  Mail,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Card, CardContent, Text, SmallMuted } from '@mieweb/ui';
+import { Text, SmallMuted } from '@mieweb/ui';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -74,33 +73,6 @@ export default function SettingsPage() {
           </div>
           <ChevronRight className="w-5 h-5 text-amber-500" />
         </button>
-      </div>
-
-      {/* Desktop: also show profile info inline */}
-      <div className="hidden md:block max-w-2xl mx-auto">
-        <Card>
-          <CardContent className="space-y-4 py-6">
-            <Text className="text-lg font-semibold border-b border-border pb-4">Profile Information</Text>
-            <div className="flex items-center gap-4 p-4 bg-muted rounded-xl">
-              <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-full">
-                <User className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-              </div>
-              <div>
-                <SmallMuted>Full Name</SmallMuted>
-                <Text className="font-medium">{user?.full_name || 'Not set'}</Text>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 p-4 bg-muted rounded-xl">
-              <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-full">
-                <Mail className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-              </div>
-              <div>
-                <SmallMuted>Email Address</SmallMuted>
-                <Text className="font-medium">{user?.email}</Text>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

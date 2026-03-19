@@ -3,6 +3,9 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 
 type AuthContextType = {
   user: any | null;
@@ -43,6 +46,28 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     return () => {
       subscription.unsubscribe();
+    };
+  }, [router]);
+
+  // Handle deep link callback from OAuth on native (Capacitor)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const handler = App.addListener('appUrlOpen', async ({ url }) => {
+      if (url.startsWith('timeharbor://auth/callback')) {
+        // Close the system browser that was opened for OAuth
+        await Browser.close();
+        // Refresh session — Better Auth set the cookie via the redirect
+        const { user: authUser } = await auth.getUser();
+        if (authUser) {
+          setUser(authUser);
+          router.replace('/dashboard');
+        }
+      }
+    });
+
+    return () => {
+      handler.then((h) => h.remove());
     };
   }, [router]);
 
