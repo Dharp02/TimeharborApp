@@ -1,6 +1,5 @@
 .storiesBarContainer {
-  width: 100vw;
-  margin-left: calc(-50vw + 50%);
+  width: 100%;
   margin-top: -1.25rem;
   background: linear-gradient(to bottom, #ffffff 0%, #fafafa 100%);
   padding: 16px 0 12px 0;

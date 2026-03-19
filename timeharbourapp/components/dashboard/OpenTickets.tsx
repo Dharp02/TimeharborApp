@@ -168,7 +168,7 @@ export default function OpenTickets() {
     </Modal>
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6 relative">
       <div className="flex items-center justify-between mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Open Tickets</h2>
+        <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">My Tickets</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
             <Link href="/dashboard/tickets/create">

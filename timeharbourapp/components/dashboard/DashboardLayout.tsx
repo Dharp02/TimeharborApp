@@ -11,13 +11,15 @@ function MemberName() {
 }
 import Header from './Header';
 import BottomNav from './BottomNav';
+import AppSidebar from './AppSidebar';
 import { ClockInProvider } from './ClockInContext';
 import DesktopFooter from './DesktopFooter';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import ProfileAvatarMenu from './ProfileAvatarMenu';
+import NotificationBell from './NotificationBell';
 import PullToRefresh from '@/components/ui/PullToRefresh';
-import { Button } from '@mieweb/ui';
+import { Button, SidebarProvider, SidebarMobileToggle, ThemeToggle } from '@mieweb/ui';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -25,7 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
 
   const getHeaderTitle = () => {
-    if (!pathname) return 'Timeharbor';
+    if (!pathname) return 'Time Tracker';
 
     if (pathname === '/dashboard/tickets/create') return 'New Ticket';
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
@@ -42,7 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname.startsWith('/dashboard/member')) {
       return null; // rendered via <MemberName> Suspense component below
     }
-    return 'Timeharbor';
+    return 'Time Tracker';
   };
 
   const shouldShowBackButton = () => {
@@ -91,63 +93,67 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ClockInProvider>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        {/* Desktop Header */}
-        <Header />
+      <SidebarProvider>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 lg:flex">
+          {/* Sidebar (desktop: always visible, mobile: slide-in overlay) */}
+          <AppSidebar />
 
-        {/* Mobile Header */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-16 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            {shouldShowBackButton() && (
-              <Button
-                variant="ghost"
-                onClick={handleBackClick}
-                className="p-1 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
-                aria-label="Go back"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
-            )}
-            <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400 truncate max-w-[200px]">
-              {pathname?.startsWith('/dashboard/member')
-                ? <Suspense fallback="Member"><MemberName /></Suspense>
-                : getHeaderTitle()}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-<<<<<<< HEAD
-            <div className={`text-right mr-1 ${currentTeam ? '' : 'invisible'}`}>
-              <div className="text-xs text-gray-500 dark:text-gray-400 leading-none">Team</div>
-              <div className="text-sm font-semibold text-gray-900 dark:text-white leading-tight truncate max-w-[120px]">{currentTeam?.name ?? ''}</div>
+          {/* Content area — takes remaining width on desktop */}
+          <div className="flex-1 min-w-0">
+            {/* Desktop Header */}
+            <Header />
+
+            {/* Mobile Header */}
+            <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 pt-16 flex justify-between items-center">
+              <div className="flex items-center">
+                {shouldShowBackButton() ? (
+                  <Button
+                    variant="ghost"
+                    onClick={handleBackClick}
+                    className="p-1 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                    aria-label="Go back"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </Button>
+                ) : (
+                  <SidebarMobileToggle className="p-1 text-gray-600 dark:text-gray-300" />
+                )}
+                <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400 truncate max-w-[200px]">
+                  {pathname?.startsWith('/dashboard/member')
+                    ? <Suspense fallback="Member"><MemberName /></Suspense>
+                    : getHeaderTitle()}
+                </h1>
+              </div>
+              <div className="flex items-center gap-1">
+                <ThemeToggle mode="three-way" size="sm" variant="ghost" />
+                <NotificationBell isMobile />
+                <ProfileAvatarMenu />
+              </div>
             </div>
-            <ProfileAvatarMenu onTeamSwitchClick={() => setIsTeamModalOpen(true)} />
-=======
-            <ProfileAvatarMenu />
->>>>>>> 2b98ea1 (removed teams dependency code from most of the components)
+
+            {/* Main Content */}
+            <main className={`
+              transition-all duration-200
+              pt-25.5 lg:pt-4
+              pb-20 lg:pb-24
+              min-h-screen
+              overflow-x-hidden
+            `}>
+              <PullToRefresh>
+                <div className="px-2 py-4 lg:px-6 lg:py-4">
+                  {children}
+                </div>
+              </PullToRefresh>
+            </main>
+
+            {/* Desktop Footer */}
+            <DesktopFooter />
+
+            {/* Mobile Bottom Nav */}
+            <BottomNav />
           </div>
         </div>
-
-        {/* Main Content */}
-        <main className={`
-          transition-all duration-200
-          pt-28 md:pt-24
-          pb-20 md:pb-24
-          min-h-screen
-          overflow-x-hidden
-        `}>
-          <PullToRefresh>
-            <div className="p-4 md:p-8 max-w-7xl mx-auto">
-              {children}
-            </div>
-          </PullToRefresh>
-        </main>
-
-        {/* Desktop Footer */}
-        <DesktopFooter />
-
-        {/* Mobile Bottom Nav */}
-        <BottomNav />
-      </div>
+      </SidebarProvider>
     </ClockInProvider>
   );
 }

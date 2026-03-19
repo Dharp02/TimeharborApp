@@ -8,10 +8,8 @@ import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPres
 import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
 import { Activity, fetchActivitiesByDateRange } from '@/TimeharborAPI/dashboard';
 import { useRefresh } from '../../../contexts/RefreshContext';
-import { useSocket } from '@/contexts/SocketContext';
 
 export default function ActivityPage() {
-  const { socket } = useSocket();
   const { register } = useRefresh();
   const [visibleCount, setVisibleCount] = useState(20);
   const [dateRange, setDateRange] = useState<LuxonDateRange>({
@@ -47,14 +45,6 @@ export default function ActivityPage() {
     });
     return unregister;
   }, [fetchData, dateRange, register]);
-
-  // Re-fetch on socket stats_updated for live updates (only for "today" view)
-  useEffect(() => {
-    if (!socket || preset !== 'today') return;
-    const handler = () => fetchData(dateRange.from!, dateRange.to!);
-    socket.on('stats_updated', handler);
-    return () => { socket.off('stats_updated', handler); };
-  }, [socket, preset, fetchData, dateRange]);
 
   const handleRangeChange = (range: { start: Date | null; end: Date | null }, presetKey?: string) => {
     setDateRange(resolveRange(range, presetKey));

@@ -42,7 +42,7 @@ export default function Dashboard() {
       </div>
       <StoriesBar />
       
-      <div className="space-y-6 pb-20 md:pb-0 mt-3">
+      <div className="space-y-3 md:space-y-6 pb-20 md:pb-0 mt-2 md:mt-3">
         <DashboardSummary />
 
         <OpenTickets />

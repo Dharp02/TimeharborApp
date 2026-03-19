@@ -1,7 +1,4 @@
-import { authenticatedFetch } from '../auth';
-import { getApiUrl } from '../apiUrl';
-
-const API_URL = getApiUrl();
+import { mockNotifications } from '../mockData';
 
 export interface Notification {
   id: string;
@@ -21,60 +18,35 @@ export interface NotificationsResponse {
   totalPages: number;
 }
 
-export const getNotifications = async (page: number = 1, limit: number = 20): Promise<NotificationsResponse> => {
-  const response = await authenticatedFetch(`${API_URL}/notifications?page=${page}&limit=${limit}`);
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch notifications');
-  }
+// In-memory store so delete/markRead persist within a session
+let localNotifications = [...mockNotifications];
 
-  return response.json();
+export const getNotifications = async (_page: number = 1, _limit: number = 20): Promise<NotificationsResponse> => {
+  return {
+    notifications: localNotifications,
+    total: localNotifications.length,
+    page: 1,
+    totalPages: 1,
+  };
 };
 
 export const markAsRead = async (id: string): Promise<Notification> => {
-  const response = await authenticatedFetch(`${API_URL}/notifications/${id}/read`, {
-    method: 'PATCH',
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to mark notification as read');
-  }
-
-  return response.json();
+  const n = localNotifications.find(n => n.id === id);
+  if (n) n.readAt = new Date().toISOString();
+  return n!;
 };
 
 export const markAllAsRead = async (): Promise<void> => {
-  const response = await authenticatedFetch(`${API_URL}/notifications/read-all`, {
-    method: 'PATCH',
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to mark all notifications as read');
-  }
+  localNotifications.forEach(n => { n.readAt = new Date().toISOString(); });
 };
 
 export const deleteNotification = async (id: string): Promise<void> => {
-  const response = await authenticatedFetch(`${API_URL}/notifications/${id}`, {
-    method: 'DELETE',
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to delete notification');
-  }
+  localNotifications = localNotifications.filter(n => n.id !== id);
 };
 
 export const deleteNotifications = async (ids: string[]): Promise<{ count: number }> => {
-  const response = await authenticatedFetch(`${API_URL}/notifications`, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ ids }),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to delete notifications');
-  }
-
-  return response.json();
+  const idSet = new Set(ids);
+  const before = localNotifications.length;
+  localNotifications = localNotifications.filter(n => !idSet.has(n.id));
+  return { count: before - localNotifications.length };
 };

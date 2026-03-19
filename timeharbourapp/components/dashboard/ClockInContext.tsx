@@ -6,10 +6,8 @@ import { localTimeStore } from '@/TimeharborAPI/time/LocalTimeStore';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { TimeService } from '@/TimeharborAPI/time/TimeService';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { Network } from '@capacitor/network';
 import { Modal } from '@/components/ui/Modal';
 import { useActivityLog } from './ActivityLogContext';
-import { useSocket } from '@/contexts/SocketContext';
 import { DateTime, Duration } from 'luxon';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
@@ -44,7 +42,6 @@ const ClockInContext = createContext<ClockInContextType | undefined>(undefined);
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { addActivity, updateActivity, updateActiveSession } = useActivityLog();
-  const { socket } = useSocket();
   const router = useRouter();
   const isSwitchingTicketRef = useRef(false); // Prevents activity-sync useEffect from clearing ticket during handoff
   const autoClosedRef = useRef(false); // Prevents activity-sync from re-setting state after a server auto-close
@@ -127,34 +124,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     // Network listener removed - handled by SyncManager
   }, []);
-
-  // Listen for auto-close events from the backend cron job.
-  // When the server auto-closes an orphaned session, it emits session_auto_closed
-  // so the frontend can clear the clock-in UI immediately.
-  useEffect(() => {
-    if (!socket) return;
-    const handleAutoClose = () => {
-      autoClosedRef.current = true;
-      setIsSessionActive(false);
-      setSessionStartTime(null);
-      setIsOnBreak(false);
-      setBreakStartTime(null);
-      setTotalBreakMs(0);
-      setActiveTicketId(null);
-      setActiveTicketTitle(null);
-      setTicketStartTime(null);
-      setTicketBreakMs(0);
-      localStorage.removeItem('sessionStartTime');
-      localStorage.removeItem('breakStartTime');
-      localStorage.removeItem('totalBreakMs');
-      localStorage.removeItem('activeTicketId');
-      localStorage.removeItem('activeTicketTitle');
-      localStorage.removeItem('ticketStartTime');
-      localStorage.removeItem('ticketBreakMs');
-    };
-    socket.on('session_auto_closed', handleAutoClose);
-    return () => { socket.off('session_auto_closed', handleAutoClose); };
-  }, [socket]);
 
   // Sync state with activity logs
   const { activities } = useActivityLog();

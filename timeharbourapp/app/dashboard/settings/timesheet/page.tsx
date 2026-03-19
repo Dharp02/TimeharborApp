@@ -6,13 +6,11 @@ import { DateTime } from 'luxon';
 import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
 import { Activity, fetchActivitiesByDateRange, getTimesheetTotals, TimesheetDayTotal } from '@/TimeharborAPI/dashboard';
 import { formatDurationMs } from '@/lib/formatDuration';
-import { Clock, Calendar, CheckCircle2, ChevronDown, PauseCircle, PlayCircle, StopCircle, WifiOff } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, ChevronDown, PauseCircle, PlayCircle, StopCircle } from 'lucide-react';
 import { useRefresh } from '../../../../contexts/RefreshContext';
-import { useSocket } from '@/contexts/SocketContext';
 
 export default function TimesheetPage() {
   const { register, lastRefreshed } = useRefresh();
-  const { isOnline } = useSocket();
   const [dateRange, setDateRange] = useState<LuxonDateRange>({ 
     from: DateTime.now().startOf('day'),
     to: DateTime.now().endOf('day') 
@@ -229,13 +227,7 @@ export default function TimesheetPage() {
       </div>
 
       <div className="space-y-6">
-        {!isOnline ? (
-          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl shadow-sm">
-            <WifiOff className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">You&apos;re offline</h3>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">Come online to view your timesheet.</p>
-          </div>
-        ) : isLoading ? (
+        {isLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
             <p className="text-gray-500">Loading timesheet data...</p>

@@ -1,11 +1,5 @@
-import { getApiUrl } from '../apiUrl';
 import { db } from '../db';
-
-const API_URL = getApiUrl();
-
-// Admin refresh token — used to skip server-side revocation on sign-out
-// (no DB record exists for admin sessions)
-const ADMIN_REFRESH_TOKEN = 'admin-static-refresh-token';
+import { mockUser } from '../mockData';
 
 // Types
 export interface User {
@@ -40,19 +34,11 @@ const notifyListeners = (event: string, session: any) => {
   listeners.forEach(listener => listener(event, session));
 };
 
-// Check if we're in a browser environment
 const isBrowser = typeof window !== 'undefined';
-
-// Token storage helpers
-const setTokens = (session: Session) => {
-  if (!isBrowser) return;
-  localStorage.setItem('access_token', session.access_token);
-  localStorage.setItem('refresh_token', session.refresh_token);
-  localStorage.setItem('token_expires_at', String(Date.now() + session.expires_in * 1000));
-};
 
 const setUser = async (user: User) => {
   if (!isBrowser) return;
+  localStorage.setItem('mock_user', JSON.stringify(user));
   try {
     await db.profile.put({ key: 'user', data: user });
   } catch (error) {
@@ -62,409 +48,85 @@ const setUser = async (user: User) => {
 
 export const getStoredUser = async (): Promise<User | null> => {
   if (!isBrowser) return null;
+  const stored = localStorage.getItem('mock_user');
+  if (stored) {
+    try { return JSON.parse(stored); } catch { /* fall through */ }
+  }
   try {
     const record = await db.profile.get('user');
     return record ? record.data : null;
-  } catch (error) {
-    console.error('Failed to get user from Dexie:', error);
+  } catch {
     return null;
   }
 };
 
-// Keys that survive sign-out because they are device-scoped, not user-scoped.
-const DEVICE_SCOPED_STORAGE_KEYS = new Set(['deviceId']);
-
-const clearTokens = async () => {
+const clearSession = async () => {
   if (!isBrowser) return;
-
-  // Clear every localStorage key except device-scoped ones.
-  // Adding new user-scoped keys in future requires no changes here.
-  for (let i = localStorage.length - 1; i >= 0; i--) {
-    const key = localStorage.key(i);
-    if (key && !DEVICE_SCOPED_STORAGE_KEYS.has(key)) {
-      localStorage.removeItem(key);
-    }
-  }
-
+  localStorage.removeItem('mock_user');
   try {
-    // Clear every Dexie table dynamically so new tables added in future
-    // are wiped automatically without needing to update this function.
     await Promise.all(db.tables.map(table => table.clear()));
   } catch (error) {
     console.error('Failed to clear Dexie cache on sign-out:', error);
   }
 };
 
-// Exported so that pages like ResetPasswordForm can clear any stale session
-// before redirecting to login, preventing auto-login as the wrong account.
-export const clearStoredSession = clearTokens;
+export const clearStoredSession = clearSession;
 
-const getAccessToken = (): string | null => {
-  if (!isBrowser) return null;
-  return localStorage.getItem('access_token');
-};
-
-const getRefreshToken = (): string | null => {
-  if (!isBrowser) return null;
-  return localStorage.getItem('refresh_token');
-};
-
-const isTokenExpired = (): boolean => {
-  if (!isBrowser) return true;
-  const expiresAt = localStorage.getItem('token_expires_at');
-  if (!expiresAt) return true;
-  
-  // Check if token expires in the next 30 seconds
-  return Date.now() >= (parseInt(expiresAt) - 30000);
-};
-
-let refreshPromise: Promise<{ data: Session | null; error: AuthError | null }> | null = null;
-
-// Refresh token function
 export const refreshAccessToken = async (): Promise<{ data: Session | null; error: AuthError | null }> => {
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-
-  refreshPromise = (async () => {
-    const refreshToken = getRefreshToken();
-    
-    if (!refreshToken) {
-      return { data: null, error: { message: 'No refresh token available' } };
-    }
-
-    try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Only clear tokens if the server explicitly rejected the refresh token (401/403)
-        if (response.status === 401 || response.status === 403) {
-          await clearTokens();
-          notifyListeners('TOKEN_EXPIRED', null);
-        }
-        return { data: null, error: { message: data.error || 'Token refresh failed' } };
-      }
-
-      // Update tokens
-      setTokens(data.session);
-      
-      return { data: data.session, error: null };
-    } catch (err) {
-      console.error('Token refresh error:', err);
-      // Do NOT clear tokens on network error - allow offline mode
-      return { data: null, error: { message: 'Network error' } };
-    }
-  })();
-
-  try {
-    const result = await refreshPromise;
-    return result;
-  } finally {
-    refreshPromise = null;
-  }
+  return { data: { access_token: 'mock-token', refresh_token: 'mock-refresh', expires_in: 86400 }, error: null };
 };
 
-// Authenticated fetch wrapper
 export const authenticatedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  let token = getAccessToken();
-
-  if (token && isTokenExpired()) {
-    const { data, error } = await refreshAccessToken();
-    if (error) {
-      throw new Error('Session expired. Please sign in again.');
-    }
-    token = data?.access_token || null;
-  }
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  return fetch(url, {
-    ...options,
-    headers,
-  });
+  return fetch(url, { ...options });
 };
 
-export const signUp = async (email: string, password: string, name: string) => {
-  console.log('Signing up with:', { email, name });
-  try {
-    const response = await fetch(`${API_URL}/auth/signup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password, full_name: name }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('Signup failed:', data);
-      return { data: null, error: { message: data.error || 'Signup failed', details: data.details } };
-    }
-
-    if (data.session) {
-      setTokens(data.session);
-      await setUser(data.user);
-      notifyListeners('SIGNED_IN', { user: data.user, session: data.session });
-    }
-
-    return { data, error: null };
-  } catch (err) {
-    console.error('Signup error:', err);
-    return { data: null, error: { message: 'Network error' } };
-  }
+export const signUp = async (_email: string, _password: string, _name: string) => {
+  return { data: null, error: { message: 'Registration is not available in demo mode' } as AuthError };
 };
 
 export const signIn = async (email: string, password: string) => {
-  try {
-    const response = await fetch(`${API_URL}/auth/signin`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return { data: null, error: { message: data.error || 'Signin failed', details: data.details } };
-    }
-
-    if (data.session) {
-      setTokens(data.session);
-      await setUser(data.user);
-      notifyListeners('SIGNED_IN', { user: data.user, session: data.session });
-    }
-
-    return { data, error: null };
-  } catch (err) {
-    console.error('Signin error:', err);
-    return { data: null, error: { message: 'Network error' } };
+  if (email === 'admin' && password === 'admin') {
+    const user = { ...mockUser };
+    await setUser(user);
+    notifyListeners('SIGNED_IN', { user, session: { access_token: 'mock-token', refresh_token: 'mock-refresh' } });
+    return { data: { user, session: { access_token: 'mock-token', refresh_token: 'mock-refresh', expires_in: 86400 } }, error: null as AuthError | null };
   }
+  return { data: null, error: { message: 'Invalid credentials. Use admin / admin' } as AuthError };
 };
 
 export const signOut = async () => {
-  const refreshToken = getRefreshToken();
-  
-  // Skip API call for admin session
-  if (refreshToken !== ADMIN_REFRESH_TOKEN) {
-    try {
-      if (refreshToken) {
-        await fetch(`${API_URL}/auth/signout`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-      }
-    } catch (err) {
-      console.error('Signout error:', err);
-    }
-  }
-
-  await clearTokens();
+  await clearSession();
   notifyListeners('SIGNED_OUT', null);
   return { error: null };
 };
 
 export const getSession = async () => {
-  if (!isBrowser) {
-    return { session: null, error: null };
-  }
-  
-  const token = getAccessToken();
-  const refreshToken = getRefreshToken();
-  
-  if (!token || !refreshToken) {
-    return { session: null, error: null };
-  }
-
-  // Check if token is expired
-  if (isTokenExpired()) {
-    const { data, error } = await refreshAccessToken();
-    if (error) {
-      return { session: null, error };
-    }
-    return { 
-      session: { 
-        access_token: data?.access_token || '',
-        refresh_token: data?.refresh_token || ''
-      }, 
-      error: null 
-    };
-  }
-
-  return { 
-    session: { 
-      access_token: token,
-      refresh_token: refreshToken
-    }, 
-    error: null 
-  };
+  if (!isBrowser) return { session: null, error: null };
+  const user = await getStoredUser();
+  if (!user) return { session: null, error: null };
+  return { session: { access_token: 'mock-token', refresh_token: 'mock-refresh' }, error: null };
 };
 
 export const getUser = async () => {
-  if (!isBrowser) {
-    return { user: null, error: null };
-  }
-
-  const token = getAccessToken();
-  const refreshToken = getRefreshToken();
-  
-  if (!token && !refreshToken) {
-    return { user: null, error: null };
-  }
-
-  // Try to return stored user immediately for better UX
-  const storedUser = await getStoredUser();
-  
-  try {
-    // Use a timeout for the network request to prevent hanging
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(new Error('Request timed out')), 30000); // 30 second timeout
-
-    const response = await authenticatedFetch(`${API_URL}/auth/me`, {
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      // If unauthorized, try to refresh token
-      if (response.status === 401) {
-        const { error } = await refreshAccessToken();
-        if (error) {
-          return { user: null, error: { message: 'Session expired' } };
-        }
-        
-        // Retry with new token
-        const retryResponse = await authenticatedFetch(`${API_URL}/auth/me`);
-        const retryData = await retryResponse.json();
-        
-        if (!retryResponse.ok) {
-          return { user: null, error: { message: retryData.error } };
-        }
-        
-        await setUser(retryData.user);
-        return { user: retryData.user, error: null };
-      }
-      
-      if (storedUser) {
-        return { user: storedUser, error: null };
-      }
-
-      return { user: null, error: { message: data.error || 'Failed to fetch user' } };
-    }
-
-    await setUser(data.user);
-    return { user: data.user, error: null };
-  } catch (err: any) {
-    if (err?.message !== 'Session expired. Please sign in again.') {
-      console.error('Get user error:', err);
-    }
-    
-    if (storedUser) {
-      return { user: storedUser, error: null };
-    }
-
-    const message = err?.message === 'Session expired. Please sign in again.' 
-      ? 'Session expired' 
-      : 'Network error';
-      
-    return { user: null, error: { message } };
-  }
+  if (!isBrowser) return { user: null, error: null };
+  const user = await getStoredUser();
+  return { user: user || null, error: null };
 };
 
 export const updateProfile = async (data: { full_name?: string; email?: string; github_url?: string; linkedin_url?: string; redmine_url?: string }) => {
-  try {
-    const response = await authenticatedFetch(`${API_URL}/auth/me`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-
-    const responseData = await response.json();
-
-    if (!response.ok) {
-      return { user: null, error: { message: responseData.error || 'Failed to update profile' } };
-    }
-
-    // Update local storage/db with new user data
-    if (responseData.user) {
-        await setUser(responseData.user);
-    }
-
-    return { user: responseData.user, error: null };
-  } catch (err: any) {
-    console.error('Update profile error:', err);
-    return { user: null, error: { message: err.message || 'Network error' } };
-  }
+  const user = await getStoredUser();
+  if (!user) return { user: null, error: { message: 'Not signed in' } };
+  const updated = { ...user, ...data, updated_at: new Date().toISOString() };
+  await setUser(updated);
+  return { user: updated, error: null };
 };
 
-export const forgotPassword = async (email: string) => {
-  try {
-    const response = await fetch(`${API_URL}/auth/forgot-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return { data: null, error: { message: data.error || 'Failed to send reset email' } };
-    }
-
-    return { data, error: null };
-  } catch (err) {
-    console.error('Forgot password error:', err);
-    return { data: null, error: { message: 'Network error' } };
-  }
+export const forgotPassword = async (_email: string) => {
+  return { data: null, error: { message: 'Password reset is not available in demo mode' } };
 };
 
-export const resetPassword = async (token: string, password: string) => {
-  try {
-    const response = await fetch(`${API_URL}/auth/reset-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ token, password }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return { data: null, error: { message: data.error || 'Password reset failed' } };
-    }
-
-    return { data, error: null };
-  } catch (err) {
-    console.error('Reset password error:', err);
-    return { data: null, error: { message: 'Network error' } };
-  }
+export const resetPassword = async (_token: string, _password: string) => {
+  return { data: null, error: { message: 'Password reset is not available in demo mode' } };
 };
 
 export const onAuthStateChange = (callback: AuthListener) => {

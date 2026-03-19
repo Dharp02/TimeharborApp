@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, Clock, Ticket, CalendarDays, UserCircle, Coffee } from 'lucide-react';
+import { Clock, Ticket, CalendarDays, UserCircle, Coffee, Timer } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useClockIn } from './ClockInContext';
@@ -16,7 +16,7 @@ export default function BottomNav() {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 pb-safe md:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 pb-safe lg:hidden">
       <div className="flex items-center justify-around h-20 px-2">
         <Link
           href="/dashboard"
@@ -27,11 +27,11 @@ export default function BottomNav() {
               ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400' 
               : 'text-gray-500 dark:text-gray-400'
           }`}>
-            <Home className="w-6 h-6" />
+            <Timer className="w-6 h-6" />
           </div>
           <span className={`text-[10px] font-medium mt-1 ${
             isActive('/dashboard') ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'
-          }`}>Home</span>
+          }`}>Tracker</span>
         </Link>
 
         <Link
