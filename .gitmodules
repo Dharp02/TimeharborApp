@@ -1,0 +1,3 @@
+[submodule "timeharbor-timehuddle-backend"]
+	path = timeharbor-timehuddle-backend
+	url = https://github.com/Dharp02/timeharbor-timehuddle-backend.git
