@@ -70,6 +70,8 @@ export interface Ticket {
   trackedTime?: string;
   trackedMs?: number;
   teamName?: string;
+  projectId?: string;
+  projectName?: string;
   creator?: {
     id: string;
     full_name: string;
@@ -88,6 +90,7 @@ export class TimeharborDB extends Dexie {
   events!: Table<TimeEvent>;
   teams!: Table<Team>;
   tickets!: Table<Ticket>;
+  projects!: Table<any>;
   dashboardStats!: Table<{ teamId: string; data: any; updatedAt: number }>;
   dashboardActivity!: Table<{ id: string; teamId: string; data: any; updatedAt: number }>;
   activityLogs!: Table<any>; // New table
@@ -133,6 +136,10 @@ export class TimeharborDB extends Dexie {
 
     this.version(8).stores({
       activityLogs: 'id, teamId, startTime' // Add explicit table for activity logs
+    });
+
+    this.version(9).stores({
+      projects: 'id, createdBy'
     });
   }
 }

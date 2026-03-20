@@ -26,6 +26,8 @@ export interface Ticket {
   };
   trackedTime?: string;
   trackedMs?: number;
+  projectId?: string;
+  projectName?: string;
   creator?: {
     id: string;
     full_name: string;

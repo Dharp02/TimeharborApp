@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import {
   Modal as MiewModal,
   ModalHeader,
@@ -18,13 +19,16 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, size }: ModalProps) {
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <MiewModal open={isOpen} onOpenChange={(open) => !open && onClose()} size={size}>
-      <ModalHeader>
+      <ModalHeader className="pt-16 lg:pt-4">
         <ModalTitle>{title}</ModalTitle>
         <ModalClose />
       </ModalHeader>
       <ModalBody>{children}</ModalBody>
-    </MiewModal>
+    </MiewModal>,
+    document.body,
   );
 }

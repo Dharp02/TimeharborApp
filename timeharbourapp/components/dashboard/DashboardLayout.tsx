@@ -32,6 +32,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname === '/dashboard/tickets/create') return 'New Ticket';
     if (pathname.match(/\/dashboard\/tickets\/[^/]+\/edit/)) return 'Edit Ticket';
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
+    if (pathname.startsWith('/dashboard/calendar')) return 'Calendar';
+    if (pathname.startsWith('/dashboard/projects')) return 'Projects';
     if (pathname.startsWith('/dashboard/activity')) return 'All Activity';
     if (pathname.startsWith('/dashboard/notifications')) return 'Notifications';
     
