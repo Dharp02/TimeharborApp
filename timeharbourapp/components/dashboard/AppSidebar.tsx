@@ -20,6 +20,7 @@ import {
   BarChart3,
   Sheet,
   Activity,
+  NotebookPen,
   Settings,
   HelpCircle,
   LogOut,
@@ -38,6 +39,7 @@ const NAV_SECTIONS = [
       { label: 'Calendar', icon: CalendarDays, href: '/dashboard/calendar' },
       { label: 'Tickets', icon: Ticket, href: '/dashboard/tickets' },
       { label: 'Projects', icon: FolderOpen, href: '/dashboard/projects' },
+      { label: 'Notepad', icon: NotebookPen, href: '/dashboard/notepad' },
     ],
   },
   {

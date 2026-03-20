@@ -94,7 +94,7 @@ export default function EditTicketPage() {
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 overflow-y-auto">
       <div className="px-1 pt-0 pb-0 md:p-6 md:pb-6 grow-0">
-        <div className="max-w-3xl mr-auto space-y-6">
+        <div className="space-y-6">
 
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg text-sm border border-red-200 dark:border-red-800">

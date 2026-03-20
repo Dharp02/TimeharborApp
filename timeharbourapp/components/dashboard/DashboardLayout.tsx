@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
 // Isolated component — only this tiny subtree de-opts for useSearchParams.
@@ -26,6 +26,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
 
+  // Notepad editor override — lets the notepad page signal the header
+  const [notepadOverride, setNotepadOverride] = useState<{ title: string } | null>(null);
+
+  const handleNotepadEditor = useCallback((e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    setNotepadOverride(detail ? { title: detail.title || 'Untitled' } : null);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('notepad-header', handleNotepadEditor);
+    return () => window.removeEventListener('notepad-header', handleNotepadEditor);
+  }, [handleNotepadEditor]);
+
+  // Reset override when navigating away from notepad
+  useEffect(() => {
+    if (!pathname?.startsWith('/dashboard/notepad')) {
+      setNotepadOverride(null);
+    }
+  }, [pathname]);
+
   const getHeaderTitle = () => {
     if (!pathname) return 'Time Tracker';
 
@@ -34,6 +54,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
     if (pathname.startsWith('/dashboard/calendar')) return 'Calendar';
     if (pathname.startsWith('/dashboard/projects')) return 'Projects';
+    if (pathname.startsWith('/dashboard/notepad')) {
+      return notepadOverride ? notepadOverride.title : 'Notepad';
+    }
     if (pathname.startsWith('/dashboard/activity')) return 'All Activity';
     if (pathname.startsWith('/dashboard/notifications')) return 'Notifications';
     
@@ -63,10 +86,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const mainTabs = ['/dashboard', '/dashboard/tickets', '/dashboard/settings', '/dashboard/notifications'];
     if (mainTabs.includes(normalizedPath)) return false;
 
+    if (pathname.startsWith('/dashboard/notepad') && notepadOverride) return true;
+
     return pathname.startsWith('/dashboard/member') || pathname.startsWith('/dashboard/settings') || pathname.startsWith('/dashboard/notifications') || pathname.startsWith('/dashboard/activity') || pathname.startsWith('/dashboard/tickets/');
   };
 
   const handleBackClick = () => {
+    if (pathname?.startsWith('/dashboard/notepad') && notepadOverride) {
+      window.dispatchEvent(new CustomEvent('notepad-back'));
+      return;
+    }
     if (pathname?.startsWith('/dashboard/notifications')) {
       router.push('/dashboard');
     } else {
