@@ -14,11 +14,12 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | 'full';
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size }: ModalProps) {
   return (
-    <MiewModal open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <MiewModal open={isOpen} onOpenChange={(open) => !open && onClose()} size={size}>
       <ModalHeader>
         <ModalTitle>{title}</ModalTitle>
         <ModalClose />

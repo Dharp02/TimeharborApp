@@ -1,284 +1,301 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthProvider';
-import { User, FileText, Image as ImageIcon, Edit, Share2, Github, Linkedin, Bug } from 'lucide-react';
-import * as API from '@/TimeharborAPI/dashboard';
-import { auth } from '@/TimeharborAPI';
-import { Modal } from '@/components/ui/Modal';
+import { User, Camera, Trash2, Github, Linkedin, Bug, Save, X } from 'lucide-react';
 import { Button, Input } from '@mieweb/ui';
-import { useEffect, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  
-  // Local state for fetching data directly
-  const [memberData, setMemberData] = useState<API.MemberActivityData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Edit Profile State
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editGithubUrl, setEditGithubUrl] = useState('');
-  const [editLinkedinUrl, setEditLinkedinUrl] = useState('');
-  const [editRedmineUrl, setEditRedmineUrl] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Form state
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [redmineUrl, setRedmineUrl] = useState('');
 
-  // Function to fetch member activity
-  const fetchData = async () => {
-    if (!user?.id) return;
-    try {
-      setLoading(true);
-      // We use the same API as the member dashboard
-      const data = await API.getMemberActivity(user.id);
-      setMemberData(data);
-    } catch (err) {
-      console.error('Error fetching profile data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Profile picture state
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
+  // UI state
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Initialize form from user data
   useEffect(() => {
-    fetchData();
-  }, [user?.id]);
-
-  const handleEditClick = () => {
-    if (memberData?.member) {
-      setEditName(memberData.member.name);
-      setEditEmail(memberData.member.email || '');
-      setEditGithubUrl(memberData.member.github_url || '');
-      setEditLinkedinUrl(memberData.member.linkedin_url || '');
-      setEditRedmineUrl(memberData.member.redmine_url || '');
-      setSaveError(null);
-      setIsEditModalOpen(true);
+    if (user) {
+      setName(user.full_name || user.name || '');
+      setEmail(user.email || '');
     }
+  }, [user]);
+
+  const markChanged = () => {
+    setHasChanges(true);
+    setSaveMessage(null);
   };
 
-  const handleSaveProfile = async () => {
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      const { error } = await auth.updateProfile({
-        full_name: editName,
-        email: editEmail,
-        github_url: editGithubUrl,
-        linkedin_url: editLinkedinUrl,
-        redmine_url: editRedmineUrl
-      });
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      if (error) {
-        setSaveError(error.message);
-      } else {
-        setIsEditModalOpen(false);
-        // Refresh data to show updates
-        fetchData();
-      }
-    } catch (err) {
-      setSaveError('An unexpected error occurred');
-    } finally {
-      setIsSaving(false);
+    setAvatarError(null);
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setAvatarError('Please select a JPEG, PNG, WebP, or GIF image.');
+      return;
     }
+    if (file.size > MAX_FILE_SIZE) {
+      setAvatarError('Image must be smaller than 5MB.');
+      return;
+    }
+
+    setAvatarFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setAvatarPreview(objectUrl);
+    markChanged();
+
+    // Reset the input so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  if (loading || !memberData) {
-    return (
-       <div className="flex justify-center p-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-       </div>
-    );
-  }
+  const handleRemoveAvatar = () => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    setAvatarError(null);
+    markChanged();
+  };
 
-  const { member } = memberData;
-  const pulseCount = 0; // Hardcoded as per request
+  const handleSave = () => {
+    // TODO: Wire up to backend API
+    setSaveMessage({ type: 'success', text: 'Profile saved locally. Backend sync coming soon.' });
+    setHasChanges(false);
+  };
+
+  const handleDiscard = () => {
+    if (user) {
+      setName(user.full_name || user.name || '');
+      setEmail(user.email || '');
+    }
+    setGithubUrl('');
+    setLinkedinUrl('');
+    setRedmineUrl('');
+    handleRemoveAvatar();
+    setHasChanges(false);
+    setSaveMessage(null);
+  };
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
+
+  const initials = (name || 'U')
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
-    <div className="mt-2 px-0 pb-4 pt-0 space-y-2 md:mt-0 md:p-4 md:space-y-6">
-      <div className="max-w-5xl mx-auto space-y-4">
-        {/* Top Section: Profile Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors">
+    <div className="mt-2 px-0 pb-4 pt-0 md:mt-0 md:p-4">
+      <div className="max-w-2xl mx-auto space-y-6">
+
+        {/* Profile Picture */}
+        <section aria-labelledby="avatar-heading">
+          <h2 id="avatar-heading" className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+            Profile Picture
+          </h2>
           <div className="flex items-center gap-5">
-            <div className="w-20 h-20 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0 text-2xl text-white font-medium">
-              <User className="w-10 h-10" />
+            <div className="relative group">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-primary-600 flex items-center justify-center text-white text-2xl font-semibold shrink-0">
+                {avatarPreview ? (
+                  <img
+                    src={avatarPreview}
+                    alt="Profile preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span>{initials}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                aria-label="Upload profile picture"
+              >
+                <Camera className="w-6 h-6 text-white" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Upload a new profile picture"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Upload</span>
+                </Button>
+                {avatarPreview && (
+                  <Button
+                    variant="outline"
+                    onClick={handleRemoveAvatar}
+                    className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
+                    aria-label="Remove profile picture"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Remove</span>
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                JPEG, PNG, WebP or GIF. Max 5MB.
+              </p>
+              {avatarError && (
+                <p className="text-xs text-red-500" role="alert">{avatarError}</p>
+              )}
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_IMAGE_TYPES.join(',')}
+            onChange={handleAvatarSelect}
+            className="hidden"
+            aria-hidden="true"
+          />
+        </section>
+
+        {/* Personal Information */}
+        <section aria-labelledby="personal-heading">
+          <h2 id="personal-heading" className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+            Personal Information
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="profile-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Full Name
+              </label>
+              <Input
+                id="profile-name"
+                type="text"
+                value={name}
+                onChange={(e) => { setName(e.target.value); markChanged(); }}
+                placeholder="Your full name"
+              />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{member.name}</h1>
-              <p className="text-gray-500 dark:text-gray-400 mb-3">{member.email}</p>
-              <div className="flex gap-3">
-                <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 text-sm font-medium border border-gray-200 dark:border-gray-700 flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${member.status === 'online' ? 'bg-green-500' : 'bg-slate-500'}`} />
-                  {member.status === 'online' ? 'Online' : 'Offline'}
-                </span>
-              </div>
+              <label htmlFor="profile-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Email Address
+              </label>
+              <Input
+                id="profile-email"
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); markChanged(); }}
+                placeholder="you@example.com"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Changing email may require re-verification.
+              </p>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Stats Section - Custom for Profile Page */}
-        <div className="space-y-4">
-          {/* Profile Actions - Row 1 */}
-          <div className="flex gap-3 md:gap-4">
-            <Button 
-              onClick={handleEditClick} 
-              className="flex-1 shadow-lg shadow-primary-500/20"
-            >
-              <Edit className="flex-1 shadow-lg shadow-primary-500/20" />
-              <span>Edit Profile</span>
-            </Button>
-            <Button 
-              onClick={() => {}} 
-              className="flex-1 shadow-lg" variant="outline"
-            >
-              <Share2 />
-              <span>Share Profile</span>
-            </Button>
+        {/* Linked Accounts */}
+        <section aria-labelledby="links-heading">
+          <h2 id="links-heading" className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+            Linked Accounts
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="profile-github" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Github className="w-4 h-4" />
+                GitHub
+              </label>
+              <Input
+                id="profile-github"
+                type="url"
+                value={githubUrl}
+                onChange={(e) => { setGithubUrl(e.target.value); markChanged(); }}
+                placeholder="https://github.com/username"
+              />
+            </div>
+            <div>
+              <label htmlFor="profile-linkedin" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Linkedin className="w-4 h-4" />
+                LinkedIn
+              </label>
+              <Input
+                id="profile-linkedin"
+                type="url"
+                value={linkedinUrl}
+                onChange={(e) => { setLinkedinUrl(e.target.value); markChanged(); }}
+                placeholder="https://linkedin.com/in/username"
+              />
+            </div>
+            <div>
+              <label htmlFor="profile-redmine" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Bug className="w-4 h-4" />
+                Redmine
+              </label>
+              <Input
+                id="profile-redmine"
+                type="url"
+                value={redmineUrl}
+                onChange={(e) => { setRedmineUrl(e.target.value); markChanged(); }}
+                placeholder="https://redmine.example.com/users/123"
+              />
+            </div>
           </div>
+        </section>
 
-          {/* Media & Pulses - Row 2 */}
-          <div className="grid grid-cols-3 gap-2 md:gap-4">
-             {/* Documents */}
-             <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-                 <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-                    <div className="p-1.5 md:p-2 bg-orange-500/10 rounded-lg text-orange-500 w-fit mx-auto md:mx-0">
-                       <FileText className="w-4 h-4 md:w-5 md:h-5" />
-                    </div>
-                    <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Docs</span>
-                 </div>
-                 <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">0</span>
-             </div>
-
-             {/* Images */}
-             <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-                 <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-                    <div className="p-1.5 md:p-2 bg-primary-500/10 rounded-lg text-primary-500 w-fit mx-auto md:mx-0">
-                       <ImageIcon className="w-4 h-4 md:w-5 md:h-5" />
-                    </div>
-                    <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Images</span>
-                 </div>
-                 <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">0</span>
-             </div>
-
-             {/* Pulses */}
-             <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-                <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-                   <div className="p-1.5 md:p-2 bg-emerald-500/10 rounded-lg text-emerald-500 w-fit mx-auto md:mx-0">
-                      <svg className="w-4 h-4 md:w-5 md:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                      </svg>
-                   </div>
-                   <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Pulses</span>
-                </div>
-                <p className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{pulseCount}</p>
-             </div>
+        {/* Save / Discard */}
+        {saveMessage && (
+          <div
+            role="alert"
+            className={`p-3 rounded-lg text-sm ${
+              saveMessage.type === 'success'
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+            }`}
+          >
+            {saveMessage.text}
           </div>
+        )}
+
+        <div className="flex justify-end gap-3">
+          <Button
+            variant="outline"
+            onClick={handleDiscard}
+            disabled={!hasChanges}
+            aria-label="Discard changes"
+          >
+            <X className="w-4 h-4" />
+            <span>Discard</span>
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={!hasChanges}
+            aria-label="Save profile changes"
+          >
+            <Save className="w-4 h-4" />
+            <span>Save Changes</span>
+          </Button>
         </div>
       </div>
-
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit Profile"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Full Name
-            </label>
-            <Input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder="Your name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Email Address
-            </label>
-            <Input
-              type="email"
-              value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-              placeholder="your.email@example.com"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Changing email may require re-verification.
-            </p>
-          </div>
-
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Linked Accounts</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  <Github className="w-4 h-4" />
-                  GitHub
-                </label>
-                <Input
-                  type="url"
-                  value={editGithubUrl}
-                  onChange={(e) => setEditGithubUrl(e.target.value)}
-                  placeholder="https://github.com/username"
-                />
-              </div>
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  <Linkedin className="w-4 h-4" />
-                  LinkedIn
-                </label>
-                <Input
-                  type="url"
-                  value={editLinkedinUrl}
-                  onChange={(e) => setEditLinkedinUrl(e.target.value)}
-                  placeholder="https://linkedin.com/in/username"
-                />
-              </div>
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  <Bug className="w-4 h-4" />
-                  Redmine
-                </label>
-                <Input
-                  type="url"
-                  value={editRedmineUrl}
-                  onChange={(e) => setEditRedmineUrl(e.target.value)}
-                  placeholder="https://redmine.example.com/users/123"
-                />
-              </div>
-            </div>
-          </div>
-
-          {saveError && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-lg">
-              {saveError}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
-  variant="ghost"
-              onClick={() => setIsEditModalOpen(false)}
-              disabled={isSaving}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveProfile}
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

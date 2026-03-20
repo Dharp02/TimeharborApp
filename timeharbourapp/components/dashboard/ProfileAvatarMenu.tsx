@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Palette, Sun } from 'lucide-react';
+import { Bell, Palette } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { Button, ThemeToggle } from '@mieweb/ui';
+import { Button } from '@mieweb/ui';
 import BrandSwitcher from './BrandSwitcher';
 
 export default function ProfileAvatarMenu() {
@@ -82,17 +82,7 @@ export default function ProfileAvatarMenu() {
             </div>
           </Button>
 
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                  <Sun className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div className="font-medium text-gray-900 dark:text-white">Mode</div>
-              </div>
-              <ThemeToggle mode="three-way" size="sm" variant="ghost" />
-            </div>
-          </div>
+
 
           <div className="px-4 py-3">
             <div className="flex items-center gap-3 mb-2">

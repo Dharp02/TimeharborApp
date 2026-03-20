@@ -13,6 +13,11 @@ import {
   RefreshCw,
   Share2,
   Search,
+  MoreVertical,
+  Eye,
+  Pencil,
+  ArrowRightLeft,
+  UserPlus,
 } from "lucide-react";
 import {
   Button,
@@ -27,6 +32,10 @@ import {
   CardContent,
   Text,
   SmallMuted,
+  Dropdown,
+  DropdownContent,
+  DropdownItem,
+  DropdownSeparator,
 } from "@mieweb/ui";
 import { useRouter } from "next/navigation";
 import { useClockIn } from "@/components/dashboard/ClockInContext";
@@ -52,6 +61,7 @@ export default function TicketsPage() {
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [showClockInWarning, setShowClockInWarning] = useState(false);
+  const [detailTicket, setDetailTicket] = useState<TicketType | null>(null);
 
   const [modalType, setModalType] = useState<"stop" | "switch">("stop");
   const [comment, setComment] = useState("");
@@ -232,22 +242,84 @@ export default function TicketsPage() {
       >
         <CardContent className="space-y-2">
           <div className="flex items-start justify-between gap-3">
-            <Text className="text-lg font-bold leading-tight">
-              {ticket.title}
-            </Text>
-          <Badge
-            variant={
-              ticket.status === "Open"
-                ? "secondary"
-                : ticket.status === "In Progress"
-                  ? "warning"
-                  : "success"
-            }
-            size="sm"
-          >
-            {getStatusDisplay(ticket.status)}
-          </Badge>
-        </div>
+            <div className="flex items-start gap-2 flex-1 min-w-0">
+              <span
+                className={
+                  "mt-1.5 w-3 h-3 rounded-full shrink-0 " +
+                  (ticket.priority === "High"
+                    ? "bg-red-500"
+                    : ticket.priority === "Medium"
+                      ? "bg-orange-400"
+                      : "bg-blue-400")
+                }
+                aria-label={`${ticket.priority} priority`}
+              />
+              <Text className="text-lg font-bold leading-tight">
+                {ticket.title}
+              </Text>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Badge
+                variant={
+                  ticket.status === "Open"
+                    ? "secondary"
+                    : ticket.status === "In Progress"
+                      ? "warning"
+                      : "success"
+                }
+                size="sm"
+              >
+                {getStatusDisplay(ticket.status)}
+              </Badge>
+              <Dropdown
+                trigger={
+                  <button
+                    type="button"
+                    className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    aria-label="Ticket actions"
+                  >
+                    <MoreVertical className="w-5 h-5 text-muted-foreground" />
+                  </button>
+                }
+                placement="bottom-end"
+              >
+                <DropdownContent>
+                  <DropdownItem
+                    icon={<Eye className="w-4 h-4" />}
+                    onClick={() => setDetailTicket(ticket)}
+                  >
+                    Ticket Details
+                  </DropdownItem>
+                  <DropdownItem
+                    icon={<Pencil className="w-4 h-4" />}
+                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}/edit`)}
+                  >
+                    Edit Ticket
+                  </DropdownItem>
+                  <DropdownItem
+                    icon={<ArrowRightLeft className="w-4 h-4" />}
+                    onClick={() => {
+                      setSelectedTicketForAction({ id: ticket.id, title: ticket.title });
+                      setIsStatusModalOpen(true);
+                    }}
+                  >
+                    Change Status
+                  </DropdownItem>
+                  <DropdownSeparator />
+                  <DropdownItem
+                    icon={<Trash2 className="w-4 h-4" />}
+                    variant="danger"
+                    onClick={() => {
+                      setSelectedTicketForAction({ id: ticket.id, title: ticket.title });
+                      setIsDeleteModalOpen(true);
+                    }}
+                  >
+                    Delete Ticket
+                  </DropdownItem>
+                </DropdownContent>
+              </Dropdown>
+            </div>
+          </div>
 
         <SmallMuted className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {isTimehuddle ? (
@@ -671,6 +743,145 @@ export default function TicketsPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Ticket Details Modal */}
+      <Modal
+        isOpen={!!detailTicket}
+        onClose={() => setDetailTicket(null)}
+        title="Ticket Details"
+        size="lg"
+      >
+        {detailTicket && (
+          <div className="space-y-5">
+            {/* ID + badges */}
+            <div className="flex items-center justify-between">
+              <SmallMuted className="font-mono text-xs">{detailTicket.id.slice(0, 8)}</SmallMuted>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant={
+                    detailTicket.status === "Open"
+                      ? "secondary"
+                      : detailTicket.status === "In Progress"
+                        ? "warning"
+                        : "success"
+                  }
+                  size="sm"
+                >
+                  {getStatusDisplay(detailTicket.status)}
+                </Badge>
+                <Badge
+                  variant={
+                    detailTicket.priority === "High"
+                      ? "danger"
+                      : detailTicket.priority === "Low"
+                        ? "outline"
+                        : "default"
+                  }
+                  size="sm"
+                >
+                  {detailTicket.priority}
+                </Badge>
+              </div>
+            </div>
+
+            <Text className="text-xl font-bold">{detailTicket.title}</Text>
+
+            {/* Description */}
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+              <SmallMuted className="block text-xs font-semibold uppercase tracking-wider mb-2">
+                Description
+              </SmallMuted>
+              {detailTicket.description ? (
+                <Text className="text-sm whitespace-pre-wrap">{detailTicket.description}</Text>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm italic text-muted-foreground">No description provided.</span>
+                  <button
+                    type="button"
+                    className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline"
+                    onClick={() => {
+                      setDetailTicket(null);
+                      router.push(`/dashboard/tickets/${detailTicket.id}/edit`);
+                    }}
+                  >
+                    Add description
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Assigned To */}
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm font-semibold text-muted-foreground">
+                  {detailTicket.assignee
+                    ? detailTicket.assignee.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+                    : 'UN'}
+                </div>
+                <div>
+                  <Text className="text-sm font-medium">
+                    {detailTicket.assignee?.full_name || 'Unassigned'}
+                  </Text>
+                  <SmallMuted className="text-xs">Assigned To</SmallMuted>
+                </div>
+              </div>
+              <UserPlus className="w-5 h-5 text-muted-foreground" />
+            </div>
+
+            {/* Meta */}
+            <div className="flex items-center justify-between text-xs">
+              <div>
+                <SmallMuted className="block uppercase tracking-wider font-semibold">Created By</SmallMuted>
+                <Text className="font-medium">{detailTicket.creator?.full_name || user?.full_name || '—'}</Text>
+              </div>
+              <div className="text-right">
+                <SmallMuted className="block uppercase tracking-wider font-semibold">Created On</SmallMuted>
+                <Text className="font-medium">
+                  {new Date(detailTicket.createdAt).toLocaleDateString('en-US', {
+                    month: 'short', day: 'numeric', year: 'numeric',
+                  })}
+                </Text>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setSelectedTicketForAction({ id: detailTicket.id, title: detailTicket.title });
+                  setDetailTicket(null);
+                  setIsStatusModalOpen(true);
+                }}
+              >
+                <ArrowRightLeft className="w-4 h-4" /> Change Status
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setDetailTicket(null);
+                  router.push(`/dashboard/tickets/${detailTicket.id}/edit`);
+                }}
+              >
+                <Pencil className="w-4 h-4" /> Edit Ticket
+              </Button>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950"
+              onClick={() => {
+                setSelectedTicketForAction({ id: detailTicket.id, title: detailTicket.title });
+                setDetailTicket(null);
+                setIsDeleteModalOpen(true);
+              }}
+            >
+              <Trash2 className="w-4 h-4" /> Delete Ticket
+            </Button>
+          </div>
+        )}
       </Modal>
     </>
   );

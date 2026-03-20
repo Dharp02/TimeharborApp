@@ -659,10 +659,16 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     window.dispatchEvent(new Event('pull-to-refresh'));  };
 
   const getFormattedTotalTime = (ticketId: string) => {
-    const totalMs = ticketDurations[ticketId] || 0;
+    let totalMs = ticketDurations[ticketId] || 0;
+
+    // If this ticket is currently running, add the live elapsed time
+    if (activeTicketId === ticketId && ticketStartTime) {
+      const rawMs = DateTime.now().toMillis() - ticketStartTime;
+      const workingMs = Math.max(0, rawMs - ticketBreakMs);
+      totalMs += workingMs;
+    }
+
     const duration = Duration.fromMillis(totalMs).shiftTo('hours', 'minutes', 'seconds');
-    
-    // Normalize to handle overflows like 61 seconds -> 1 minute 1 second
     const normalized = duration.normalize();
 
     const hours = Math.floor(normalized.hours);
@@ -704,9 +710,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         title="What would you like to do?"
       >
         <div className="space-y-3">
-          <Button
+          <button
             onClick={takeBreak}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 hover:border-amber-400 dark:hover:border-amber-500 text-left h-auto justify-start"
+            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 hover:border-amber-400 dark:hover:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-none text-left transition-colors"
             aria-label="Take a break"
           >
             <div className="shrink-0 p-2 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 rounded-lg">
@@ -716,11 +722,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-semibold text-gray-900 dark:text-white">Take a Break</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Pause your session. Resume when you're back.</p>
             </div>
-          </Button>
+          </button>
 
-          <Button
+          <button
             onClick={proceedToClockOut}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:border-red-400 dark:hover:border-red-600 text-left h-auto justify-start"
+            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:border-red-400 dark:hover:border-red-600 focus:ring-2 focus:ring-red-400 focus:outline-none text-left transition-colors"
             aria-label="Clock out"
           >
             <div className="shrink-0 p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg">
@@ -730,7 +736,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-semibold text-gray-900 dark:text-white">Clock Out</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">End your work session for today.</p>
             </div>
-          </Button>
+          </button>
 
           <Button
   variant="ghost"

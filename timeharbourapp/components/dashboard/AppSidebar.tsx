@@ -24,6 +24,7 @@ import {
   HelpCircle,
   LogOut,
   Trash2,
+  UserPen,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
@@ -133,13 +134,18 @@ export default function AppSidebar() {
 
       <SidebarContent>
         {/* User Info */}
-        <div className={isCollapsed ? 'px-2 py-3 mb-2 flex justify-center' : 'px-4 py-3 mb-2'}>
+        <div
+          className={isCollapsed ? 'px-2 py-3 mb-2 flex justify-center' : 'px-4 py-3 mb-2 cursor-pointer hover:bg-muted rounded-lg transition-colors'}
+          onClick={() => handleNavClick('/dashboard/settings/profile')}
+          role="button"
+          aria-label="Edit profile"
+        >
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white font-semibold text-sm">
               {getInitials()}
             </div>
             {!isCollapsed && (
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-foreground truncate">
                   {user?.full_name || 'User'}
                 </p>
@@ -147,6 +153,9 @@ export default function AppSidebar() {
                   Personal workspace
                 </p>
               </div>
+            )}
+            {!isCollapsed && (
+              <UserPen className="w-4 h-4 text-muted-foreground shrink-0" />
             )}
           </div>
         </div>

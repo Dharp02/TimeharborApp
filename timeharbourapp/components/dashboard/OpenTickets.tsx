@@ -25,7 +25,7 @@ const formatRelativeTime = (dateStr: string) => {
 };
 
 export default function OpenTickets() {
-  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, getFormattedTotalTime, toggleSession } = useClockIn();
+  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, getFormattedTotalTime, toggleSession, ticketDuration } = useClockIn();
   const { addActivity } = useActivityLog();
   const { register, lastRefreshed } = useRefresh();
 
@@ -203,7 +203,7 @@ export default function OpenTickets() {
             const assignerName = ticket.creator?.full_name?.split(' ')[0] || 'Someone';
 
             return (
-              <Card key={ticket.id} className="border">
+              <Card key={ticket.id} className={`border transition-all duration-300 ${activeTicketId === ticket.id ? 'ring-2 ring-primary-500 border-primary-500 bg-primary-50 dark:bg-primary-950/20' : ''}`}>
                 <CardContent className="space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <Text className="text-base font-bold leading-tight">

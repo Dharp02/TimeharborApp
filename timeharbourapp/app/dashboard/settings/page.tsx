@@ -9,14 +9,20 @@ import {
   CalendarDays,
   Users,
   ChevronRight,
+  Sun,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Text, SmallMuted } from '@mieweb/ui';
+import { useState } from 'react';
+import { Text, SmallMuted, Switch, useThemeContext } from '@mieweb/ui';
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useThemeContext();
+
+  const isDark = resolvedTheme === 'dark';
+  const handleThemeToggle = (checked: boolean) => setTheme(checked ? 'dark' : 'light');
 
   const getInitials = () => {
     if (!user?.full_name) return user?.email?.charAt(0).toUpperCase() || 'U';
@@ -27,10 +33,11 @@ export default function SettingsPage() {
     return user.full_name.substring(0, 2).toUpperCase();
   };
 
+  const [pushEnabled, setPushEnabled] = useState(false);
+
   const menuItems = [
     { label: 'Edit Profile', icon: User, href: '/dashboard/settings/profile' },
     { label: 'Change Password', icon: Lock, href: '/dashboard/settings/password' },
-    { label: 'Notification Preferences', icon: Bell, href: '/dashboard/notifications' },
     { label: 'Language', icon: Globe, href: '/dashboard/settings/language' },
     { label: 'Timesheet Settings', icon: CalendarDays, href: '/dashboard/settings/timesheet' },
   ];
@@ -61,6 +68,32 @@ export default function SettingsPage() {
             <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </Link>
         ))}
+
+        {/* Push Notifications Toggle */}
+        <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-4">
+            <Bell className="w-5 h-5 text-muted-foreground" />
+            <Text className="font-medium">Notification Preferences</Text>
+          </div>
+          <Switch
+            checked={pushEnabled}
+            onCheckedChange={setPushEnabled}
+            aria-label="Toggle push notifications"
+          />
+        </div>
+
+        {/* Display Mode */}
+        <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-4">
+            <Sun className="w-5 h-5 text-muted-foreground" />
+            <Text className="font-medium">Display Mode</Text>
+          </div>
+          <Switch
+            checked={isDark}
+            onCheckedChange={handleThemeToggle}
+            aria-label="Toggle dark mode"
+          />
+        </div>
 
         {/* Open Timehuddle */}
         <button
