@@ -12,11 +12,11 @@ module.exports = {
     },
     {
       name: 'timeharbor-backend',
-      cwd: '/home/pdharamkar/TimeharborApp/express-api',
-      script: 'npm',
-      args: 'run dev',
+      cwd: '/home/pdharamkar/TimeharborApp/timeharbor-timehuddle-backend/apps/api',
+      script: 'node',
+      args: 'dist/server.js',
       env: {
-        NODE_ENV: 'development',
+        NODE_ENV: 'production',
         PORT: 3001,
         NODE_OPTIONS: '--max-old-space-size=4096',
       },
