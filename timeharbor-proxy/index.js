@@ -35,12 +35,8 @@ const server = http.createServer((req, res) => {
   //      load. This catches stale browser-cached JS that omits the /api prefix.
   const hasAuthHeader = !!req.headers['authorization'];
   if (req.url.startsWith('/api') || req.url.startsWith('/socket.io') || hasAuthHeader) {
-    // Strip /api prefix only if it starts with /api
-    // BUT keep /api for /api/auth/* — Better Auth backend expects the full path
-    if (req.url.startsWith('/api') && !req.url.startsWith('/api/auth')) {
-      req.url = req.url.replace(/^\/api/, '');
-      if (req.url === '') req.url = '/';
-    }
+    // Keep /api prefix — backend expects full paths like /api/auth/*, /api/timeharbor/*
+    // No stripping needed; the backend routes are registered under /api/*
     
     // Proxy to backend
     proxy.web(req, res, { target: BACKEND_URL }, (err) => {

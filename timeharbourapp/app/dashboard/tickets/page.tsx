@@ -50,6 +50,7 @@ export default function TicketsPage() {
   const router = useRouter();
   const {
     isSessionActive,
+    isOnBreak,
     activeTicketId,
     toggleTicketTimer,
     getFormattedTotalTime,
@@ -140,8 +141,8 @@ export default function TicketsPage() {
     ticketTitle: string,
   ) => {
     e.stopPropagation();
-    if (!isSessionActive) {
-      setShowClockInWarning(true);
+    if (!isSessionActive || isOnBreak) {
+      if (!isSessionActive) setShowClockInWarning(true);
       return;
     }
     if (activeTicketId === ticketId) {

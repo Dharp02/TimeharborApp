@@ -1,7 +1,6 @@
 import { db } from '../db';
 import { v4 as uuidv4 } from 'uuid';
 import { getStoredUser } from '../auth';
-import { mockTickets } from '../mockData';
 
 export interface Ticket {
   id: string;
@@ -59,15 +58,12 @@ export interface UpdateTicketData {
   sharedToTimehuddle?: boolean;
 }
 
-// Seed Dexie with mock data on first read
+// Mock seeding disabled — real data only
 let seeded = false;
 async function ensureSeeded() {
   if (seeded) return;
   seeded = true;
-  const count = await db.tickets.count();
-  if (count === 0) {
-    await db.tickets.bulkPut(mockTickets);
-  }
+  // Mock data seeding removed for real testing
 }
 
 const PERSONAL_TEAM_ID = '__personal__';

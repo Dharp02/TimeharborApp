@@ -1,4 +1,4 @@
-import { mockNotifications } from '../mockData';
+// Mock notifications removed for real testing
 
 export interface Notification {
   id: string;
@@ -19,7 +19,7 @@ export interface NotificationsResponse {
 }
 
 // In-memory store so delete/markRead persist within a session
-let localNotifications = [...mockNotifications];
+let localNotifications: Notification[] = [];
 
 export const getNotifications = async (_page: number = 1, _limit: number = 20): Promise<NotificationsResponse> => {
   return {

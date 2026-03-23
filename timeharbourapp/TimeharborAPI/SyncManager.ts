@@ -1,3 +1,5 @@
+import { syncAll } from './SyncEngine';
+
 class SyncManager {
   private static instance: SyncManager;
 
@@ -9,15 +11,18 @@ class SyncManager {
   }
 
   public init() {
-    // No-op: backend sync removed
+    // Sync on network reconnect
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => this.syncNow());
+    }
   }
 
   public async syncNow() {
-    // No-op: backend sync removed
+    await syncAll();
   }
 
   public async addMutation(_url: string, _method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', _body: any, _tempId?: string) {
-    // No-op: backend sync removed
+    // Legacy — mutations now go through SessionManager/Dexie + SyncEngine
   }
 }
 

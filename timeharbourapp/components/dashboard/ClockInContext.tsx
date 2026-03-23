@@ -1,14 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { localTimeStore } from '@/TimeharborAPI/time/LocalTimeStore';
+import { sessionManager } from '@/TimeharborAPI/time/SessionManager';
+import { useSession } from '@/TimeharborAPI/time/useSession';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
-import { TimeService } from '@/TimeharborAPI/time/TimeService';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Modal } from '@/components/ui/Modal';
 import { useActivityLog } from './ActivityLogContext';
-import { DateTime, Duration } from 'luxon';
+import { formatDuration } from '@timeharbor/time-engine';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { Plus, Play, Ticket, Coffee, PlayCircle } from 'lucide-react';
@@ -21,7 +21,7 @@ type ClockInContextType = {
   sessionStartTime: number | null;
   sessionDuration: string;
   sessionFormat: string;
-  
+
   // Ticket Timer
   activeTicketId: string | null;
   activeTicketTitle: string | null;
@@ -39,386 +39,85 @@ type ClockInContextType = {
 
 const ClockInContext = createContext<ClockInContextType | undefined>(undefined);
 
+/** Format ms to mm:ss or hh:mm display */
+function formatTimer(ms: number): { display: string; format: string } {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours === 0) {
+    return {
+      display: `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+      format: 'mm:ss',
+    };
+  }
+  return {
+    display: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`,
+    format: 'hh:mm',
+  };
+}
+
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { addActivity, updateActivity, updateActiveSession } = useActivityLog();
   const router = useRouter();
-  const isSwitchingTicketRef = useRef(false); // Prevents activity-sync useEffect from clearing ticket during handoff
-  const autoClosedRef = useRef(false); // Prevents activity-sync from re-setting state after a server auto-close
-  
-  // Session State
-  const [isSessionActive, setIsSessionActive] = useState(false);
-  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
-  const [sessionDuration, setSessionDuration] = useState('00:00');
-  const [sessionFormat, setSessionFormat] = useState('mm:ss');
 
-  // Break State
-  const [isOnBreak, setIsOnBreak] = useState(false);
-  const [breakStartTime, setBreakStartTime] = useState<number | null>(null);
-  const [totalBreakMs, setTotalBreakMs] = useState(0);
-  const [breakActivityId, setBreakActivityId] = useState<string | null>(null);
+  // Live session from Dexie via useSession hook (reactively updates every 1s)
+  const { currentSession, stats, isOpen, isOnBreak, activeTicketId } = useSession(user?.id);
 
-  // Session Options Modal State (Take a Break / Clock Out)
+  // Modals
   const [isSessionOptionsOpen, setIsSessionOptionsOpen] = useState(false);
-
-  // Ticket Stop Modal State
   const [isStopTicketModalOpen, setIsStopTicketModalOpen] = useState(false);
   const [stopTicketComment, setStopTicketComment] = useState('');
   const [stopTicketLink, setStopTicketLink] = useState('');
-
-  // Clock-In Ticket Prompt State
   const [isClockInPromptOpen, setIsClockInPromptOpen] = useState(false);
   const [clockInTickets, setClockInTickets] = useState<TicketType[]>([]);
   const [clockInTicketsLoading, setClockInTicketsLoading] = useState(false);
 
-  // Ticket State
-  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
-  const [activeTicketTitle, setActiveTicketTitle] = useState<string | null>(null);
-  const [ticketStartTime, setTicketStartTime] = useState<number | null>(null);
-  const [ticketBreakMs, setTicketBreakMs] = useState(0); // Break time accumulated while this ticket was active
-  const [ticketDuration, setTicketDuration] = useState('00:00');
-  const [ticketFormat, setTicketFormat] = useState('mm:ss');
-  const [ticketDurations, setTicketDurations] = useState<Record<string, number>>({});
+  // Pre-break ticket tracking (not in Dexie — ephemeral UI state)
+  const preBreakTicketRef = useRef<{ id: string; title: string } | null>(null);
 
-  useEffect(() => {
-    // Load state from local storage on mount
-    const storedSessionStart = localStorage.getItem('sessionStartTime');
-    const storedTicketStart = localStorage.getItem('ticketStartTime');
-    const storedTicketId = localStorage.getItem('activeTicketId');
-    const storedTicketTitle = localStorage.getItem('activeTicketTitle');
-    const storedDurations = localStorage.getItem('ticketDurations');
-    
-    if (storedSessionStart) {
-      setSessionStartTime(parseInt(storedSessionStart, 10));
-      setIsSessionActive(true);
+  // ── Derived values from useSession stats ──
+
+  const isSessionActive = isOpen;
+  const sessionStartTime = currentSession?.clockIn ?? null;
+
+  const sessionTimer = stats
+    ? formatTimer(stats.netWorkMs)
+    : { display: '00:00', format: 'mm:ss' };
+  const sessionDuration = sessionTimer.display;
+  const sessionFormat = sessionTimer.format;
+
+  // Active ticket info from session segments
+  const activeSegment = currentSession?.ticketSegments.find(s => s.end === null) ?? null;
+  const activeTicketTitle = activeSegment?.ticketTitle ?? null;
+  const ticketStartTime = activeSegment?.start ?? null;
+
+  // Ticket timer display — compute active ticket's total ms from stats
+  const activeTicketMs = stats?.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+  const ticketTimerDisplay = (() => {
+    const totalSeconds = Math.max(0, Math.floor(activeTicketMs / 1000));
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return {
+      display: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`,
+      format: 'hh:mm:ss',
+    };
+  })();
+  const ticketDuration = ticketTimerDisplay.display;
+  const ticketFormat = ticketTimerDisplay.format;
+
+  // Build ticketDurations map from stats breakdown
+  const ticketDurations: Record<string, number> = {};
+  if (stats) {
+    for (const t of stats.ticketBreakdown) {
+      ticketDurations[t.ticketId] = t.totalMs;
     }
+  }
 
-    const storedBreakStart = localStorage.getItem('breakStartTime');
-    const storedTotalBreakMs = localStorage.getItem('totalBreakMs');
-    if (storedBreakStart) {
-      setIsOnBreak(true);
-      setBreakStartTime(parseInt(storedBreakStart, 10));
-    }
-    if (storedTotalBreakMs) {
-      setTotalBreakMs(parseInt(storedTotalBreakMs, 10));
-    }
-
-    if (storedTicketStart && storedTicketId) {
-      setTicketStartTime(parseInt(storedTicketStart, 10));
-      setActiveTicketId(storedTicketId);
-      if (storedTicketTitle) setActiveTicketTitle(storedTicketTitle);
-    }
-
-    if (storedDurations) {
-      try {
-        setTicketDurations(JSON.parse(storedDurations));
-      } catch (e) {
-        console.error('Failed to parse ticket durations', e);
-      }
-    }
-
-    const storedTicketBreakMs = localStorage.getItem('ticketBreakMs');
-    if (storedTicketBreakMs) {
-      setTicketBreakMs(parseInt(storedTicketBreakMs, 10));
-    }
-
-    // Network listener removed - handled by SyncManager
-  }, []);
-
-  // Sync state with activity logs
-  const { activities } = useActivityLog();
-  
-  useEffect(() => {
-    if (!user?.id || activities.length === 0) return;
-    // After a server auto-close, skip syncing from stale activities to prevent
-    // re-setting isSessionActive=true from the old "Work Session Started" entry.
-    if (autoClosedRef.current) return;
-
-    // Find the most recent session activity
-    const recentSession = activities.find(a => a.type === 'SESSION' && (a.title === 'Work Session Started' || a.title === 'Session Ended'));
-    
-    if (recentSession) {
-      if (recentSession.status === 'Active' && recentSession.title === 'Work Session Started') {
-        // Session is active on backend
-        const startTime = new Date(recentSession.startTime).getTime();
-        if (!isSessionActive || sessionStartTime !== startTime) {
-          setIsSessionActive(true);
-          setSessionStartTime(startTime);
-          localStorage.setItem('sessionStartTime', startTime.toString());
-        }
-      } else if (recentSession.status === 'Completed' && recentSession.title === 'Session Ended') {
-        // Session is ended on backend
-        if (isSessionActive) {
-          setIsSessionActive(false);
-          setSessionStartTime(null);
-          localStorage.removeItem('sessionStartTime');
-        }
-      }
-    }
-
-    // Find the most recent ticket activity
-    const recentTicket = activities.find(a => a.type === 'SESSION' && (a.title === 'Started Ticket' || a.title === 'Stopped Ticket'));
-    
-    if (recentTicket) {
-      if (recentTicket.status === 'Active' && recentTicket.title === 'Started Ticket') {
-        // Ticket is active on backend — only apply if it matches what we're currently tracking
-        const startTime = new Date(recentTicket.startTime).getTime();
-        const serverTicketTitle = recentTicket.subtitle;
-
-        if (!activeTicketId && serverTicketTitle) {
-          // No local ticket — try to restore from localStorage if titles match
-          const storedTicketId = localStorage.getItem('activeTicketId');
-          const storedTicketTitle = localStorage.getItem('activeTicketTitle');
-
-          if (storedTicketId && storedTicketTitle === serverTicketTitle) {
-            setActiveTicketId(storedTicketId);
-            setActiveTicketTitle(storedTicketTitle);
-            setTicketStartTime(startTime);
-            localStorage.setItem('ticketStartTime', startTime.toString());
-          }
-        } else if (activeTicketId && activeTicketTitle === serverTicketTitle && ticketStartTime !== startTime) {
-          // Only update startTime if the server entry matches the ticket we're currently on.
-          // Stale "Started Ticket" entries for old tickets (still Active on server) must not
-          // overwrite the startTime of the new ticket after a switch.
-          setTicketStartTime(startTime);
-          localStorage.setItem('ticketStartTime', startTime.toString());
-        }
-      } else if (recentTicket.status === 'Completed' && recentTicket.title === 'Stopped Ticket') {
-        // Only clear local ticket state if the stopped ticket is the one we're currently tracking.
-        // If subtitle doesn't match activeTicketTitle, we already switched to a new ticket — leave it.
-        const stoppedTitle = recentTicket.subtitle;
-        const isCurrentTicketStopped = !activeTicketTitle || stoppedTitle === activeTicketTitle;
-        if (activeTicketId && isCurrentTicketStopped && !isSwitchingTicketRef.current) {
-          setActiveTicketId(null);
-          setActiveTicketTitle(null);
-          setTicketStartTime(null);
-          localStorage.removeItem('activeTicketId');
-          localStorage.removeItem('activeTicketTitle');
-          localStorage.removeItem('ticketStartTime');
-        }
-      }
-    }
-  }, [activities, user?.id, isSessionActive, sessionStartTime, activeTicketId, ticketStartTime]);
-
-
-
-  // Session Timer Effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (isSessionActive && !isOnBreak && sessionStartTime) {
-      interval = setInterval(() => {
-        const elapsedMs = DateTime.now().toMillis() - sessionStartTime - totalBreakMs;
-        const totalDuration = Duration.fromMillis(Math.max(0, elapsedMs))
-          .shiftTo('hours', 'minutes', 'seconds')
-          .normalize();
-
-        const hours = Math.floor(totalDuration.hours);
-        const minutes = Math.floor(totalDuration.minutes);
-        const seconds = Math.floor(totalDuration.seconds);
-
-        if (hours === 0) {
-          setSessionDuration(
-            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-          );
-          setSessionFormat('mm:ss');
-        } else {
-          setSessionDuration(
-            `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
-          );
-          setSessionFormat('hh:mm');
-        }
-      }, 1000);
-    } else if (!isSessionActive) {
-      setSessionDuration('00:00');
-      setSessionFormat('mm:ss');
-    }
-    // When isOnBreak, leave duration frozen as-is
-
-    return () => clearInterval(interval);
-  }, [isSessionActive, isOnBreak, sessionStartTime, totalBreakMs]);
-
-  // Ticket Timer Effect — pauses during break and subtracts break time from elapsed
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (activeTicketId && ticketStartTime && !isOnBreak) {
-      interval = setInterval(() => {
-        const start = DateTime.fromMillis(ticketStartTime);
-        const now = DateTime.now();
-        const rawMs = now.toMillis() - start.toMillis();
-        const workingMs = Math.max(0, rawMs - ticketBreakMs);
-        const totalDuration = Duration.fromMillis(workingMs).shiftTo('hours', 'minutes', 'seconds').normalize();
-        
-        const hours = Math.floor(totalDuration.hours);
-        const minutes = Math.floor(totalDuration.minutes);
-        const seconds = Math.floor(totalDuration.seconds);
-
-        setTicketDuration(
-          `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-        );
-        setTicketFormat('hh:mm:ss');
-      }, 1000);
-    } else if (!activeTicketId) {
-      setTicketDuration('00:00:00');
-      setTicketFormat('hh:mm:ss');
-    }
-    // When isOnBreak, leave ticket duration frozen as-is
-
-    return () => clearInterval(interval);
-  }, [activeTicketId, ticketStartTime, isOnBreak, ticketBreakMs]);
-
-  const takeBreak = async () => {
-    const now = DateTime.now().toMillis();
-    setIsOnBreak(true);
-    setBreakStartTime(now);
-    setIsSessionOptionsOpen(false);
-    localStorage.setItem('breakStartTime', now.toString());
-    const breakId = addActivity({
-      type: 'SESSION',
-      title: 'On Break',
-      subtitle: 'Session paused',
-      status: 'Active',
-      duration: '0m',
-    });
-    setBreakActivityId(breakId);
-    if (user?.id) {
-      await localTimeStore.breakStart(user.id, null);
-    }
-  };
-
-  const resumeFromBreak = async () => {
-    if (!breakStartTime) return;
-    const breakEndMs = DateTime.now().toMillis();
-    const breakDuration = breakEndMs - breakStartTime;
-    const newTotal = totalBreakMs + breakDuration;
-    setTotalBreakMs(newTotal);
-
-    // Only count break time that overlaps with the current ticket's active window
-    if (ticketStartTime !== null) {
-      const clampedBreakMs = Math.max(0, breakEndMs - Math.max(breakStartTime, ticketStartTime));
-      const newTicketBreakMs = ticketBreakMs + clampedBreakMs;
-      setTicketBreakMs(newTicketBreakMs);
-      localStorage.setItem('ticketBreakMs', newTicketBreakMs.toString());
-    }
-
-    setIsOnBreak(false);
-    setBreakStartTime(null);
-    localStorage.setItem('totalBreakMs', newTotal.toString());
-    localStorage.removeItem('breakStartTime');
-
-    // Close out the "On Break" entry with the correct end time (now, not session-end)
-    if (breakActivityId) {
-      updateActivity(breakActivityId, {
-        endTime: new Date(breakEndMs).toISOString(),
-        status: 'Completed',
-      });
-      setBreakActivityId(null);
-    }
-
-    addActivity({
-      type: 'SESSION',
-      title: 'Resumed',
-      subtitle: 'Back from break',
-      status: 'Active',
-      duration: '0m',
-    });
-    if (user?.id) {
-      await localTimeStore.breakEnd(user.id, null);
-    }
-  };
-
-  const proceedToClockOut = async () => {
-    if (!user?.id) return;
-    setIsSessionOptionsOpen(false);
-
-    // If on break, end it first so break time is counted
-    let finalBreakMs = totalBreakMs;
-    if (isOnBreak && breakStartTime) {
-      finalBreakMs = totalBreakMs + (DateTime.now().toMillis() - breakStartTime);
-      setIsOnBreak(false);
-      setBreakStartTime(null);
-      setTotalBreakMs(finalBreakMs);
-      localStorage.setItem('totalBreakMs', finalBreakMs.toString());
-      localStorage.removeItem('breakStartTime');
-    }
-
-    // Check if ticket is running
-    if (activeTicketId) {
-      setIsStopTicketModalOpen(true);
-      return;
-    }
-
-    // Clock Out Session
-    const now = DateTime.now();
-    setIsSessionActive(false);
-    setSessionStartTime(null);
-    setTotalBreakMs(0);
-    localStorage.removeItem('sessionStartTime');
-    localStorage.removeItem('totalBreakMs');
-
-    const actualWorkMs = Math.max(0, now.toMillis() - (sessionStartTime || now.toMillis()) - finalBreakMs);
-    const duration = Duration.fromMillis(actualWorkMs).shiftTo('hours', 'minutes', 'seconds').normalize();
-    const hours = Math.floor(duration.hours);
-    const minutes = Math.floor(duration.minutes);
-    const seconds = Math.floor(duration.seconds);
-    const durationStr = `${hours}h ${minutes}m ${seconds}s`;
-
-    updateActiveSession(now.toISO() || new Date().toISOString(), durationStr);
-    addActivity({
-      type: 'SESSION',
-      title: 'Session Ended',
-      subtitle: `Duration: ${durationStr}`,
-      status: 'Completed',
-      duration: durationStr
-    });
-
-    await localTimeStore.clockOut(user.id, null, null);
-    await syncManager.syncNow();
-    window.dispatchEvent(new Event('pull-to-refresh'));
-    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
-  };
-
-  const toggleSession = async () => {
-    if (!user?.id) {
-      console.error('Cannot toggle session: User not logged in');
-      return;
-    }
-
-    if (isSessionActive) {
-      // Open the Take a Break / Clock Out options modal
-      setIsSessionOptionsOpen(true);
-      return;
-    } else {
-      // Clock In Session
-      const now = DateTime.now();
-      setIsSessionActive(true);
-      setSessionStartTime(now.toMillis());
-      localStorage.setItem('sessionStartTime', now.toMillis().toString());
-
-      addActivity({
-        type: 'SESSION',
-        title: 'Work Session Started',
-        subtitle: 'Clocked In',
-        status: 'Active',
-        duration: '0h 0m',
-        startTime: now.toISO() || new Date().toISOString()
-      });
-
-      await localTimeStore.clockIn(user.id, null);
-
-      // Attempt to sync immediately
-      await syncManager.syncNow();
-      
-      // Force reload activities to ensure sync
-      window.dispatchEvent(new Event('pull-to-refresh'));
-
-      // Prompt user to start or create a ticket
-      setIsClockInPromptOpen(true);
-      fetchClockInTickets();
-    }
-  };
-
+  // ── Actions ──
 
   const fetchClockInTickets = async () => {
     setClockInTicketsLoading(true);
@@ -432,6 +131,158 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const toggleSession = useCallback(async () => {
+    if (!user?.id) return;
+
+    if (isSessionActive && currentSession) {
+      // Open the Take a Break / Clock Out options modal
+      setIsSessionOptionsOpen(true);
+      return;
+    }
+
+    // Clock In
+    await sessionManager.clockIn(user.id);
+
+    addActivity({
+      type: 'SESSION',
+      title: 'Work Session Started',
+      subtitle: 'Clocked In',
+      status: 'Active',
+      duration: '0h 0m',
+      startTime: new Date().toISOString(),
+    });
+
+    await syncManager.syncNow();
+    window.dispatchEvent(new Event('pull-to-refresh'));
+    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
+
+    // Prompt to pick a ticket
+    setIsClockInPromptOpen(true);
+    fetchClockInTickets();
+  }, [user?.id, isSessionActive, currentSession, addActivity]);
+
+  const takeBreak = useCallback(async () => {
+    if (!currentSession) return;
+    setIsSessionOptionsOpen(false);
+
+    // Remember pre-break ticket
+    if (activeTicketId && activeTicketTitle) {
+      preBreakTicketRef.current = { id: activeTicketId, title: activeTicketTitle };
+    } else {
+      preBreakTicketRef.current = null;
+    }
+
+    await sessionManager.startBreak(currentSession.id);
+
+    addActivity({
+      type: 'SESSION',
+      title: 'On Break',
+      subtitle: 'Session paused',
+      status: 'Active',
+      duration: '0m',
+    });
+  }, [currentSession, activeTicketId, activeTicketTitle, addActivity]);
+
+  const resumeFromBreak = useCallback(async () => {
+    if (!currentSession) return;
+
+    const pre = preBreakTicketRef.current;
+    await sessionManager.endBreak(
+      currentSession.id,
+      pre?.id ?? null,
+      pre?.title ?? null
+    );
+    preBreakTicketRef.current = null;
+
+    addActivity({
+      type: 'SESSION',
+      title: 'Resumed',
+      subtitle: 'Back from break',
+      status: 'Active',
+      duration: '0m',
+    });
+  }, [currentSession, addActivity]);
+
+  const proceedToClockOut = useCallback(async () => {
+    if (!currentSession) return;
+    setIsSessionOptionsOpen(false);
+
+    // If on break, end it first
+    if (isOnBreak) {
+      await sessionManager.endBreak(currentSession.id, null, null);
+    }
+
+    // If ticket running, prompt to stop it
+    if (activeTicketId) {
+      setIsStopTicketModalOpen(true);
+      return;
+    }
+
+    // Clock out
+    await sessionManager.clockOut(currentSession.id);
+
+    const durationStr = stats ? formatDuration(stats.netWorkMs) : '0m';
+    updateActiveSession(new Date().toISOString(), durationStr);
+    addActivity({
+      type: 'SESSION',
+      title: 'Session Ended',
+      subtitle: `Duration: ${durationStr}`,
+      status: 'Completed',
+      duration: durationStr,
+    });
+
+    await syncManager.syncNow();
+    window.dispatchEvent(new Event('pull-to-refresh'));
+    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
+  }, [currentSession, isOnBreak, activeTicketId, stats, updateActiveSession, addActivity]);
+
+  const confirmStopTicketAndSession = useCallback(async () => {
+    if (!currentSession) return;
+
+    // Stop the active ticket
+    if (activeTicketId) {
+      await sessionManager.stopTicket(currentSession.id);
+
+      const ticketMs = stats?.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+      addActivity({
+        type: 'SESSION',
+        title: 'Stopped Ticket',
+        subtitle: activeTicketTitle || 'Ticket',
+        description: stopTicketComment,
+        link: stopTicketLink || undefined,
+        status: 'Completed',
+        duration: formatDuration(ticketMs),
+      });
+    }
+
+    // Clock out
+    await sessionManager.clockOut(currentSession.id, stopTicketComment || undefined);
+
+    const durationStr = stats ? formatDuration(stats.netWorkMs) : '0m';
+    updateActiveSession(new Date().toISOString(), durationStr);
+    addActivity({
+      type: 'SESSION',
+      title: 'Session Ended',
+      subtitle: `Duration: ${durationStr}`,
+      status: 'Completed',
+      duration: durationStr,
+    });
+
+    await syncManager.syncNow();
+    window.dispatchEvent(new Event('pull-to-refresh'));
+    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
+
+    setIsStopTicketModalOpen(false);
+    setStopTicketComment('');
+    setStopTicketLink('');
+  }, [currentSession, activeTicketId, activeTicketTitle, stats, stopTicketComment, stopTicketLink, updateActiveSession, addActivity]);
+
+  const cancelStopTicketAndSession = () => {
+    setIsStopTicketModalOpen(false);
+    setStopTicketComment('');
+    setStopTicketLink('');
+  };
+
   const handleClockInTicketSelect = (ticketId: string, ticketTitle: string) => {
     setIsClockInPromptOpen(false);
     toggleTicketTimer(ticketId, ticketTitle);
@@ -441,196 +292,43 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setIsClockInPromptOpen(false);
   };
 
-  const confirmStopTicketAndSession = async () => {
-    if (!user?.id) return;
+  const toggleTicketTimer = useCallback(async (
+    ticketId: string,
+    ticketTitle: string,
+    _teamId?: string,
+    comment?: string,
+    link?: string
+  ) => {
+    if (!isSessionActive || !currentSession) return;
 
-    // First stop the ticket
-    if (activeTicketId && ticketStartTime) {
-      const now = DateTime.now();
-      const start = DateTime.fromMillis(ticketStartTime);
-      const sessionDuration = now.diff(start).as('milliseconds'); // Keep as ms for ticketDurations arithmetic
-      
-      const currentTotal = ticketDurations[activeTicketId] || 0;
-      const newTotal = currentTotal + sessionDuration;
-      
-      const updatedDurations = { ...ticketDurations, [activeTicketId]: newTotal };
-      setTicketDurations(updatedDurations);
-      localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
+    if (activeTicketId === ticketId) {
+      // Stop current ticket
+      await sessionManager.stopTicket(currentSession.id);
 
-      // NEW: Add activity log for the stopped ticket
-       const durationObj = DateTime.now().diff(DateTime.fromMillis(ticketStartTime), ['hours', 'minutes', 'seconds']).normalize();
-       const hours = Math.floor(durationObj.hours);
-       const minutes = Math.floor(durationObj.minutes);
-       const seconds = Math.floor(durationObj.seconds);
-       const durationStr = `${hours}h ${minutes}m ${seconds}s`;
-
+      const ticketMs = stats?.ticketBreakdown.find(t => t.ticketId === ticketId)?.totalMs ?? 0;
       addActivity({
         type: 'SESSION',
         title: 'Stopped Ticket',
         subtitle: activeTicketTitle || 'Ticket',
-        description: stopTicketComment,
-        link: stopTicketLink || undefined,
+        description: comment,
+        link: link || undefined,
         status: 'Completed',
-        duration: durationStr
+        duration: formatDuration(ticketMs),
+      });
+    } else if (activeTicketId) {
+      // Switch: stop previous, start new
+      const prevMs = stats?.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+      addActivity({
+        type: 'SESSION',
+        title: 'Stopped Ticket',
+        subtitle: activeTicketTitle || 'Ticket',
+        description: comment || 'Switched task',
+        link: link || undefined,
+        status: 'Completed',
+        duration: formatDuration(prevMs),
       });
 
-      // Stop the ticket
-      await localTimeStore.stopTicket(user.id, activeTicketId, stopTicketComment, null, stopTicketLink || null);
-
-      setActiveTicketId(null);
-      setActiveTicketTitle(null);
-      setTicketStartTime(null);
-      setTicketBreakMs(0);
-      localStorage.removeItem('activeTicketId');
-      localStorage.removeItem('activeTicketTitle');
-      localStorage.removeItem('ticketStartTime');
-      localStorage.removeItem('ticketBreakMs');
-    }
-
-    // Then clock out session
-    const now = DateTime.now();
-    const actualWorkMs = Math.max(0, now.toMillis() - (sessionStartTime || now.toMillis()) - totalBreakMs);
-    const duration = Duration.fromMillis(actualWorkMs).shiftTo('hours', 'minutes', 'seconds').normalize();
-    const hours = Math.floor(duration.hours);
-    const minutes = Math.floor(duration.minutes);
-    const seconds = Math.floor(duration.seconds);
-    const durationStr = `${hours}h ${minutes}m ${seconds}s`;
-
-    setIsSessionActive(false);
-    setSessionStartTime(null);
-    setIsOnBreak(false);
-    setBreakStartTime(null);
-    setTotalBreakMs(0);
-    localStorage.removeItem('sessionStartTime');
-    localStorage.removeItem('breakStartTime');
-    localStorage.removeItem('totalBreakMs');
-
-    updateActiveSession(now.toISO() || new Date().toISOString(), durationStr);
-
-    addActivity({
-        type: 'SESSION',
-        title: 'Session Ended',
-        subtitle: `Duration: ${durationStr}`,
-        status: 'Completed',
-        duration: durationStr
-    });
-
-    await localTimeStore.clockOut(user.id, null, null);
-
-    // Attempt to sync immediately
-    await syncManager.syncNow();
-    
-    // Force reload activities to ensure sync
-    window.dispatchEvent(new Event('pull-to-refresh'));
-    
-    // Reset Modal
-    setIsStopTicketModalOpen(false);
-    setStopTicketComment('');
-    setStopTicketLink('');
-
-    // 🔄 FORCE REFRESH DASHBOARD STATS
-    // This event listener should be picked up by DashboardSummary to refetch API
-    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
-  };
-
-  const cancelStopTicketAndSession = () => {
-    setIsStopTicketModalOpen(false);
-    setStopTicketComment('');
-    setStopTicketLink('');
-  };
-
-
-
-  const toggleTicketTimer = async (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string) => {
-    if (!isSessionActive) return; // Cannot start ticket timer if session is not active
-    if (!user?.id) {
-      console.error('Cannot toggle ticket: Missing user');
-      return;
-    }
-
-    if (activeTicketId === ticketId) {
-      // Stop current ticket (activeTicketId === ticketId)
-      
-      const now = DateTime.now();
-
-      // Save duration logic
-      if (ticketStartTime) {
-        const start = DateTime.fromMillis(ticketStartTime);
-        const duration = now.diff(start, ['hours', 'minutes', 'seconds']).normalize();
-        
-        const currentTotal = ticketDurations[ticketId] || 0;
-        const newTotal = currentTotal + duration.as('milliseconds'); // Use milliseconds for state storage
-        
-        const updatedDurations = { ...ticketDurations, [ticketId]: newTotal };
-        setTicketDurations(updatedDurations);
-        localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
-        
-        const hours = Math.floor(duration.hours);
-        const minutes = Math.floor(duration.minutes);
-        const seconds = Math.floor(duration.seconds);
-        const durationStr = `${hours}h ${minutes}m ${seconds}s`;
-        
-        addActivity({
-            type: 'SESSION',
-            title: 'Stopped Ticket',
-            subtitle: activeTicketTitle || 'Ticket',
-            description: comment, // Description visible
-            link: link || undefined,
-            status: 'Completed',
-            duration: durationStr
-        });
-      }
-
-      await localTimeStore.stopTicket(user.id, ticketId, comment, null, link || null);
-
-      // Clear active ticket state
-      setActiveTicketId(null);
-      setActiveTicketTitle(null);
-      setTicketStartTime(null);
-      setTicketBreakMs(0);
-      localStorage.removeItem('activeTicketId');
-      localStorage.removeItem('activeTicketTitle');
-      localStorage.removeItem('ticketStartTime');
-      localStorage.removeItem('ticketBreakMs');
-    } else {
-      // Starting Ticket (activeTicketId !== ticketId)
-      isSwitchingTicketRef.current = true; // Guard: suppress useEffect clearing during handoff
-      const now = DateTime.now();
-      
-      // Stop the previous ticket
-      if (activeTicketId && ticketStartTime) {
-        const start = DateTime.fromMillis(ticketStartTime);
-        const sessionDuration = now.diff(start, ['hours', 'minutes', 'seconds']).normalize();
-        
-        const currentTotal = ticketDurations[activeTicketId] || 0;
-        const newTotal = currentTotal + sessionDuration.as('milliseconds');
-        
-        const updatedDurations = { ...ticketDurations, [activeTicketId]: newTotal };
-        setTicketDurations(updatedDurations);
-        localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
-        
-        const hours = Math.floor(sessionDuration.hours);
-        const minutes = Math.floor(sessionDuration.minutes);
-        const seconds = Math.floor(sessionDuration.seconds);
-        const durationStr = `${hours}h ${minutes}m ${seconds}s`;
-
-        addActivity({
-            type: 'SESSION',
-            title: 'Stopped Ticket',
-            subtitle: activeTicketTitle || 'Ticket',
-            description: comment || 'Switched task',
-            link: link || undefined,
-            status: 'Completed',
-            duration: durationStr
-        });
-
-        // Stop the previous ticket
-        await localTimeStore.stopTicket(user.id, activeTicketId, comment, null, link || null);
-      } else if (activeTicketId) {
-        await localTimeStore.stopTicket(user.id, activeTicketId, comment, null, link || null);
-      }
-
-      await localTimeStore.startTicket(user.id, ticketId, ticketTitle, null);
+      await sessionManager.switchTicket(currentSession.id, ticketId, ticketTitle);
 
       addActivity({
         type: 'SESSION',
@@ -638,60 +336,40 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         subtitle: ticketTitle,
         status: 'Active',
         duration: '0m',
-        startTime: now.toISO() || new Date().toISOString()
+        startTime: new Date().toISOString(),
       });
-
-      // Start new ticket state (reset break accumulator for the new ticket)
-      setActiveTicketId(ticketId);
-      setActiveTicketTitle(ticketTitle);
-      setTicketStartTime(now.toMillis());
-      setTicketBreakMs(0);
-      localStorage.setItem('activeTicketId', ticketId);
-      localStorage.setItem('activeTicketTitle', ticketTitle);
-      localStorage.setItem('ticketStartTime', now.toMillis().toString());
-      localStorage.removeItem('ticketBreakMs');
-      isSwitchingTicketRef.current = false; // Handoff complete, allow useEffect again
-    }
-
-    // Attempt to sync immediately
-    await syncManager.syncNow(); 
-    // Force reload activities to ensure sync
-    window.dispatchEvent(new Event('pull-to-refresh'));  };
-
-  const getFormattedTotalTime = (ticketId: string) => {
-    let totalMs = ticketDurations[ticketId] || 0;
-
-    // If this ticket is currently running, add the live elapsed time
-    if (activeTicketId === ticketId && ticketStartTime) {
-      const rawMs = DateTime.now().toMillis() - ticketStartTime;
-      const workingMs = Math.max(0, rawMs - ticketBreakMs);
-      totalMs += workingMs;
-    }
-
-    const duration = Duration.fromMillis(totalMs).shiftTo('hours', 'minutes', 'seconds');
-    const normalized = duration.normalize();
-
-    const hours = Math.floor(normalized.hours);
-    const minutes = Math.floor(normalized.minutes);
-    const seconds = Math.floor(normalized.seconds);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds}s`;
     } else {
-      return `${seconds}s`;
+      // Start ticket (no previous running)
+      await sessionManager.startTicket(currentSession.id, ticketId, ticketTitle);
+
+      addActivity({
+        type: 'SESSION',
+        title: 'Started Ticket',
+        subtitle: ticketTitle,
+        status: 'Active',
+        duration: '0m',
+        startTime: new Date().toISOString(),
+      });
     }
-  };
+
+    await syncManager.syncNow();
+    window.dispatchEvent(new Event('pull-to-refresh'));
+  }, [isSessionActive, currentSession, activeTicketId, activeTicketTitle, stats, addActivity]);
+
+  const getFormattedTotalTime = useCallback((ticketId: string) => {
+    const totalMs = ticketDurations[ticketId] || 0;
+    if (totalMs === 0) return '0s';
+    return formatDuration(totalMs);
+  }, [ticketDurations]);
 
   return (
-    <ClockInContext.Provider value={{ 
+    <ClockInContext.Provider value={{
       isSessionActive,
       isOnBreak,
-      sessionStartTime, 
-      sessionDuration, 
+      sessionStartTime,
+      sessionDuration,
       sessionFormat,
-      activeTicketId, 
+      activeTicketId,
       activeTicketTitle,
       ticketStartTime,
       ticketDuration,
@@ -700,9 +378,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       toggleSession,
       resumeFromBreak,
       toggleTicketTimer,
-      getFormattedTotalTime
+      getFormattedTotalTime,
     }}>
       {children}
+
       {/* Session Options Modal: Take a Break or Clock Out */}
       <Modal
         isOpen={isSessionOptionsOpen}
@@ -738,10 +417,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             </div>
           </button>
 
-          <Button
-  variant="ghost"
-            onClick={() => setIsSessionOptionsOpen(false)}
-          >
+          <Button variant="ghost" onClick={() => setIsSessionOptionsOpen(false)}>
             Cancel
           </Button>
         </div>
@@ -768,7 +444,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {clockInTickets.map((t) => (
                 <Button
-  variant="outline"
+                  variant="outline"
                   key={t.id}
                   onClick={() => handleClockInTicketSelect(t.id, t.title)}
                   className="w-full flex items-center gap-3 p-3 h-auto justify-start text-left group"
@@ -785,15 +461,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
           )}
 
           <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700">
-            <Button
-  variant="ghost"
-              onClick={dismissClockInPrompt}
-            >
+            <Button variant="ghost" onClick={dismissClockInPrompt}>
               Skip for now
             </Button>
-            <Button
-              onClick={() => { dismissClockInPrompt(); router.push('/dashboard/tickets/create'); }}
-            >
+            <Button onClick={() => { dismissClockInPrompt(); router.push('/dashboard/tickets/create'); }}>
               <Plus className="w-4 h-4" />
               New Ticket
             </Button>
@@ -801,6 +472,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         </div>
       </Modal>
 
+      {/* Stop Ticket + Clock Out Modal */}
       <Modal
         isOpen={isStopTicketModalOpen}
         onClose={cancelStopTicketAndSession}
@@ -826,15 +498,10 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             />
           </div>
           <div className="flex justify-end gap-3">
-            <Button
-  variant="ghost"
-              onClick={cancelStopTicketAndSession}
-            >
+            <Button variant="ghost" onClick={cancelStopTicketAndSession}>
               Cancel
             </Button>
-            <Button
-              onClick={confirmStopTicketAndSession}
-            >
+            <Button onClick={confirmStopTicketAndSession}>
               Stop & Clock Out
             </Button>
           </div>

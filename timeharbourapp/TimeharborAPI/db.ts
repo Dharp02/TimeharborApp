@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import type { TicketSegment, Break, TicketTime } from '@timeharbor/time-engine';
 
 export interface OfflineMutation {
   id?: number;
@@ -84,6 +85,34 @@ export interface Ticket {
   };
 }
 
+export interface DexieWorkSession {
+  id: string;
+  clientSessionId: string;
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  clockIn: number; // epoch ms
+  clockOut: number | null;
+  ticketSegments: TicketSegment[];
+  breaks: Break[];
+  totalSessionMs: number;
+  totalBreakMs: number;
+  netWorkMs: number;
+  ticketBreakdown: TicketTime[];
+  comment?: string;
+  autoClosedAt?: number;
+  sourceApp: 'timeharbor';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SyncMeta {
+  collection: string;
+  lastPulledAt: string; // ISO
+}
+
 export class TimeharborDB extends Dexie {
   offlineMutations!: Table<OfflineMutation>;
   profile!: Table<UserProfile>;
@@ -93,7 +122,9 @@ export class TimeharborDB extends Dexie {
   projects!: Table<any>;
   dashboardStats!: Table<{ teamId: string; data: any; updatedAt: number }>;
   dashboardActivity!: Table<{ id: string; teamId: string; data: any; updatedAt: number }>;
-  activityLogs!: Table<any>; // New table
+  activityLogs!: Table<any>;
+  workSessions!: Table<DexieWorkSession>;
+  syncMeta!: Table<SyncMeta>;
 
   constructor() {
     super('TimeharborDB');
@@ -140,6 +171,11 @@ export class TimeharborDB extends Dexie {
 
     this.version(9).stores({
       projects: 'id, createdBy'
+    });
+
+    this.version(10).stores({
+      workSessions: 'id, clientSessionId, userId, date, clockIn, clockOut, _dirty, _rev, updatedAt',
+      syncMeta: 'collection'
     });
   }
 }

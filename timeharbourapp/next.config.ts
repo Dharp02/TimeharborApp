@@ -8,6 +8,8 @@ import path from "path";
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === 'true';
 
 const nextConfig: NextConfig = {
+  // Transpile @timeharbor/time-engine (linked from sibling workspace)
+  transpilePackages: ['@timeharbor/time-engine'],
   // Allow cross-origin dev requests from the local machine IP (for mobile testing via proxy)
   // Include multiple format variants — Next.js version history varies on the expected format
   allowedDevOrigins: ['10.0.0.8', '10.0.0.8:8080', 'http://10.0.0.8:8080'],
@@ -31,6 +33,10 @@ const nextConfig: NextConfig = {
               source: '/api/auth/:path*',
               destination: `${backendUrl}/api/auth/:path*`,
             },
+            {
+              source: '/api/timeharbor/:path*',
+              destination: `${backendUrl}/api/timeharbor/:path*`,
+            },
           ];
         },
       }
@@ -38,7 +44,7 @@ const nextConfig: NextConfig = {
   // Fix "multiple lockfiles" warning — tell Turbopack the workspace root
   // is this package, not the monorepo root
   turbopack: {
-    root: __dirname,
+    root: path.resolve(__dirname, '..'),
   },
   // Prevent webpack from walking up to the monorepo root's node_modules
   // when resolving CSS/PostCSS deps (e.g. tailwindcss). Without this,

@@ -92,14 +92,9 @@ export default function AppSidebar() {
   const handleClearCache = async () => {
     if (!window.confirm('Clear all local data? This won\'t log you out, but will remove offline data until it syncs again.')) return;
     try {
-      await Promise.all([
-        db.activityLogs.clear(),
-        db.offlineMutations.clear(),
-        db.events.clear(),
-        db.tickets.clear(),
-        db.dashboardStats.clear(),
-        db.dashboardActivity.clear(),
-      ]);
+      // Delete the entire Dexie database — covers all tables, even future ones
+      await db.delete();
+
       const preserved: Record<string, string> = {};
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);

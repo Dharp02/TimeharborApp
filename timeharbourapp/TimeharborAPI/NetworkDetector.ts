@@ -2,6 +2,8 @@ type NetworkStatus = 'online' | 'offline' | 'backend-unreachable';
 
 class NetworkDetector {
   private static instance: NetworkDetector;
+  private status: NetworkStatus = 'online';
+  private syncHandler: (() => Promise<void>) | null = null;
 
   public static getInstance(): NetworkDetector {
     if (!NetworkDetector.instance) {
@@ -11,23 +13,40 @@ class NetworkDetector {
   }
 
   async init() {
-    // No-op: backend connectivity checks removed
+    if (typeof window === 'undefined') return;
+
+    this.status = navigator.onLine ? 'online' : 'offline';
+
+    window.addEventListener('online', () => {
+      this.status = 'online';
+      this.triggerSync();
+    });
+
+    window.addEventListener('offline', () => {
+      this.status = 'offline';
+    });
   }
 
   getStatus(): NetworkStatus {
-    return 'online';
+    return this.status;
   }
 
-  setSyncHandler(_handler: () => Promise<void>) {
-    // No-op
+  setSyncHandler(handler: () => Promise<void>) {
+    this.syncHandler = handler;
   }
 
   async triggerSync() {
-    // No-op
+    if (this.syncHandler && this.status === 'online') {
+      try {
+        await this.syncHandler();
+      } catch {
+        // Sync will retry on next trigger
+      }
+    }
   }
 
   async destroy() {
-    // No-op
+    this.syncHandler = null;
   }
 }
 

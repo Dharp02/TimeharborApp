@@ -1,4 +1,6 @@
-import { mockStats, mockActivities, mockMemberActivity, mockTimesheetTotals } from '../mockData';
+import { db } from '../db';
+import { computeSession } from '@timeharbor/time-engine';
+import { formatDurationMs } from '../../lib/formatDuration';
 
 export interface DashboardStats {
   totalHoursToday: string;
@@ -26,12 +28,50 @@ export interface Activity {
   metadata?: Record<string, any>;
 }
 
+function getWeekStartDate(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  const monday = new Date(now);
+  monday.setDate(diff);
+  return monday.toISOString().slice(0, 10);
+}
+
 export const getStats = async (_teamId?: string): Promise<DashboardStats> => {
-  return { ...mockStats };
+  const now = Date.now();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const weekStartStr = getWeekStartDate();
+
+  const allSessions = await db.workSessions.toArray();
+
+  let todayMs = 0;
+  let weekMs = 0;
+
+  for (const s of allSessions) {
+    // For open sessions, recompute with current time
+    const netMs = s.clockOut === null
+      ? computeSession({ clockIn: s.clockIn, clockOut: null, ticketSegments: s.ticketSegments, breaks: s.breaks }, now).netWorkMs
+      : s.netWorkMs;
+
+    if (s.date === todayStr) todayMs += netMs;
+    if (s.date >= weekStartStr) weekMs += netMs;
+  }
+
+  const openTickets = await db.tickets.filter(t => t.status !== 'Closed' && t.status !== 'Done').count();
+
+  return {
+    totalHoursToday: formatDurationMs(todayMs),
+    totalHoursWeek: formatDurationMs(weekMs),
+    totalMsToday: todayMs,
+    totalMsWeek: weekMs,
+    openTickets,
+    teamMembers: 0,
+  };
 };
 
 export const getActivity = async (_teamId?: string, _limit?: number | 'all'): Promise<Activity[]> => {
-  return [...mockActivities];
+  const logs = await db.activityLogs.toArray();
+  return logs;
 };
 
 export interface MemberProfile {
@@ -91,7 +131,7 @@ export interface MemberActivityData {
 }
 
 export const getMemberActivity = async (_memberId: string, _teamId?: string, _cursor?: string, _limit: number = 5): Promise<MemberActivityData> => {
-  return { ...mockMemberActivity };
+  return { member: {} as any, timeTracking: { today: { duration: '0h 0m', totalMs: 0, clockEvents: [] }, week: { duration: '0h 0m', totalMs: 0 }, month: { duration: '0h 0m', totalMs: 0 } }, recentTickets: [] };
 };
 
 export interface WorkLogReply {
@@ -126,12 +166,54 @@ export const fetchActivitiesByDateRange = async (
   from: string,
   to: string,
 ): Promise<Activity[]> => {
-  const fromDate = new Date(from).getTime();
-  const toDate = new Date(to).getTime();
-  return mockActivities.filter(a => {
-    const t = new Date(a.startTime).getTime();
-    return t >= fromDate && t <= toDate;
-  });
+  // Only return workSessions — activityLogs are for the dashboard Recent Activity feed
+  const fromDate = new Date(from).toISOString().slice(0, 10);
+  const toDate = new Date(to).toISOString().slice(0, 10);
+  const sessions = await db.workSessions
+    .where('date')
+    .between(fromDate, toDate, true, true)
+    .toArray();
+
+  const activities: Activity[] = [];
+
+  for (const s of sessions) {
+    const tickets = s.ticketBreakdown?.map(t => t.ticketTitle).filter(Boolean).join(', ') || undefined;
+    const clockInISO = new Date(s.clockIn).toISOString();
+    const clockOutISO = s.clockOut ? new Date(s.clockOut).toISOString() : undefined;
+
+    // Clock-in entry — event time is clockIn
+    activities.push({
+      id: `${s.id}-in`,
+      type: 'SESSION',
+      title: 'Work Session Started',
+      subtitle: tickets,
+      startTime: clockInISO,
+      endTime: clockOutISO,
+      status: s.clockOut ? 'Completed' as const : 'Active' as const,
+      duration: formatDurationMs(s.netWorkMs),
+      durationMs: s.netWorkMs,
+      metadata: { eventTime: s.clockIn },
+    });
+
+    // Clock-out entry — event time is clockOut
+    if (s.clockOut) {
+      activities.push({
+        id: `${s.id}-out`,
+        type: 'SESSION',
+        title: 'Session Ended',
+        subtitle: tickets,
+        startTime: clockInISO,
+        endTime: clockOutISO,
+        status: 'Completed',
+        duration: formatDurationMs(s.netWorkMs),
+        durationMs: s.netWorkMs,
+        metadata: { eventTime: s.clockOut },
+      });
+    }
+  }
+
+  // Sort by event time descending (newest first)
+  return activities.sort((a, b) => (b.metadata?.eventTime ?? 0) - (a.metadata?.eventTime ?? 0));
 };
 
 export const getTimesheetTotals = async (
@@ -140,5 +222,20 @@ export const getTimesheetTotals = async (
   _teamId?: string,
   _memberId?: string,
 ): Promise<TimesheetDayTotal[]> => {
-  return [...mockTimesheetTotals];
+  const now = Date.now();
+  const sessions = await db.workSessions
+    .where('date')
+    .between(_from, _to, true, true)
+    .toArray();
+
+  // Group by date and sum netWorkMs
+  const byDate = new Map<string, number>();
+  for (const s of sessions) {
+    const netMs = s.clockOut === null
+      ? computeSession({ clockIn: s.clockIn, clockOut: null, ticketSegments: s.ticketSegments, breaks: s.breaks }, now).netWorkMs
+      : s.netWorkMs;
+    byDate.set(s.date, (byDate.get(s.date) || 0) + netMs);
+  }
+
+  return Array.from(byDate.entries()).map(([date, totalMs]) => ({ date, totalMs }));
 };
