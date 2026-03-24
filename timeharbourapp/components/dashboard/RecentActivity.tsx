@@ -22,10 +22,14 @@ function parseDescriptionParts(description: string): { text: string | null; urls
 export default function RecentActivity() {
   const { activities: allActivities } = useActivityLog();
 
-  // Filter to a 7-day rolling window, newest first, capped at 10 entries
-  const cutoff = DateTime.now().minus({ days: 7 }).startOf('day');
+  // Show only today's activity; past days are available via the "See All" activity page
+  const todayStart = DateTime.now().startOf('day');
+  const todayEnd = DateTime.now().endOf('day');
   const activities = allActivities
-    .filter((a: Activity) => DateTime.fromISO(a.startTime) >= cutoff)
+    .filter((a: Activity) => {
+      const dt = DateTime.fromISO(a.startTime);
+      return dt >= todayStart && dt <= todayEnd;
+    })
     .slice(0, 10);
 
   const loading = false; // ActivityLogContext manages its own loading state; treat as ready
