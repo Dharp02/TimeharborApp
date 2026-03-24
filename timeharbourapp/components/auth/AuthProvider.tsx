@@ -6,6 +6,7 @@ import { auth } from '@/TimeharborAPI';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
+import { SocialLogin } from '@capgo/capacitor-social-login';
 
 type AuthContextType = {
   user: any | null;
@@ -26,6 +27,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (!isMounted.current) {
+      // Initialize native social login on Capacitor
+      if (Capacitor.isNativePlatform()) {
+        SocialLogin.initialize({
+          google: {
+            iOSClientId: process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID || '',
+            iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+          },
+        }).catch(() => { /* non-fatal if plugin not available */ });
+      }
+
       const checkSession = async () => {
         const { user, error } = await auth.getUser();
         if (error) {

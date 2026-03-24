@@ -1,6 +1,6 @@
 import { authClient } from "@/lib/auth-client";
 import { Capacitor } from "@capacitor/core";
-import { Browser } from "@capacitor/browser";
+import { SocialLogin } from "@capgo/capacitor-social-login";
 
 // Types — preserved from previous interface for backwards compatibility
 export interface User {
@@ -132,24 +132,65 @@ export const signInWithGithub = async () => {
 };
 
 /**
- * On native (Capacitor), open the OAuth flow in the system browser.
- * Better Auth redirects to timeharbor://auth/callback after success,
- * which the app captures via deep link. The App plugin's appUrlOpen
- * event (handled in AuthProvider) closes the browser and refreshes session.
+ * On native (Capacitor), use the native Google Sign-In SDK to get an ID token,
+ * then pass it to Better Auth's signIn.social with the idToken parameter.
+ * No redirect, no tunnel needed — the native SDK handles Google auth natively.
  */
 async function socialSignInNative(provider: "google" | "github") {
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3001";
-  const callbackURL = encodeURIComponent("timeharbor://auth/callback");
-  const url = `${backendUrl}/api/auth/sign-in/social?provider=${provider}&callbackURL=${callbackURL}`;
-
   try {
-    await Browser.open({ url, windowName: "_self" });
-    return { data: null, error: null };
+    const res = await SocialLogin.login({
+      provider,
+      options: { scopes: ["email", "profile"] },
+    });
+
+    if (res.provider !== "google" || res.result.responseType !== "online") {
+      return { data: null, error: { message: "Unexpected response from Google Sign-In" } };
+    }
+
+    const googleResult = res.result;
+    if (!googleResult.idToken) {
+      return { data: null, error: { message: "No ID token received from Google" } };
+    }
+
+    // Send the native ID token to Better Auth — it verifies and creates session
+    const backendUrl =
+      process.env.NEXT_PUBLIC_CAPACITOR_PROXY_URL || "http://localhost:8080";
+    const response = await fetch(`${backendUrl}/api/auth/sign-in/social`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        provider,
+        idToken: {
+          token: googleResult.idToken,
+          accessToken: googleResult.accessToken?.token,
+        },
+        callbackURL: "/dashboard",
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      return { data: null, error: { message: err.message ?? "Sign-in failed" } };
+    }
+
+    const data = await response.json();
+    if (data.user) {
+      const user = toUser(data.user);
+      const session: Session = {
+        access_token: data.token ?? "",
+        refresh_token: "",
+        expires_in: 60 * 60 * 24 * 7,
+      };
+      notifyListeners("SIGNED_IN", { user, session });
+      return { data: { user, session }, error: null };
+    }
+
+    return { data, error: null };
   } catch (e: any) {
     return {
       data: null,
-      error: { message: e?.message ?? `Failed to open ${provider} sign-in` },
+      error: { message: e?.message ?? `Failed to sign in with ${provider}` },
     };
   }
 }
