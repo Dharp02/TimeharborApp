@@ -8,7 +8,7 @@ import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Modal } from '@/components/ui/Modal';
 import { useActivityLog } from './ActivityLogContext';
-import { formatDuration } from '@timeharbor/time-engine';
+import { formatDuration, formatDurationClock } from '@timeharbor/time-engine';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { Plus, Play, Ticket, Coffee, PlayCircle } from 'lucide-react';
@@ -358,8 +358,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
   const getFormattedTotalTime = useCallback((ticketId: string) => {
     const totalMs = ticketDurations[ticketId] || 0;
-    if (totalMs === 0) return '0s';
-    return formatDuration(totalMs);
+    return formatDurationClock(totalMs);
   }, [ticketDurations]);
 
   return (
