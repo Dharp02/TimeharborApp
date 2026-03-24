@@ -19,6 +19,7 @@ export const useAuth = () => useContext(AuthContext);
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const networkErrorRef = useRef(false);
   const isMounted = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -26,7 +27,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!isMounted.current) {
       const checkSession = async () => {
-        const { user } = await auth.getUser();
+        const { user, error } = await auth.getUser();
+        if (error) {
+          // Network error — keep existing session state, don't log out
+          networkErrorRef.current = true;
+          setLoading(false);
+          return;
+        }
+        networkErrorRef.current = false;
         if (user) setUser(user);
         setLoading(false);
       };
@@ -81,7 +89,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     if (user && isAuthPage) {
       router.replace('/dashboard');
-    } else if (!user && isDashboardPage) {
+    } else if (!user && isDashboardPage && !networkErrorRef.current) {
       router.replace('/login');
     }
   }, [user, loading, pathname, router]);

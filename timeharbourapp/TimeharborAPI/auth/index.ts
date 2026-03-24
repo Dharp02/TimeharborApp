@@ -162,7 +162,8 @@ export const signOut = async () => {
 
 export const getSession = async () => {
   const { data, error } = await authClient.getSession();
-  if (error || !data) return { session: null, error: null };
+  if (error) return { session: null, error };
+  if (!data) return { session: null, error: null };
 
   return {
     session: {
@@ -175,7 +176,8 @@ export const getSession = async () => {
 
 export const getUser = async () => {
   const { data, error } = await authClient.getSession();
-  if (error || !data?.user) return { user: null, error: null };
+  if (error) return { user: null, error };
+  if (!data?.user) return { user: null, error: null };
   return { user: toUser(data.user), error: null };
 };
 
