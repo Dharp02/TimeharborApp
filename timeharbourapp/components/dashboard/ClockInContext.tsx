@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { sessionManager } from '@/TimeharborAPI/time/SessionManager';
 import { collectAttachments } from '@/TimeharborAPI/time/attachmentUtils';
 import type { SessionAttachment } from '@/TimeharborAPI/db';
+import { db } from '@/TimeharborAPI/db';
 import { useSession } from '@/TimeharborAPI/time/useSession';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -250,9 +251,18 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     // Stop the active ticket
     if (activeTicketId) {
-      await sessionManager.stopTicket(currentSession.id);
+      const stoppedSession = await sessionManager.stopTicket(currentSession.id);
 
-      const ticketMs = stats?.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+      const ticketMs = stoppedSession.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+
+      // Update ticket's tracked time in Dexie
+      try {
+        await db.tickets.update(activeTicketId, {
+          trackedMs: ticketMs,
+          trackedTime: formatDuration(ticketMs),
+        });
+      } catch (_) { /* ticket may not exist locally */ }
+
       addActivity({
         type: 'SESSION',
         title: 'Stopped Ticket',
@@ -322,13 +332,22 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     if (activeTicketId === ticketId) {
       // Stop current ticket, saving data to session
-      await sessionManager.stopTicket(currentSession.id, {
+      const updatedSession = await sessionManager.stopTicket(currentSession.id, {
         comment: comment || undefined,
         links: links?.length ? links : undefined,
         attachments: attachments?.length ? attachments : undefined,
       });
 
-      const ticketMs = stats?.ticketBreakdown.find(t => t.ticketId === ticketId)?.totalMs ?? 0;
+      const ticketMs = updatedSession.ticketBreakdown.find(t => t.ticketId === ticketId)?.totalMs ?? 0;
+
+      // Update ticket's tracked time in Dexie
+      try {
+        await db.tickets.update(ticketId, {
+          trackedMs: ticketMs,
+          trackedTime: formatDuration(ticketMs),
+        });
+      } catch (_) { /* ticket may not exist locally */ }
+
       addActivity({
         type: 'SESSION',
         title: 'Stopped Ticket',
@@ -340,7 +359,17 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       });
     } else if (activeTicketId) {
       // Switch: stop previous, start new
-      const prevMs = stats?.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+      const switchedSession = await sessionManager.switchTicket(currentSession.id, ticketId, ticketTitle);
+      const prevMs = switchedSession.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+
+      // Update previous ticket's tracked time in Dexie
+      try {
+        await db.tickets.update(activeTicketId, {
+          trackedMs: prevMs,
+          trackedTime: formatDuration(prevMs),
+        });
+      } catch (_) { /* ticket may not exist locally */ }
+
       addActivity({
         type: 'SESSION',
         title: 'Stopped Ticket',
@@ -350,8 +379,6 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         status: 'Completed',
         duration: formatDuration(prevMs),
       });
-
-      await sessionManager.switchTicket(currentSession.id, ticketId, ticketTitle);
 
       addActivity({
         type: 'SESSION',

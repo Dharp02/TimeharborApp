@@ -217,10 +217,25 @@ export async function pullTickets() {
   }
 }
 
+// ── Re-push sessions with links/attachments that were previously synced without them ──
+async function migrateLinksAttachments() {
+  try {
+    const sessions = await db.workSessions
+      .where('_dirty')
+      .equals(0)
+      .filter(s => (s.links && s.links.length > 0) || (s.attachments && s.attachments.length > 0))
+      .toArray();
+    for (const s of sessions) {
+      await db.workSessions.update(s.id, { _dirty: 1, _rev: s._rev + 1 });
+    }
+  } catch (_) { /* ignore */ }
+}
+
 // ── Full Sync Cycle ──
 
 export async function syncAll() {
   try {
+    await migrateLinksAttachments();
     await pushSessions();
     await pushTickets();
     await pushNotes();

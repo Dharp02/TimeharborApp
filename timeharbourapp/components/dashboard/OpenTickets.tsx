@@ -12,6 +12,7 @@ import { useActivityLog } from './ActivityLogContext';
 import { useRefresh } from '../../contexts/RefreshContext';
 import { db } from '@/TimeharborAPI/db';
 import { collectAttachments } from '@/TimeharborAPI/time/attachmentUtils';
+import { formatDuration } from '@timeharbor/time-engine';
 
 const getStatusDisplay = (status: string) =>
   status === 'Closed' ? 'Done' : status;
@@ -26,7 +27,7 @@ const formatRelativeTime = (dateStr: string) => {
 };
 
 export default function OpenTickets() {
-  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, getFormattedTotalTime, toggleSession, ticketDuration } = useClockIn();
+  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, getFormattedTotalTime, toggleSession, ticketDuration, ticketDurations } = useClockIn();
   const { addActivity } = useActivityLog();
   const { register, lastRefreshed } = useRefresh();
 
@@ -211,7 +212,14 @@ export default function OpenTickets() {
         ) : tickets.length === 0 ? (
           <SmallMuted className="text-center py-4 block">No tickets found. Create one to get started!</SmallMuted>
         ) : (
-          tickets.slice(0, 5).map((ticket) => {
+          tickets
+            .slice()
+            .sort((a, b) => {
+              if (a.id === activeTicketId) return -1;
+              if (b.id === activeTicketId) return 1;
+              return 0;
+            })
+            .slice(0, 5).map((ticket) => {
             const isTimehuddle = ticket.source === 'timehuddle';
             const isPersonal = !isTimehuddle;
             const assignerName = ticket.creator?.full_name?.split(' ')[0] || 'Someone';
@@ -256,7 +264,7 @@ export default function OpenTickets() {
                         <span>&middot;</span>
                       </>
                     )}
-                    <span>{ticket.trackedTime || '0m'} tracked</span>
+                    <span>{(ticketDurations[ticket.id] ? formatDuration(ticketDurations[ticket.id]) : ticket.trackedTime) || '0m'} tracked</span>
                     {isTimehuddle && ticket.syncedWithTimehuddle && (
                       <Badge variant="default" size="sm" icon={<RefreshCw className="w-3 h-3" />}>
                         synced
@@ -302,36 +310,38 @@ export default function OpenTickets() {
                   )}
 
                   <div className="flex items-center gap-2 pt-1">
-                    <Button
-                      variant={activeTicketId === ticket.id ? 'danger' : 'secondary'}
-                      size="sm"
-                      onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-                      className="rounded-full px-3 py-1 text-xs font-medium"
-                    >
-                      {activeTicketId === ticket.id ? (
-                        <>
-                          <Square className="w-3 h-3 mr-1 fill-current" /> Stop
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-3 h-3 mr-1 fill-current" /> Start
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex flex-col items-start gap-1">
+                      <Button
+                        variant={activeTicketId === ticket.id ? 'danger' : 'secondary'}
+                        size="sm"
+                        onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
+                        className="rounded-full px-3 py-1 text-xs font-medium"
+                      >
+                        {activeTicketId === ticket.id ? (
+                          <>
+                            <Square className="w-3 h-3 mr-1 fill-current" /> Stop
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3 h-3 mr-1 fill-current" /> Start
+                          </>
+                        )}
+                      </Button>
 
-                    {activeTicketId === ticket.id && (
-                      <SmallMuted className="flex items-center gap-1 font-mono text-primary-600 dark:text-primary-400">
-                        <Clock className="w-3 h-3" />
-                        {getFormattedTotalTime(ticket.id)}
-                      </SmallMuted>
-                    )}
+                      {activeTicketId === ticket.id && (
+                        <SmallMuted className="flex items-center gap-1 font-mono text-primary-600 dark:text-primary-400">
+                          <Clock className="w-3 h-3" />
+                          {getFormattedTotalTime(ticket.id)}
+                        </SmallMuted>
+                      )}
+                    </div>
 
                     {isPersonal && !ticket.sharedToTimehuddle && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleShareToTimehuddle(ticket.id)}
-                        className="rounded-full ml-auto"
+                        className="rounded-full ml-auto whitespace-nowrap"
                       >
                         <Share2 className="w-3 h-3 mr-1" /> Share to Timehuddle
                       </Button>

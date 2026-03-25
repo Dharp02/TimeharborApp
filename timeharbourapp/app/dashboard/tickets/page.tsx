@@ -48,6 +48,7 @@ import { Modal } from "@/components/ui/Modal";
 import { tickets as ticketsApi } from "@/TimeharborAPI";
 import { Ticket as TicketType } from "@/TimeharborAPI/tickets";
 import { collectAttachments } from "@/TimeharborAPI/time/attachmentUtils";
+import { formatDuration } from '@timeharbor/time-engine';
 
 type SourceTab = "All" | "Personal" | "From Timehuddle";
 
@@ -60,6 +61,7 @@ export default function TicketsPage() {
     toggleTicketTimer,
     getFormattedTotalTime,
     toggleSession,
+    ticketDurations,
   } = useClockIn();
   const { user } = useAuth();
 
@@ -370,7 +372,7 @@ export default function TicketsPage() {
               <span>&middot;</span>
             </>
           )}
-          <span>{ticket.trackedTime || "0m"} tracked</span>
+          <span>{(ticketDurations[ticket.id] ? formatDuration(ticketDurations[ticket.id]) : ticket.trackedTime) || "0m"} tracked</span>
           {isTimehuddle && ticket.syncedWithTimehuddle && (
             <Badge variant="default" size="sm" icon={<RefreshCw className="w-3 h-3" />}>
               synced
