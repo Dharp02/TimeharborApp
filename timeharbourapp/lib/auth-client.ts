@@ -1,9 +1,15 @@
 import { createAuthClient } from "better-auth/react";
 
-// Always use same-origin (empty baseURL) so requests go through the proxy.
-// The ngrok/tunnel URL is only used by socialSignInNative() for Browser.open().
+// Browser: use same-origin so requests route through Next.js rewrite proxy.
+// SSR/build: must provide a valid absolute URL (relative "/" breaks new URL()).
+// "http://localhost" is fine for SSR — auth client is only meaningful in the browser.
+const baseURL =
+  typeof window !== "undefined"
+    ? window.location.origin
+    : "http://localhost";
+
 export const authClient = createAuthClient({
-  baseURL: "",
+  baseURL,
   fetchOptions: {
     headers: {
       "X-App-Id": "timeharbor",
