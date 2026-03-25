@@ -1,9 +1,13 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthProvider';
-import { User, Camera, Trash2, Github, Linkedin, Bug, Save, X } from 'lucide-react';
+import { auth } from '@/TimeharborAPI';
+import { User, Camera, Trash2, Github, Linkedin, Bug, Save, X, Loader2, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { Button, Input } from '@mieweb/ui';
-import { useRef, useState, useEffect } from 'react';
+import { Modal } from '@/components/ui/Modal';
+import { useRef, useState, useEffect, useCallback } from 'react';
+import Cropper from 'react-easy-crop';
+import type { Area } from 'react-easy-crop';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -24,16 +28,45 @@ export default function ProfilePage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
 
+  // Crop modal state
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+
+  const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
+    setCroppedAreaPixels(croppedPixels);
+  }, []);
+
   // UI state
   const [hasChanges, setHasChanges] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Initialize form from user data
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  // Track the saved avatar URL from backend (separate from local preview)
+  const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(null);
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
+
+  // Initialize form from user data + backend profile
   useEffect(() => {
     if (user) {
       setName(user.full_name || user.name || '');
       setEmail(user.email || '');
     }
+    // Load linked accounts + avatar from backend profile
+    auth.fetchProfile().then(({ profile }) => {
+      if (profile) {
+        setGithubUrl(profile.githubUrl || '');
+        setLinkedinUrl(profile.linkedinUrl || '');
+        setRedmineUrl(profile.redmineUrl || '');
+        if (profile.avatarUrl) {
+          setSavedAvatarUrl(profile.avatarUrl);
+        }
+      }
+    }).finally(() => setIsLoadingProfile(false));
   }, [user]);
 
   const markChanged = () => {
@@ -56,13 +89,80 @@ export default function ProfilePage() {
       return;
     }
 
-    setAvatarFile(file);
+    // Open crop modal instead of directly setting preview
     const objectUrl = URL.createObjectURL(file);
-    setAvatarPreview(objectUrl);
-    markChanged();
+    setCropImage(objectUrl);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setRotation(0);
 
-    // Reset the input so the same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleCropConfirm = async () => {
+    if (!cropImage || !croppedAreaPixels) return;
+
+    const canvas = document.createElement('canvas');
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    await new Promise<void>((resolve) => {
+      img.onload = () => resolve();
+      img.src = cropImage;
+    });
+
+    // Apply rotation
+    const radians = (rotation * Math.PI) / 180;
+    const sin = Math.abs(Math.sin(radians));
+    const cos = Math.abs(Math.cos(radians));
+    const rotW = img.width * cos + img.height * sin;
+    const rotH = img.width * sin + img.height * cos;
+
+    const rotCanvas = document.createElement('canvas');
+    rotCanvas.width = rotW;
+    rotCanvas.height = rotH;
+    const rotCtx = rotCanvas.getContext('2d')!;
+    rotCtx.translate(rotW / 2, rotH / 2);
+    rotCtx.rotate(radians);
+    rotCtx.drawImage(img, -img.width / 2, -img.height / 2);
+
+    // Crop from rotated canvas
+    const size = Math.min(croppedAreaPixels.width, croppedAreaPixels.height, 512);
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(
+      rotCanvas,
+      croppedAreaPixels.x,
+      croppedAreaPixels.y,
+      croppedAreaPixels.width,
+      croppedAreaPixels.height,
+      0,
+      0,
+      size,
+      size,
+    );
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.92),
+    );
+    if (!blob) return;
+
+    const croppedFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+    const previewUrl = URL.createObjectURL(blob);
+
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    URL.revokeObjectURL(cropImage);
+
+    setAvatarFile(croppedFile);
+    setAvatarPreview(previewUrl);
+    setCropImage(null);
+    markChanged();
+  };
+
+  const handleCropCancel = () => {
+    if (cropImage) URL.revokeObjectURL(cropImage);
+    setCropImage(null);
   };
 
   const handleRemoveAvatar = () => {
@@ -70,13 +170,54 @@ export default function ProfilePage() {
     setAvatarPreview(null);
     setAvatarFile(null);
     setAvatarError(null);
+    setAvatarRemoved(true);
     markChanged();
   };
 
-  const handleSave = () => {
-    // TODO: Wire up to backend API
-    setSaveMessage({ type: 'success', text: 'Profile saved locally. Backend sync coming soon.' });
-    setHasChanges(false);
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      // Handle avatar upload/delete first
+      if (avatarFile) {
+        const { avatarUrl, error: uploadError } = await auth.uploadAvatar(avatarFile);
+        if (uploadError) {
+          setSaveMessage({ type: 'error', text: uploadError.message });
+          setIsSaving(false);
+          return;
+        }
+        setSavedAvatarUrl(avatarUrl);
+        setAvatarFile(null);
+        setAvatarRemoved(false);
+      } else if (avatarRemoved && savedAvatarUrl) {
+        const { error: deleteError } = await auth.deleteAvatar();
+        if (deleteError) {
+          setSaveMessage({ type: 'error', text: deleteError.message });
+          setIsSaving(false);
+          return;
+        }
+        setSavedAvatarUrl(null);
+        setAvatarRemoved(false);
+      }
+
+      const { error } = await auth.updateProfile({
+        full_name: name,
+        email,
+        github_url: githubUrl,
+        linkedin_url: linkedinUrl,
+        redmine_url: redmineUrl,
+      });
+      if (error) {
+        setSaveMessage({ type: 'error', text: error.message });
+      } else {
+        setSaveMessage({ type: 'success', text: 'Profile saved successfully.' });
+        setHasChanges(false);
+      }
+    } catch (e: any) {
+      setSaveMessage({ type: 'error', text: e?.message ?? 'Failed to save profile.' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDiscard = () => {
@@ -88,6 +229,11 @@ export default function ProfilePage() {
     setLinkedinUrl('');
     setRedmineUrl('');
     handleRemoveAvatar();
+    setAvatarRemoved(false);
+    // Restore saved avatar if one exists
+    if (savedAvatarUrl) {
+      setAvatarPreview(null);
+    }
     setHasChanges(false);
     setSaveMessage(null);
   };
@@ -124,6 +270,12 @@ export default function ProfilePage() {
                     alt="Profile preview"
                     className="w-full h-full object-cover"
                   />
+                ) : savedAvatarUrl && !avatarRemoved ? (
+                  <img
+                    src={savedAvatarUrl}
+                    alt="Profile picture"
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <span>{initials}</span>
                 )}
@@ -148,7 +300,7 @@ export default function ProfilePage() {
                   <Camera className="w-4 h-4" />
                   <span>Upload</span>
                 </Button>
-                {avatarPreview && (
+                {(avatarPreview || (savedAvatarUrl && !avatarRemoved)) && (
                   <Button
                     variant="outline"
                     onClick={handleRemoveAvatar}
@@ -178,6 +330,74 @@ export default function ProfilePage() {
           />
         </section>
 
+        {/* Crop Modal */}
+        <Modal
+          isOpen={!!cropImage}
+          onClose={handleCropCancel}
+          title="Adjust Photo"
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div className="relative w-full" style={{ height: '350px' }}>
+              {cropImage && (
+                <Cropper
+                  image={cropImage}
+                  crop={crop}
+                  zoom={zoom}
+                  rotation={rotation}
+                  aspect={1}
+                  cropShape="round"
+                  showGrid={false}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onRotationChange={setRotation}
+                  onCropComplete={onCropComplete}
+                />
+              )}
+            </div>
+
+            {/* Controls */}
+            <div className="space-y-3 px-2">
+              <div className="flex items-center gap-3">
+                <ZoomOut className="w-4 h-4 text-muted-foreground shrink-0" />
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.05}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1 accent-primary-600"
+                  aria-label="Zoom"
+                />
+                <ZoomIn className="w-4 h-4 text-muted-foreground shrink-0" />
+              </div>
+              <div className="flex items-center gap-3">
+                <RotateCw className="w-4 h-4 text-muted-foreground shrink-0" />
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  step={1}
+                  value={rotation}
+                  onChange={(e) => setRotation(Number(e.target.value))}
+                  className="flex-1 accent-primary-600"
+                  aria-label="Rotation"
+                />
+                <span className="text-xs text-muted-foreground w-8 text-right">{rotation}°</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="ghost" onClick={handleCropCancel}>
+                Cancel
+              </Button>
+              <Button onClick={handleCropConfirm}>
+                Use This Photo
+              </Button>
+            </div>
+          </div>
+        </Modal>
         {/* Personal Information */}
         <section aria-labelledby="personal-heading">
           <h2 id="personal-heading" className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
@@ -288,11 +508,11 @@ export default function ProfilePage() {
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!hasChanges}
+            disabled={!hasChanges || isSaving}
             aria-label="Save profile changes"
           >
-            <Save className="w-4 h-4" />
-            <span>Save Changes</span>
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
           </Button>
         </div>
       </div>

@@ -91,6 +91,13 @@
   color: var(--mieweb-primary-200);
 }
 
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .addStoryBtn {
   position: absolute;
   bottom: 0;

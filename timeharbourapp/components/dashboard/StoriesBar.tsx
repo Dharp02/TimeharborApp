@@ -31,7 +31,11 @@ export default function StoriesBar() {
         <div className={styles.storyItem}>
           <div className={`${styles.storyAvatar} ${styles.yourStory}`}>
             <div className={styles.avatarCircle}>
-              <span className={styles.initials}>{currentUserInitials}</span>
+              {user?.image ? (
+                <img src={user.image} alt="Profile" className={styles.avatarImage} />
+              ) : (
+                <span className={styles.initials}>{currentUserInitials}</span>
+              )}
             </div>
             <Button variant="ghost" size="icon" className={styles.addStoryBtn} aria-label="Add your pulse">
               <Plus className="w-4 h-4" />

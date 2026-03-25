@@ -46,8 +46,12 @@ export default function SettingsPage() {
     <div className="space-y-6 pb-8">
       {/* Profile Header */}
       <div className="flex flex-col items-center pt-6 pb-2">
-        <div className="w-24 h-24 rounded-full bg-primary-400 flex items-center justify-center text-white text-3xl font-semibold mb-4">
-          {getInitials()}
+        <div className="w-24 h-24 rounded-full bg-primary-400 flex items-center justify-center text-white text-3xl font-semibold mb-4 overflow-hidden">
+          {user?.image ? (
+            <img src={user.image} alt="Profile" className="w-full h-full object-cover" />
+          ) : (
+            getInitials()
+          )}
         </div>
         <Text className="text-xl font-bold">{user?.full_name || 'User'}</Text>
         <SmallMuted>{user?.email}</SmallMuted>

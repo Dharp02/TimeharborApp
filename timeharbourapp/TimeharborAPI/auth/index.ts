@@ -10,6 +10,7 @@ export interface User {
   email: string;
   full_name?: string;
   name?: string;
+  image?: string;
   email_verified: boolean;
   created_at: string;
   updated_at: string;
@@ -45,6 +46,7 @@ function toUser(raw: any): User {
     email: raw.email,
     full_name: raw.name ?? raw.full_name,
     name: raw.name,
+    image: raw.image || undefined,
     email_verified: raw.emailVerified ?? false,
     created_at: raw.createdAt ?? new Date().toISOString(),
     updated_at: raw.updatedAt ?? new Date().toISOString(),
@@ -256,6 +258,33 @@ export const getStoredUser = async (): Promise<User | null> => {
   return user;
 };
 
+export interface ThProfile {
+  displayName?: string;
+  avatarUrl?: string;
+  githubUrl?: string;
+  linkedinUrl?: string;
+  redmineUrl?: string;
+}
+
+function getBackendBase(): string {
+  if (typeof window !== 'undefined') return `${window.location.origin}`;
+  return 'http://localhost:3001';
+}
+
+export const fetchProfile = async (): Promise<{ profile: ThProfile | null; error: { message: string } | null }> => {
+  try {
+    const res = await fetch(`${getBackendBase()}/api/timeharbor/me/th-profile`, {
+      credentials: 'include',
+      headers: { 'X-App-Id': 'timeharbor' },
+    });
+    if (!res.ok) return { profile: null, error: { message: `Failed to load profile (${res.status})` } };
+    const { profile } = await res.json();
+    return { profile, error: null };
+  } catch (e: any) {
+    return { profile: null, error: { message: e?.message ?? 'Failed to load profile' } };
+  }
+};
+
 export const updateProfile = async (data: {
   full_name?: string;
   email?: string;
@@ -263,19 +292,91 @@ export const updateProfile = async (data: {
   linkedin_url?: string;
   redmine_url?: string;
 }) => {
-  // Better Auth has a built-in updateUser for name/image.
-  // For custom fields we will call a custom backend endpoint later.
+  // 1. Update Better Auth user (name)
   const updatePayload: Record<string, string> = {};
   if (data.full_name) updatePayload.name = data.full_name;
 
-  const { error } = await authClient.updateUser(updatePayload);
-
-  if (error) {
-    return { user: null, error: { message: error.message ?? "Update failed" } };
+  if (Object.keys(updatePayload).length > 0) {
+    const { error } = await authClient.updateUser(updatePayload);
+    if (error) {
+      return { user: null, error: { message: error.message ?? 'Update failed' } };
+    }
   }
 
+  // 2. Update Timeharbor profile (linked accounts + displayName)
+  const profilePayload: Record<string, string> = {};
+  if (data.full_name) profilePayload.displayName = data.full_name;
+  if (data.github_url !== undefined) profilePayload.githubUrl = data.github_url;
+  if (data.linkedin_url !== undefined) profilePayload.linkedinUrl = data.linkedin_url;
+  if (data.redmine_url !== undefined) profilePayload.redmineUrl = data.redmine_url;
+
+  if (Object.keys(profilePayload).length > 0) {
+    const res = await fetch(`${getBackendBase()}/api/timeharbor/me/th-profile`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-App-Id': 'timeharbor' },
+      body: JSON.stringify(profilePayload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { user: null, error: { message: err.error ?? `Profile update failed (${res.status})` } };
+    }
+  }
+
+  // 3. Refresh user from session & notify listeners
   const { user } = await getUser();
+  notifyListeners('SIGNED_IN', { user });
   return { user, error: null };
+};
+
+export const uploadAvatar = async (file: File): Promise<{ avatarUrl: string | null; error: { message: string } | null }> => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${getBackendBase()}/api/timeharbor/me/avatar`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-App-Id': 'timeharbor' },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { avatarUrl: null, error: { message: err.error ?? `Upload failed (${res.status})` } };
+    }
+    const { avatarUrl } = await res.json();
+
+    // Also update Better Auth user.image so it propagates to session
+    await authClient.updateUser({ image: `${getBackendBase()}${avatarUrl}` });
+    const { user } = await getUser();
+    notifyListeners('SIGNED_IN', { user });
+
+    return { avatarUrl, error: null };
+  } catch (e: any) {
+    return { avatarUrl: null, error: { message: e?.message ?? 'Failed to upload avatar' } };
+  }
+};
+
+export const deleteAvatar = async (): Promise<{ error: { message: string } | null }> => {
+  try {
+    const res = await fetch(`${getBackendBase()}/api/timeharbor/me/avatar`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'X-App-Id': 'timeharbor' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { error: { message: err.error ?? `Delete failed (${res.status})` } };
+    }
+
+    // Clear Better Auth user.image
+    await authClient.updateUser({ image: '' });
+    const { user } = await getUser();
+    notifyListeners('SIGNED_IN', { user });
+
+    return { error: null };
+  } catch (e: any) {
+    return { error: { message: e?.message ?? 'Failed to delete avatar' } };
+  }
 };
 
 export const forgotPassword = async (email: string) => {

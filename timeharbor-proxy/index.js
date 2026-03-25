@@ -34,7 +34,7 @@ const server = http.createServer((req, res) => {
   //   3. Request carries an Authorization header — it's an API fetch, not a page
   //      load. This catches stale browser-cached JS that omits the /api prefix.
   const hasAuthHeader = !!req.headers['authorization'];
-  if (req.url.startsWith('/api') || req.url.startsWith('/socket.io') || hasAuthHeader) {
+  if (req.url.startsWith('/api') || req.url.startsWith('/uploads') || req.url.startsWith('/socket.io') || hasAuthHeader) {
     // Keep /api prefix — backend expects full paths like /api/auth/*, /api/timeharbor/*
     // No stripping needed; the backend routes are registered under /api/*
 
