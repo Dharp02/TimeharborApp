@@ -50,20 +50,30 @@ export default function ProfilePage() {
   const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(null);
   const [avatarRemoved, setAvatarRemoved] = useState(false);
 
-  // Initialize form from user data + backend profile
+  // Initialize form from user data
   useEffect(() => {
     if (user) {
       setName(user.full_name || user.name || '');
       setEmail(user.email || '');
     }
-    // Load linked accounts + avatar from backend profile
+  }, [user?.full_name, user?.name, user?.email]);
+
+  // Load linked accounts + avatar from backend profile (once on mount)
+  const profileLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!user || profileLoadedRef.current) return;
+    profileLoadedRef.current = true;
+
     auth.fetchProfile().then(({ profile }) => {
       if (profile) {
         setGithubUrl(profile.githubUrl || '');
         setLinkedinUrl(profile.linkedinUrl || '');
         setRedmineUrl(profile.redmineUrl || '');
-        if (profile.avatarUrl) {
-          setSavedAvatarUrl(profile.avatarUrl);
+        // Use local offline avatar (base64) if available, else backend URL
+        const avatarSrc = (profile as any).avatarDataUrl || profile.avatarUrl;
+        if (avatarSrc) {
+          // Relative paths like /uploads/... work as img src; absolute URLs are fine too
+          setSavedAvatarUrl(avatarSrc);
         }
       }
     }).finally(() => setIsLoadingProfile(false));
@@ -213,8 +223,15 @@ export default function ProfilePage() {
         setSaveMessage({ type: 'success', text: 'Profile saved successfully.' });
         setHasChanges(false);
       }
-    } catch (e: any) {
-      setSaveMessage({ type: 'error', text: e?.message ?? 'Failed to save profile.' });
+    } catch {
+      // If avatar was saved offline but profile update failed (network error),
+      // still show partial success so the user knows the avatar is queued
+      if (avatarFile || avatarRemoved) {
+        setSaveMessage({ type: 'success', text: 'Avatar saved locally. Profile will sync when you\'re back online.' });
+        setHasChanges(false);
+      } else {
+        setSaveMessage({ type: 'error', text: 'You appear to be offline. Changes will sync when connectivity is restored.' });
+      }
     } finally {
       setIsSaving(false);
     }

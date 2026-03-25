@@ -46,7 +46,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           return;
         }
         networkErrorRef.current = false;
-        if (user) setUser(user);
+        if (user) {
+          setUser(user);
+          // Fetch backend profile to sync avatar (may have been updated from another device)
+          auth.fetchProfile().catch(() => {});
+        }
         setLoading(false);
       };
       checkSession();

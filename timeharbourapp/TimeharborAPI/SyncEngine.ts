@@ -1,6 +1,7 @@
 import { db, type DexieWorkSession, type SyncMeta } from './db';
 import { getApiUrl } from './apiUrl';
 import { formatDuration } from '@timeharbor/time-engine';
+import { syncPendingAvatar } from './auth';
 
 /**
  * SyncEngine — push/pull work sessions and tickets
@@ -260,6 +261,7 @@ async function recomputeTicketTrackedTimes() {
 export async function syncAll() {
   try {
     await migrateLinksAttachments();
+    await syncPendingAvatar();
     await pushSessions();
     await pushTickets();
     await pushNotes();

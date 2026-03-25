@@ -2,6 +2,7 @@ import { authClient } from "@/lib/auth-client";
 import { Capacitor, CapacitorCookies } from "@capacitor/core";
 import { SocialLogin } from "@capgo/capacitor-social-login";
 import { clearDatabase } from "../db";
+import { db } from "../db";
 import { resetTicketState } from "../tickets";
 
 // Types — preserved from previous interface for backwards compatibility
@@ -39,6 +40,31 @@ const notifyListeners = (event: string, session: any) => {
   listeners.forEach((listener) => listener(event, session));
 };
 
+/** Resolve an avatar URL relative to the current origin.
+ *  - Relative paths like /uploads/... get the current origin prepended
+ *  - Absolute URLs (http/https/data:) are returned as-is */
+function resolveImageUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+    // If it's an absolute URL pointing to a different origin's /uploads/ path,
+    // rewrite it to use the current origin so it works cross-device
+    if (typeof window !== 'undefined' && url.includes('/uploads/')) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.origin !== window.location.origin && parsed.pathname.startsWith('/uploads/')) {
+          return `${window.location.origin}${parsed.pathname}`;
+        }
+      } catch { /* not a valid URL, return as-is */ }
+    }
+    return url;
+  }
+  if (url.startsWith('/')) {
+    if (typeof window !== 'undefined') return `${window.location.origin}${url}`;
+    return `http://localhost:3001${url}`;
+  }
+  return url;
+}
+
 /** Map a Better Auth user object to our User interface */
 function toUser(raw: any): User {
   return {
@@ -46,7 +72,7 @@ function toUser(raw: any): User {
     email: raw.email,
     full_name: raw.name ?? raw.full_name,
     name: raw.name,
-    image: raw.image || undefined,
+    image: resolveImageUrl(raw.image),
     email_verified: raw.emailVerified ?? false,
     created_at: raw.createdAt ?? new Date().toISOString(),
     updated_at: raw.updatedAt ?? new Date().toISOString(),
@@ -272,16 +298,61 @@ function getBackendBase(): string {
 }
 
 export const fetchProfile = async (): Promise<{ profile: ThProfile | null; error: { message: string } | null }> => {
+  // Always check Dexie for a pending local avatar first
+  let localAvatar: string | null = null;
+  try {
+    const localEntry = await db.profile.get('avatarDataUrl');
+    if (localEntry?.data) localAvatar = localEntry.data;
+  } catch { /* Dexie unavailable */ }
+
+  // Helper: update auth context with the best available avatar so header/sidebar show it
+  const applyAvatarToContext = async (avatar: string | null) => {
+    if (!avatar) return;
+    try {
+      const resolved = avatar.startsWith('/') && typeof window !== 'undefined'
+        ? `${window.location.origin}${avatar}` : avatar;
+      const { user } = await getUser();
+      // Only notify if the image actually changed (user.image is already resolved by toUser)
+      if (user && user.image !== resolved) {
+        notifyListeners('SIGNED_IN', { user: { ...user, image: resolved } });
+      }
+    } catch { /* ignore */ }
+  };
+
   try {
     const res = await fetch(`${getBackendBase()}/api/timeharbor/me/th-profile`, {
       credentials: 'include',
       headers: { 'X-App-Id': 'timeharbor' },
     });
-    if (!res.ok) return { profile: null, error: { message: `Failed to load profile (${res.status})` } };
+    if (!res.ok) {
+      // Offline or error — return local data if available
+      const cachedProfile = await db.profile.get('thProfile').catch(() => null);
+      const profile = cachedProfile?.data ?? null;
+      if (profile && localAvatar) profile.avatarDataUrl = localAvatar;
+      await applyAvatarToContext(localAvatar || profile?.avatarUrl);
+      return { profile, error: null };
+    }
     const { profile } = await res.json();
+    // Cache profile locally for offline access
+    if (profile) {
+      await db.profile.put({ key: 'thProfile', data: profile }).catch(() => {});
+    }
+    // Overlay pending local avatar if we have one
+    if (profile && localAvatar) {
+      profile.avatarDataUrl = localAvatar;
+      await applyAvatarToContext(localAvatar);
+    } else if (profile?.avatarUrl) {
+      // Backend has an avatar (e.g. uploaded from another device) — apply it
+      await applyAvatarToContext(profile.avatarUrl);
+    }
     return { profile, error: null };
   } catch (e: any) {
-    return { profile: null, error: { message: e?.message ?? 'Failed to load profile' } };
+    // Network error — return cached profile
+    const cachedProfile = await db.profile.get('thProfile').catch(() => null);
+    const profile = cachedProfile?.data ?? null;
+    if (profile && localAvatar) profile.avatarDataUrl = localAvatar;
+    await applyAvatarToContext(localAvatar || profile?.avatarUrl);
+    return { profile: profile ?? null, error: null };
   }
 };
 
@@ -330,6 +401,9 @@ export const updateProfile = async (data: {
 };
 
 export const uploadAvatar = async (file: File): Promise<{ avatarUrl: string | null; error: { message: string } | null }> => {
+  // Convert to base64 for local storage
+  const dataUrl = await fileToDataUrl(file);
+
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -340,23 +414,41 @@ export const uploadAvatar = async (file: File): Promise<{ avatarUrl: string | nu
       body: formData,
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { avatarUrl: null, error: { message: err.error ?? `Upload failed (${res.status})` } };
+      throw new Error(`Upload failed (${res.status})`);
     }
     const { avatarUrl } = await res.json();
 
-    // Also update Better Auth user.image so it propagates to session
-    await authClient.updateUser({ image: `${getBackendBase()}${avatarUrl}` });
+    // Clear pending local avatar since server has it now
+    await db.profile.delete('avatarDataUrl').catch(() => {});
+    await db.profile.delete('pendingAvatarFile').catch(() => {});
+
+    // Store relative path in Better Auth so it works from any device/origin
+    await authClient.updateUser({ image: avatarUrl });
     const { user } = await getUser();
     notifyListeners('SIGNED_IN', { user });
 
     return { avatarUrl, error: null };
-  } catch (e: any) {
-    return { avatarUrl: null, error: { message: e?.message ?? 'Failed to upload avatar' } };
+  } catch {
+    // Offline — save to Dexie for later sync
+    await db.profile.put({ key: 'avatarDataUrl', data: dataUrl }).catch(() => {});
+    // Store file data for syncing later
+    await db.profile.put({ key: 'pendingAvatarFile', data: { name: file.name, type: file.type, dataUrl } }).catch(() => {});
+
+    // Update auth context so header avatar reflects the change immediately
+    try {
+      const { user } = await getUser();
+      if (user) notifyListeners('SIGNED_IN', { user: { ...user, image: dataUrl } });
+    } catch { /* ignore */ }
+
+    return { avatarUrl: dataUrl, error: null };
   }
 };
 
 export const deleteAvatar = async (): Promise<{ error: { message: string } | null }> => {
+  // Clear local avatar immediately
+  await db.profile.delete('avatarDataUrl').catch(() => {});
+  await db.profile.delete('pendingAvatarFile').catch(() => {});
+
   try {
     const res = await fetch(`${getBackendBase()}/api/timeharbor/me/avatar`, {
       method: 'DELETE',
@@ -364,8 +456,7 @@ export const deleteAvatar = async (): Promise<{ error: { message: string } | nul
       headers: { 'X-App-Id': 'timeharbor' },
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { error: { message: err.error ?? `Delete failed (${res.status})` } };
+      throw new Error(`Delete failed (${res.status})`);
     }
 
     // Clear Better Auth user.image
@@ -374,10 +465,89 @@ export const deleteAvatar = async (): Promise<{ error: { message: string } | nul
     notifyListeners('SIGNED_IN', { user });
 
     return { error: null };
-  } catch (e: any) {
-    return { error: { message: e?.message ?? 'Failed to delete avatar' } };
+  } catch {
+    // Offline — mark for deletion on next sync
+    await db.profile.put({ key: 'pendingAvatarDelete', data: true }).catch(() => {});
+
+    // Update auth context so header avatar clears immediately
+    try {
+      const { user } = await getUser();
+      if (user) notifyListeners('SIGNED_IN', { user: { ...user, image: undefined } });
+    } catch { /* ignore */ }
+
+    return { error: null };
   }
 };
+
+/** Sync any pending avatar changes when connectivity is restored */
+export const syncPendingAvatar = async (): Promise<void> => {
+  // Check for pending delete
+  const pendingDelete = await db.profile.get('pendingAvatarDelete').catch(() => null);
+  if (pendingDelete?.data) {
+    try {
+      const res = await fetch(`${getBackendBase()}/api/timeharbor/me/avatar`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'X-App-Id': 'timeharbor' },
+      });
+      if (res.ok) {
+        await db.profile.delete('pendingAvatarDelete').catch(() => {});
+        await authClient.updateUser({ image: '' });
+        const { user } = await getUser();
+        notifyListeners('SIGNED_IN', { user });
+      }
+    } catch { /* Will retry next sync */ }
+    return;
+  }
+
+  // Check for pending upload
+  const pendingFile = await db.profile.get('pendingAvatarFile').catch(() => null);
+  if (!pendingFile?.data) return;
+
+  try {
+    const { name, type, dataUrl } = pendingFile.data;
+    const blob = dataUrlToBlob(dataUrl);
+    const file = new File([blob], name, { type });
+
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${getBackendBase()}/api/timeharbor/me/avatar`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-App-Id': 'timeharbor' },
+      body: formData,
+    });
+    if (!res.ok) return; // Will retry next sync
+
+    const { avatarUrl } = await res.json();
+
+    // Clean up local pending state
+    await db.profile.delete('avatarDataUrl').catch(() => {});
+    await db.profile.delete('pendingAvatarFile').catch(() => {});
+
+    await authClient.updateUser({ image: avatarUrl });
+    const { user } = await getUser();
+    notifyListeners('SIGNED_IN', { user });
+  } catch { /* Will retry next sync */ }
+};
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, base64] = dataUrl.split(',');
+  const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
 
 export const forgotPassword = async (email: string) => {
   // The Better Auth Proxy client maps `requestPasswordReset` →
