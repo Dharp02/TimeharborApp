@@ -4,7 +4,7 @@ import { computeSession } from '@timeharbor/time-engine';
 
 export interface ClockOutOptions {
   comment?: string;
-  link?: string;
+  links?: string[];
   attachments?: SessionAttachment[];
 }
 
@@ -97,7 +97,7 @@ export class SessionManager {
     // Save optional data to session
     if (options) {
       if (options.comment) session.comment = options.comment;
-      if (options.link) session.link = options.link;
+      if (options.links?.length) session.links = options.links;
       if (options.attachments?.length) session.attachments = options.attachments;
     }
 
@@ -204,7 +204,7 @@ export class SessionManager {
       session.comment = options;
     } else if (options) {
       if (options.comment) session.comment = options.comment;
-      if (options.link) session.link = options.link;
+      if (options.links?.length) session.links = options.links;
       if (options.attachments?.length) session.attachments = options.attachments;
     }
 

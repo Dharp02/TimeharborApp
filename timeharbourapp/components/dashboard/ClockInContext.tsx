@@ -13,7 +13,7 @@ import { useActivityLog } from './ActivityLogContext';
 import { formatDuration, formatDurationClock } from '@timeharbor/time-engine';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
-import { Plus, Play, Ticket, Coffee, PlayCircle, X, Paperclip, FileText } from 'lucide-react';
+import { Plus, Play, Ticket, Coffee, PlayCircle, X, Paperclip, FileText, Link2 } from 'lucide-react';
 import { Button, Input, Textarea } from '@mieweb/ui';
 
 type ClockInContextType = {
@@ -35,7 +35,7 @@ type ClockInContextType = {
   // Actions
   toggleSession: () => void;
   resumeFromBreak: () => void;
-  toggleTicketTimer: (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string, attachments?: SessionAttachment[]) => void;
+  toggleTicketTimer: (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, links?: string[], attachments?: SessionAttachment[]) => void;
   getFormattedTotalTime: (ticketId: string) => string;
 };
 
@@ -72,7 +72,8 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [isSessionOptionsOpen, setIsSessionOptionsOpen] = useState(false);
   const [isStopTicketModalOpen, setIsStopTicketModalOpen] = useState(false);
   const [stopTicketComment, setStopTicketComment] = useState('');
-  const [stopTicketLink, setStopTicketLink] = useState('');
+  const [stopTicketLinks, setStopTicketLinks] = useState<string[]>([]);
+  const [stopTicketLinkInput, setStopTicketLinkInput] = useState('');
   const [stopTicketImages, setStopTicketImages] = useState<string[]>([]);
   const [stopTicketFiles, setStopTicketFiles] = useState<File[]>([]);
   const stopTicketFileRef = useRef<HTMLInputElement>(null);
@@ -257,7 +258,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         title: 'Stopped Ticket',
         subtitle: activeTicketTitle || 'Ticket',
         description: stopTicketComment,
-        link: stopTicketLink || undefined,
+        link: stopTicketLinks[0] || undefined,
         status: 'Completed',
         duration: formatDuration(ticketMs),
       });
@@ -266,7 +267,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     // Clock out with all data
     await sessionManager.clockOut(currentSession.id, {
       comment: stopTicketComment || undefined,
-      link: stopTicketLink || undefined,
+      links: stopTicketLinks.length > 0 ? stopTicketLinks : undefined,
       attachments: atts.length > 0 ? atts : undefined,
     });
 
@@ -286,13 +287,15 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
     setIsStopTicketModalOpen(false);
     setStopTicketComment('');
-    setStopTicketLink('');
-  }, [currentSession, activeTicketId, activeTicketTitle, stats, stopTicketComment, stopTicketLink, stopTicketImages, stopTicketFiles, updateActiveSession, addActivity]);
+    setStopTicketLinks([]);
+    setStopTicketLinkInput('');
+  }, [currentSession, activeTicketId, activeTicketTitle, stats, stopTicketComment, stopTicketLinks, stopTicketImages, stopTicketFiles, updateActiveSession, addActivity]);
 
   const cancelStopTicketAndSession = () => {
     setIsStopTicketModalOpen(false);
     setStopTicketComment('');
-    setStopTicketLink('');
+    setStopTicketLinks([]);
+    setStopTicketLinkInput('');
     stopTicketImages.forEach(url => URL.revokeObjectURL(url));
     setStopTicketImages([]);
     setStopTicketFiles([]);
@@ -312,7 +315,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     ticketTitle: string,
     _teamId?: string,
     comment?: string,
-    link?: string,
+    links?: string[],
     attachments?: SessionAttachment[]
   ) => {
     if (!isSessionActive || !currentSession) return;
@@ -321,7 +324,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       // Stop current ticket, saving data to session
       await sessionManager.stopTicket(currentSession.id, {
         comment: comment || undefined,
-        link: link || undefined,
+        links: links?.length ? links : undefined,
         attachments: attachments?.length ? attachments : undefined,
       });
 
@@ -331,7 +334,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         title: 'Stopped Ticket',
         subtitle: activeTicketTitle || 'Ticket',
         description: comment,
-        link: link || undefined,
+        link: links?.[0] || undefined,
         status: 'Completed',
         duration: formatDuration(ticketMs),
       });
@@ -343,7 +346,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         title: 'Stopped Ticket',
         subtitle: activeTicketTitle || 'Ticket',
         description: comment || 'Switched task',
-        link: link || undefined,
+        link: links?.[0] || undefined,
         status: 'Completed',
         duration: formatDuration(prevMs),
       });
@@ -593,20 +596,42 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
-            <Input
-              type="url"
-              value={stopTicketLink}
-              onChange={(e) => setStopTicketLink(e.target.value)}
-              onPaste={(e) => {
-                const text = e.clipboardData?.getData('text');
-                if (text) {
-                  e.preventDefault();
-                  setStopTicketLink(text.trim());
-                }
-              }}
-              placeholder="Paste a YouTube or Pulse link..."
-            />
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Links (optional)</label>
+            {stopTicketLinks.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {stopTicketLinks.map((l, i) => (
+                  <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
+                    <Link2 className="w-3 h-3 text-muted-foreground shrink-0" />
+                    <span className="truncate max-w-[200px]">{l}</span>
+                    <button type="button" onClick={() => setStopTicketLinks(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 shrink-0" aria-label="Remove link">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Input
+                type="url"
+                value={stopTicketLinkInput}
+                onChange={(e) => setStopTicketLinkInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && stopTicketLinkInput.trim()) {
+                    e.preventDefault();
+                    setStopTicketLinks(prev => [...prev, stopTicketLinkInput.trim()]);
+                    setStopTicketLinkInput('');
+                  }
+                }}
+                onPaste={(e) => {
+                  const text = e.clipboardData?.getData('text');
+                  if (text?.trim()) {
+                    e.preventDefault();
+                    setStopTicketLinks(prev => [...prev, text.trim()]);
+                  }
+                }}
+                placeholder="Paste a link and press Enter..."
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={cancelStopTicketAndSession}>

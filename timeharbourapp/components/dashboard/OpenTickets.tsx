@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Play, Square, ChevronRight, Clock, Video, Users, RefreshCw, Share2, Check, Paperclip, X, FileText } from 'lucide-react';
+import { Plus, Play, Square, ChevronRight, Clock, Video, Users, RefreshCw, Share2, Check, Paperclip, X, FileText, Link2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button, Input, Textarea, Badge, Card, CardContent, Text, SmallMuted } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
@@ -33,7 +33,8 @@ export default function OpenTickets() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
-  const [link, setLink] = useState('');
+  const [links, setLinks] = useState<string[]>([]);
+  const [linkInput, setLinkInput] = useState('');
   const [pastedImages, setPastedImages] = useState<string[]>([]);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,15 +132,16 @@ export default function OpenTickets() {
     const atts = await collectAttachments(pastedImages, attachedFiles);
 
     if (modalType === 'stop') {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined, atts.length > 0 ? atts : undefined);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, links.length > 0 ? links : undefined, atts.length > 0 ? atts : undefined);
     } else {
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined, atts.length > 0 ? atts : undefined);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, links.length > 0 ? links : undefined, atts.length > 0 ? atts : undefined);
     }
 
     setIsModalOpen(false);
     setPendingTicket(null);
     setComment('');
-    setLink('');
+    setLinks([]);
+    setLinkInput('');
     pastedImages.forEach(url => URL.revokeObjectURL(url));
     setPastedImages([]);
     setAttachedFiles([]);
@@ -373,7 +375,7 @@ export default function OpenTickets() {
 
     <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setLink(''); pastedImages.forEach(u => URL.revokeObjectURL(u)); setPastedImages([]); setAttachedFiles([]); }}
+        onClose={() => { setIsModalOpen(false); setLinks([]); setLinkInput(''); pastedImages.forEach(u => URL.revokeObjectURL(u)); setPastedImages([]); setAttachedFiles([]); }}
         title={modalType === 'stop' ? 'Stop Timer?' : 'Switching Tasks'}
       >
         <div className="space-y-4">
@@ -477,12 +479,39 @@ export default function OpenTickets() {
             />
           </div>
           <div>
-            <SmallMuted className="block text-xs font-medium mb-1">Link (optional)</SmallMuted>
+            <SmallMuted className="block text-xs font-medium mb-1">Links (optional)</SmallMuted>
+            {links.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {links.map((l, i) => (
+                  <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
+                    <Link2 className="w-3 h-3 text-muted-foreground shrink-0" />
+                    <span className="truncate max-w-[200px]">{l}</span>
+                    <button type="button" onClick={() => setLinks(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 shrink-0" aria-label="Remove link">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <Input
               type="url"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              placeholder="Paste a YouTube or Pulse link..."
+              value={linkInput}
+              onChange={(e) => setLinkInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && linkInput.trim()) {
+                  e.preventDefault();
+                  setLinks(prev => [...prev, linkInput.trim()]);
+                  setLinkInput('');
+                }
+              }}
+              onPaste={(e) => {
+                const text = e.clipboardData?.getData('text');
+                if (text?.trim()) {
+                  e.preventDefault();
+                  setLinks(prev => [...prev, text.trim()]);
+                }
+              }}
+              placeholder="Paste a link and press Enter..."
             />
           </div>
           <div className="flex justify-end gap-3">

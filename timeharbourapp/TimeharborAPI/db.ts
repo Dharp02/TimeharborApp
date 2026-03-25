@@ -108,7 +108,7 @@ export interface DexieWorkSession {
   netWorkMs: number;
   ticketBreakdown: TicketTime[];
   comment?: string;
-  link?: string;
+  links?: string[];
   attachments?: SessionAttachment[];
   autoClosedAt?: number;
   sourceApp: 'timeharbor';

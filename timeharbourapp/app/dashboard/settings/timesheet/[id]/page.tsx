@@ -9,6 +9,7 @@ import {
 import { Button, Input, Textarea, Select, Badge, Text, SmallMuted } from '@mieweb/ui';
 import { db, type DexieWorkSession, type SessionAttachment } from '@/TimeharborAPI/db';
 import { formatDurationMs } from '@/lib/formatDuration';
+import { linkifyText } from '@/lib/linkify';
 
 /* ── options ───────────────────────────────────────────── */
 const FLAG_OPTIONS = [
@@ -44,7 +45,7 @@ interface EntryData {
   startTime: string;
   endTime: string;
   description: string;
-  link: string;
+  links: string[];
   attachments: SessionAttachment[];
   flag: string;
   status: string;
@@ -65,7 +66,7 @@ function sessionToEntry(session: DexieWorkSession, type: 'in' | 'out'): EntryDat
     startTime: clockInDT.toFormat('HH:mm'),
     endTime: clockOutDT?.toFormat('HH:mm') || '',
     description: session.comment || '',
-    link: session.link || '',
+    links: session.links || ((session as any).link ? [(session as any).link] : []),
     attachments: session.attachments || [],
     flag: (session as any).flag || 'none',
     status: session.clockOut ? 'Completed' : 'Active',
@@ -85,6 +86,7 @@ export default function TimesheetEntryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [editAttachments, setEditAttachments] = useState<SessionAttachment[]>([]);
+  const [editLinkInput, setEditLinkInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* ── load session from Dexie ─────────────────────────── */
@@ -180,7 +182,7 @@ export default function TimesheetEntryPage() {
     try {
       await db.workSessions.update(entry.sessionId, {
         comment: draft.description,
-        link: draft.link || undefined,
+        links: draft.links.length > 0 ? draft.links : undefined,
         attachments: editAttachments.length > 0 ? editAttachments : undefined,
         updatedAt: Date.now(),
         _dirty: 1,
@@ -232,24 +234,6 @@ export default function TimesheetEntryPage() {
 
   return (
     <div className="max-w-4xl mr-auto px-1 py-2 md:px-6 md:py-4 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-end">
-        {!isEditing ? (
-          <Button variant="outline" size="sm" onClick={startEditing}>
-            <Pencil className="w-3.5 h-3.5" /> Edit
-          </Button>
-        ) : (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={cancelEditing}>
-              <X className="w-3.5 h-3.5" /> Cancel
-            </Button>
-            <Button size="sm" onClick={handleSave}>
-              <Save className="w-3.5 h-3.5" /> Save
-            </Button>
-          </div>
-        )}
-      </div>
-
       {/* Feedback */}
       {saveMessage && (
         <div
@@ -264,7 +248,7 @@ export default function TimesheetEntryPage() {
         </div>
       )}
 
-      {/* Title & Status */}
+      {/* Title & Status & Edit */}
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -275,9 +259,25 @@ export default function TimesheetEntryPage() {
               </Text>
             )}
           </div>
-          <Badge variant={badgeVariantForStatus(isEditing ? draft.status : entry.status)} size="sm">
-            {isEditing ? draft.status : entry.status}
-          </Badge>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant={badgeVariantForStatus(isEditing ? draft.status : entry.status)} size="sm">
+              {isEditing ? draft.status : entry.status}
+            </Badge>
+            {!isEditing ? (
+              <Button variant="outline" size="sm" onClick={startEditing}>
+                <Pencil className="w-3.5 h-3.5" /> Edit
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={cancelEditing}>
+                  <X className="w-3.5 h-3.5" /> Cancel
+                </Button>
+                <Button size="sm" onClick={handleSave}>
+                  <Save className="w-3.5 h-3.5" /> Save
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Time Info */}
@@ -341,45 +341,72 @@ export default function TimesheetEntryPage() {
           />
         ) : entry.description ? (
           <Text size="sm" className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-            {entry.description}
+            {linkifyText(entry.description)}
           </Text>
         ) : (
           <SmallMuted className="italic">No description added.</SmallMuted>
         )}
       </div>
 
-      {/* Link */}
+      {/* Links */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Link2 className="w-4 h-4 text-muted-foreground" />
-          <Text size="sm" weight="semibold">Reference Link</Text>
+          <Text size="sm" weight="semibold">Reference Links</Text>
         </div>
         {isEditing ? (
-          <Input
-            type="url"
-            value={draft.link}
-            onChange={e => updateDraft({ link: e.target.value })}
-            onPaste={(e) => {
-              const text = e.clipboardData?.getData('text');
-              if (text) {
-                e.preventDefault();
-                updateDraft({ link: text.trim() });
-              }
-            }}
-            placeholder="Paste a YouTube, Pulse, or GitHub link..."
-          />
-        ) : entry.link ? (
-          <a
-            href={entry.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 hover:underline break-all"
-          >
-            <ExternalLink className="w-4 h-4 shrink-0" />
-            {entry.link}
-          </a>
+          <div className="space-y-2">
+            {draft.links.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {draft.links.map((l, i) => (
+                  <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
+                    <ExternalLink className="w-3 h-3 text-muted-foreground shrink-0" />
+                    <span className="truncate max-w-[200px]">{l}</span>
+                    <button type="button" onClick={() => updateDraft({ links: draft.links.filter((_, idx) => idx !== i) })} className="text-red-500 shrink-0" aria-label="Remove link">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Input
+              type="url"
+              value={editLinkInput}
+              onChange={e => setEditLinkInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && editLinkInput.trim()) {
+                  e.preventDefault();
+                  updateDraft({ links: [...draft.links, editLinkInput.trim()] });
+                  setEditLinkInput('');
+                }
+              }}
+              onPaste={(e) => {
+                const text = e.clipboardData?.getData('text');
+                if (text?.trim()) {
+                  e.preventDefault();
+                  updateDraft({ links: [...draft.links, text.trim()] });
+                }
+              }}
+              placeholder="Paste a link and press Enter..."
+            />
+          </div>
+        ) : entry.links.length > 0 ? (
+          <div className="space-y-1.5">
+            {entry.links.map((l, i) => (
+              <a
+                key={i}
+                href={l}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 hover:underline break-all"
+              >
+                <ExternalLink className="w-4 h-4 shrink-0" />
+                {l}
+              </a>
+            ))}
+          </div>
         ) : (
-          <SmallMuted className="italic">No link attached.</SmallMuted>
+          <SmallMuted className="italic">No links attached.</SmallMuted>
         )}
       </div>
 
