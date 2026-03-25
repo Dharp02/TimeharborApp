@@ -72,8 +72,8 @@ export default function CreateTicketPage() {
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 overflow-y-auto">
       {/* Content */}
-      <div className="px-1 pt-0 pb-0 md:p-6 md:pb-6 flex-grow-0">
-        <div className="max-w-3xl mr-auto space-y-6">
+      <div className="px-1 pt-0 pb-0 md:p-8 md:pb-8 flex-grow-0">
+        <div className="max-w-4xl mr-auto space-y-8">
             
             {error && (
                 <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg text-sm border border-red-200 dark:border-red-800">
@@ -81,15 +81,15 @@ export default function CreateTicketPage() {
                 </div>
             )}
 
-            <div className="space-y-6">
+            <div className="space-y-8">
                 <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
-                    <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                        <Ticket className="w-5 h-5 text-green-600 dark:text-green-500" />
+                    <div className="p-2 bg-[var(--mieweb-primary-100)] dark:bg-[var(--mieweb-primary-900)]/30 rounded-lg">
+                        <Ticket className="w-5 h-5 text-[var(--mieweb-primary-500)]" />
                     </div>
                     <p className="text-sm">Create a new ticket to track your work.</p>
                 </div>
 
-                <div className="space-y-5">
+                <div className="space-y-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                             Title <span className="text-red-500">*</span>
@@ -113,7 +113,7 @@ export default function CreateTicketPage() {
                             onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
                             placeholder="Add more details..."
                             disabled={isLoading}
-                            className="min-h-[120px]"
+                            className="min-h-[160px]"
                         />
                     </div>
 
@@ -156,7 +156,7 @@ export default function CreateTicketPage() {
                     </div>
                 </div>
 
-                <div className="pt-4 flex gap-4 hidden md:flex">
+                <div className="pt-6 flex gap-4 hidden md:flex">
                      <Button
                         onClick={() => router.push('/dashboard/tickets')}
                         disabled={isLoading}
@@ -168,7 +168,7 @@ export default function CreateTicketPage() {
                     <Button
                         onClick={handleCreateTicket}
                         disabled={isLoading}
-                        className="flex-1 py-3 bg-green-600 hover:bg-green-700"
+                        className="flex-1 py-3"
                     >
                         {isLoading ? 'Creating...' : 'Create Ticket'}
                     </Button>
@@ -191,7 +191,7 @@ export default function CreateTicketPage() {
                 <Button
                     onClick={handleCreateTicket}
                     disabled={isLoading}
-                    className="flex-1 py-3 bg-green-600 hover:bg-green-700"
+                    className="flex-1 py-3"
                 >
                     {isLoading ? 'Creating...' : 'Create Ticket'}
                 </Button>

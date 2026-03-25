@@ -107,8 +107,8 @@ export default function ProfilePage() {
     .slice(0, 2);
 
   return (
-    <div className="mt-2 px-0 pb-4 pt-0 md:mt-0 md:p-4">
-      <div className="max-w-2xl mx-auto space-y-6">
+    <div className="mt-2 px-0 pb-4 pt-0 md:mt-0 md:p-6">
+      <div className="max-w-4xl mr-auto space-y-8">
 
         {/* Profile Picture */}
         <section aria-labelledby="avatar-heading">
