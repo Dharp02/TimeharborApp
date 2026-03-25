@@ -85,8 +85,14 @@ export default function ActivityPage() {
         ) : activities.length === 0 ? (
           <div className="p-12 text-center text-gray-500 dark:text-gray-400">
             <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-            <p className="text-lg font-medium">No activity recorded yet</p>
-            <p className="text-sm mt-1">Clock in or start working on tickets to see activity here.</p>
+            <p className="text-lg font-medium">
+              {preset === 'today' ? 'No activity today' : 'No activity for this period'}
+            </p>
+            <p className="text-sm mt-1">
+              {preset === 'today'
+                ? 'Clock in or start working on tickets to see activity here.'
+                : 'Try selecting a different date range.'}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-700">

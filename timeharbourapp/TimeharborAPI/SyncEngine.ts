@@ -1,5 +1,6 @@
 import { db, type DexieWorkSession, type SyncMeta } from './db';
 import { getApiUrl } from './apiUrl';
+import { formatDuration } from '@timeharbor/time-engine';
 
 /**
  * SyncEngine — push/pull work sessions and tickets
@@ -231,6 +232,29 @@ async function migrateLinksAttachments() {
   } catch (_) { /* ignore */ }
 }
 
+// ── Recompute ticket tracked times from session data ──
+
+async function recomputeTicketTrackedTimes() {
+  try {
+    const allSessions = await db.workSessions.toArray();
+    const totals: Record<string, number> = {};
+    for (const session of allSessions) {
+      if (!session.ticketBreakdown) continue;
+      for (const tb of session.ticketBreakdown) {
+        totals[tb.ticketId] = (totals[tb.ticketId] || 0) + tb.totalMs;
+      }
+    }
+    for (const [ticketId, totalMs] of Object.entries(totals)) {
+      try {
+        await db.tickets.update(ticketId, {
+          trackedMs: totalMs,
+          trackedTime: formatDuration(totalMs),
+        });
+      } catch (_) { /* ticket may not exist */ }
+    }
+  } catch (_) { /* ignore */ }
+}
+
 // ── Full Sync Cycle ──
 
 export async function syncAll() {
@@ -241,6 +265,7 @@ export async function syncAll() {
     await pushNotes();
     await pushActivityLogs();
     await pullSessions();
+    await recomputeTicketTrackedTimes();
     await pullTickets();
     await pullNotes();
     await pullActivityLogs();

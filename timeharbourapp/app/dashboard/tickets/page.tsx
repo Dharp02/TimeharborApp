@@ -602,14 +602,18 @@ export default function TicketsPage() {
             {displayTickets.length === 0 && (
               <div className="p-12 text-center">
                 <Text className="text-lg font-medium mb-1">
-                  {activeTab === "From Timehuddle"
-                    ? "No Timehuddle tickets yet"
-                    : "No tickets yet"}
+                  {allTickets.length === 0
+                    ? activeTab === "From Timehuddle"
+                      ? "No Timehuddle tickets yet"
+                      : "No tickets yet"
+                    : "No matching tickets"}
                 </Text>
                 <SmallMuted>
-                  {activeTab === "From Timehuddle"
-                    ? "Tickets assigned to you from Timehuddle will appear here."
-                    : "Create your first ticket to get started!"}
+                  {allTickets.length === 0
+                    ? activeTab === "From Timehuddle"
+                      ? "Tickets assigned to you from Timehuddle will appear here."
+                      : "Create your first ticket to get started!"
+                    : "Try adjusting your search or filters."}
                 </SmallMuted>
               </div>
             )}
@@ -822,9 +826,11 @@ export default function TicketsPage() {
                 className={
                   "w-full flex items-center justify-between p-3 rounded-lg border transition-all " +
                   (selectedTicketForAction &&
-                  allTickets.find(
-                    (t) => t.id === selectedTicketForAction.id,
-                  )?.status === status
+                  getStatusDisplay(
+                    allTickets.find(
+                      (t) => t.id === selectedTicketForAction.id,
+                    )?.status || '',
+                  ) === status
                     ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
                     : "border-border hover:border-primary-500")
                 }

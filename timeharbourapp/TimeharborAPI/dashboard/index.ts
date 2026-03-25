@@ -167,8 +167,10 @@ export const fetchActivitiesByDateRange = async (
   to: string,
 ): Promise<Activity[]> => {
   // Only return workSessions — activityLogs are for the dashboard Recent Activity feed
-  const fromDate = new Date(from).toISOString().slice(0, 10);
-  const toDate = new Date(to).toISOString().slice(0, 10);
+  // Extract local date directly from the ISO string to avoid UTC shift
+  // (e.g. "2026-03-24T23:59:59-07:00" → "2026-03-24", not "2026-03-25" via UTC)
+  const fromDate = from.slice(0, 10);
+  const toDate = to.slice(0, 10);
   const sessions = await db.workSessions
     .where('date')
     .between(fromDate, toDate, true, true)
