@@ -104,8 +104,8 @@ export default function EditTicketPage() {
 
           <div className="space-y-6">
             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-2">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <TicketIcon className="w-5 h-5 text-green-600 dark:text-green-500" />
+              <div className="p-2 bg-[var(--mieweb-primary-100)] dark:bg-[var(--mieweb-primary-900)]/30 rounded-lg">
+                <TicketIcon className="w-5 h-5 text-[var(--mieweb-primary-500)]" />
               </div>
               <p className="text-sm">Update ticket details.</p>
             </div>

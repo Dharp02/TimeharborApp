@@ -18,6 +18,8 @@ import {
   Pencil,
   ArrowRightLeft,
   UserPlus,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import {
   Button,
@@ -67,6 +69,7 @@ export default function TicketsPage() {
   const [modalType, setModalType] = useState<"stop" | "switch">("stop");
   const [comment, setComment] = useState("");
   const [link, setLink] = useState("");
+  const [pastedImages, setPastedImages] = useState<string[]>([]);
   const [pendingTicket, setPendingTicket] = useState<{
     id: string;
     title: string;
@@ -227,13 +230,7 @@ export default function TicketsPage() {
     return Math.floor(hrs / 24) + " days ago";
   };
 
-  const TicketCard = ({
-    ticket,
-    borderColor,
-  }: {
-    ticket: TicketType;
-    borderColor: string;
-  }) => {
+  const renderTicketCard = (ticket: TicketType, borderColor: string) => {
     const isTimehuddle = ticket.source === "timehuddle";
     const isPersonal = !isTimehuddle;
     const assignerName =
@@ -242,7 +239,7 @@ export default function TicketsPage() {
     return (
       <Card
         className={
-          "border-2 " +
+          "border-2 !overflow-visible " +
           borderColor
         }
       >
@@ -260,9 +257,22 @@ export default function TicketsPage() {
                 }
                 aria-label={`${ticket.priority} priority`}
               />
-              <Text className="text-lg font-bold leading-tight">
-                {ticket.title}
-              </Text>
+              <div className="min-w-0">
+                <Text className="text-lg font-bold leading-tight">
+                  {ticket.title}
+                </Text>
+                {ticket.link && (
+                  <a
+                    href={ticket.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline mt-0.5 truncate"
+                  >
+                    <ExternalLink className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{ticket.link}</span>
+                  </a>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <Badge
@@ -392,36 +402,38 @@ export default function TicketsPage() {
         )}
 
         <div className="flex items-center gap-2 pt-1">
-          <Button
-              variant={activeTicketId === ticket.id ? 'danger' : 'secondary'}
-              size="sm"
-              onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-              className="rounded-full"
-          >
-            {activeTicketId === ticket.id ? (
-              <>
-                <Square className="w-3 h-3 mr-1 fill-current" /> Stop
-              </>
-            ) : (
-              <>
-                <Play className="w-3 h-3 mr-1 fill-current" /> Start
-              </>
-            )}
-          </Button>
+          <div className="flex flex-col items-start gap-1">
+            <Button
+                variant={activeTicketId === ticket.id ? 'danger' : 'secondary'}
+                size="sm"
+                onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
+                className="rounded-full"
+            >
+              {activeTicketId === ticket.id ? (
+                <>
+                  <Square className="w-3 h-3 mr-1 fill-current" /> Stop
+                </>
+              ) : (
+                <>
+                  <Play className="w-3 h-3 mr-1 fill-current" /> Start
+                </>
+              )}
+            </Button>
 
-          {activeTicketId === ticket.id && (
-            <SmallMuted className="flex items-center gap-1 font-mono text-primary-600 dark:text-primary-400">
-              <Clock className="w-3 h-3" />
-              {getFormattedTotalTime(ticket.id)}
-            </SmallMuted>
-          )}
+            {activeTicketId === ticket.id && (
+              <SmallMuted className="flex items-center gap-1 font-mono text-primary-600 dark:text-primary-400">
+                <Clock className="w-3 h-3" />
+                {getFormattedTotalTime(ticket.id)}
+              </SmallMuted>
+            )}
+          </div>
 
           {isPersonal && !ticket.sharedToTimehuddle && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleShareToTimehuddle(ticket.id)}
-              className="rounded-full ml-auto"
+              className="rounded-full ml-auto whitespace-nowrap"
             >
               <Share2 className="w-3 h-3 mr-1" /> Share to Timehuddle
             </Button>
@@ -535,11 +547,9 @@ export default function TicketsPage() {
               personalTickets.length > 0 && (
                 <div className="space-y-3">
                   {personalTickets.map((ticket) => (
-                    <TicketCard
-                      key={ticket.id}
-                      ticket={ticket}
-                      borderColor="border-gray-200 dark:border-gray-700"
-                    />
+                    <div key={ticket.id}>
+                      {renderTicketCard(ticket, "border-gray-200 dark:border-gray-700")}
+                    </div>
                   ))}
                 </div>
               )}
@@ -566,11 +576,9 @@ export default function TicketsPage() {
               timehuddleTickets.length > 0 && (
                 <div className="space-y-3">
                   {timehuddleTickets.map((ticket) => (
-                    <TicketCard
-                      key={ticket.id}
-                      ticket={ticket}
-                      borderColor="border-amber-400 dark:border-amber-700"
-                    />
+                    <div key={ticket.id}>
+                      {renderTicketCard(ticket, "border-amber-400 dark:border-amber-700")}
+                    </div>
                   ))}
                 </div>
               )}
@@ -616,6 +624,8 @@ export default function TicketsPage() {
         onClose={() => {
           setIsModalOpen(false);
           setLink("");
+          pastedImages.forEach(url => URL.revokeObjectURL(url));
+          setPastedImages([]);
         }}
         title={modalType === "stop" ? "Stop Working" : "Switch Ticket"}
       >
@@ -632,9 +642,43 @@ export default function TicketsPage() {
             <Textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                for (const item of Array.from(items)) {
+                  if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) {
+                      const url = URL.createObjectURL(file);
+                      setPastedImages(prev => [...prev, url]);
+                    }
+                  }
+                }
+              }}
               placeholder="What did you work on?"
               rows={3}
             />
+            {pastedImages.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {pastedImages.map((url, i) => (
+                  <div key={i} className="relative group">
+                    <img src={url} alt={`Pasted image ${i + 1}`} className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        URL.revokeObjectURL(url);
+                        setPastedImages(prev => prev.filter((_, idx) => idx !== i));
+                      }}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Remove image"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <SmallMuted className="block text-sm font-medium mb-1">
@@ -644,6 +688,13 @@ export default function TicketsPage() {
               type="url"
               value={link}
               onChange={(e) => setLink(e.target.value)}
+              onPaste={(e) => {
+                const text = e.clipboardData?.getData('text');
+                if (text) {
+                  e.preventDefault();
+                  setLink(text.trim());
+                }
+              }}
               placeholder="Paste a YouTube or Pulse link..."
             />
           </div>
@@ -855,7 +906,7 @@ export default function TicketsPage() {
             <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"
-                className="flex-1"
+                className="flex-1 whitespace-nowrap"
                 onClick={() => {
                   setSelectedTicketForAction({ id: detailTicket.id, title: detailTicket.title });
                   setDetailTicket(null);
@@ -866,7 +917,7 @@ export default function TicketsPage() {
               </Button>
               <Button
                 variant="outline"
-                className="flex-1"
+                className="flex-1 whitespace-nowrap"
                 onClick={() => {
                   setDetailTicket(null);
                   router.push(`/dashboard/tickets/${detailTicket.id}/edit`);

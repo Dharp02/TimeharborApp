@@ -11,7 +11,7 @@ import { useActivityLog } from './ActivityLogContext';
 import { formatDuration, formatDurationClock } from '@timeharbor/time-engine';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
-import { Plus, Play, Ticket, Coffee, PlayCircle } from 'lucide-react';
+import { Plus, Play, Ticket, Coffee, PlayCircle, X } from 'lucide-react';
 import { Button, Input, Textarea } from '@mieweb/ui';
 
 type ClockInContextType = {
@@ -71,6 +71,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [isStopTicketModalOpen, setIsStopTicketModalOpen] = useState(false);
   const [stopTicketComment, setStopTicketComment] = useState('');
   const [stopTicketLink, setStopTicketLink] = useState('');
+  const [stopTicketImages, setStopTicketImages] = useState<string[]>([]);
   const [isClockInPromptOpen, setIsClockInPromptOpen] = useState(false);
   const [clockInTickets, setClockInTickets] = useState<TicketType[]>([]);
   const [clockInTicketsLoading, setClockInTicketsLoading] = useState(false);
@@ -281,6 +282,8 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setIsStopTicketModalOpen(false);
     setStopTicketComment('');
     setStopTicketLink('');
+    stopTicketImages.forEach(url => URL.revokeObjectURL(url));
+    setStopTicketImages([]);
   };
 
   const handleClockInTicketSelect = (ticketId: string, ticketTitle: string) => {
@@ -484,15 +487,56 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
           <Textarea
             value={stopTicketComment}
             onChange={(e) => setStopTicketComment(e.target.value)}
+            onPaste={(e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              for (const item of Array.from(items)) {
+                if (item.type.startsWith('image/')) {
+                  e.preventDefault();
+                  const file = item.getAsFile();
+                  if (file) {
+                    const url = URL.createObjectURL(file);
+                    setStopTicketImages(prev => [...prev, url]);
+                  }
+                }
+              }
+            }}
             placeholder="What did you work on?"
             autoFocus
           />
+          {stopTicketImages.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {stopTicketImages.map((url, i) => (
+                <div key={i} className="relative group">
+                  <img src={url} alt={`Pasted image ${i + 1}`} className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      URL.revokeObjectURL(url);
+                      setStopTicketImages(prev => prev.filter((_, idx) => idx !== i));
+                    }}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove image"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
             <Input
               type="url"
               value={stopTicketLink}
               onChange={(e) => setStopTicketLink(e.target.value)}
+              onPaste={(e) => {
+                const text = e.clipboardData?.getData('text');
+                if (text) {
+                  e.preventDefault();
+                  setStopTicketLink(text.trim());
+                }
+              }}
               placeholder="Paste a YouTube or Pulse link..."
             />
           </div>
