@@ -11,6 +11,7 @@ import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
 import { useRefresh } from '../../contexts/RefreshContext';
 import { db } from '@/TimeharborAPI/db';
+import { collectAttachments } from '@/TimeharborAPI/time/attachmentUtils';
 
 const getStatusDisplay = (status: string) =>
   status === 'Closed' ? 'Done' : status;
@@ -124,21 +125,24 @@ export default function OpenTickets() {
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!pendingTicket) return;
 
+    const atts = await collectAttachments(pastedImages, attachedFiles);
+
     if (modalType === 'stop') {
-      // Stop the ticket (comment optional)
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined, atts.length > 0 ? atts : undefined);
     } else {
-      // Switch to a new ticket
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined, atts.length > 0 ? atts : undefined);
     }
 
     setIsModalOpen(false);
     setPendingTicket(null);
     setComment('');
     setLink('');
+    pastedImages.forEach(url => URL.revokeObjectURL(url));
+    setPastedImages([]);
+    setAttachedFiles([]);
   };
 
   const handleShareToTimehuddle = async (ticketId: string) => {

@@ -55,6 +55,8 @@ export async function pushSessions() {
     netWorkMs: s.netWorkMs,
     ticketBreakdown: s.ticketBreakdown,
     comment: s.comment,
+    link: s.link,
+    attachments: s.attachments,
     sourceApp: s.sourceApp,
     _rev: s._rev,
   }));

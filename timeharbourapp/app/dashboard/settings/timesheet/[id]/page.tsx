@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { DateTime } from 'luxon';
 import {
-  ArrowLeft, Clock, Calendar, ExternalLink, Pencil, Save, X, Image as ImageIcon, Link2, FileText, Trash2,
+  ArrowLeft, Clock, Calendar, ExternalLink, Pencil, Save, X, Image as ImageIcon, Link2, FileText, Trash2, Paperclip,
 } from 'lucide-react';
 import { Button, Input, Textarea, Select, Badge, Text, SmallMuted } from '@mieweb/ui';
-import { db, type DexieWorkSession } from '@/TimeharborAPI/db';
+import { db, type DexieWorkSession, type SessionAttachment } from '@/TimeharborAPI/db';
 import { formatDurationMs } from '@/lib/formatDuration';
 
 /* ── options ───────────────────────────────────────────── */
@@ -45,7 +45,7 @@ interface EntryData {
   endTime: string;
   description: string;
   link: string;
-  images: string[];
+  attachments: SessionAttachment[];
   flag: string;
   status: string;
   durationMs: number;
@@ -65,8 +65,8 @@ function sessionToEntry(session: DexieWorkSession, type: 'in' | 'out'): EntryDat
     startTime: clockInDT.toFormat('HH:mm'),
     endTime: clockOutDT?.toFormat('HH:mm') || '',
     description: session.comment || '',
-    link: '',
-    images: (session as any).images || [],
+    link: session.link || '',
+    attachments: session.attachments || [],
     flag: (session as any).flag || 'none',
     status: session.clockOut ? 'Completed' : 'Active',
     durationMs: session.netWorkMs,
@@ -84,7 +84,8 @@ export default function TimesheetEntryPage() {
   const [draft, setDraft] = useState<EntryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [pastedImages, setPastedImages] = useState<string[]>([]);
+  const [editAttachments, setEditAttachments] = useState<SessionAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* ── load session from Dexie ─────────────────────────── */
   useEffect(() => {
@@ -101,7 +102,7 @@ export default function TimesheetEntryPage() {
           const data = sessionToEntry(session, type);
           setEntry(data);
           setDraft(data);
-          setPastedImages(data.images);
+          setEditAttachments(data.attachments);
         }
       } catch (err) {
         console.error('Failed to load entry:', err);
@@ -122,7 +123,7 @@ export default function TimesheetEntryPage() {
   const cancelEditing = () => {
     setIsEditing(false);
     setDraft(entry ? { ...entry } : null);
-    setPastedImages(entry?.images || []);
+    setEditAttachments(entry?.attachments || []);
     setSaveMessage(null);
   };
 
@@ -138,32 +139,54 @@ export default function TimesheetEntryPage() {
         e.preventDefault();
         const file = item.getAsFile();
         if (file) {
-          const url = URL.createObjectURL(file);
-          setPastedImages(prev => [...prev, url]);
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const mime = file.type || 'image/png';
+            setEditAttachments(prev => [...prev, {
+              name: file.name || `pasted-image.${mime.split('/')[1] || 'png'}`,
+              type: mime,
+              dataUrl,
+            }]);
+          };
+          reader.readAsDataURL(file);
         }
       }
     }
   }, []);
 
-  const removeImage = (index: number) => {
-    setPastedImages(prev => {
-      const url = prev[index];
-      if (url.startsWith('blob:')) URL.revokeObjectURL(url);
-      return prev.filter((_, i) => i !== index);
-    });
+  const handleFileSelect = useCallback((files: FileList | null) => {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setEditAttachments(prev => [...prev, {
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          dataUrl,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const removeAttachment = (index: number) => {
+    setEditAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
     if (!draft || !entry) return;
     try {
-      // Update the work session in Dexie
       await db.workSessions.update(entry.sessionId, {
         comment: draft.description,
+        link: draft.link || undefined,
+        attachments: editAttachments.length > 0 ? editAttachments : undefined,
         updatedAt: Date.now(),
         _dirty: 1,
       });
 
-      const updated = { ...draft, images: pastedImages };
+      const updated = { ...draft, attachments: editAttachments };
       setEntry(updated);
       setDraft(updated);
       setIsEditing(false);
@@ -360,36 +383,88 @@ export default function TimesheetEntryPage() {
         )}
       </div>
 
-      {/* Images */}
+      {/* Attachments */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <ImageIcon className="w-4 h-4 text-muted-foreground" />
           <Text size="sm" weight="semibold">Attachments</Text>
         </div>
-        {pastedImages.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {pastedImages.map((url, i) => (
-              <div key={i} className="relative group aspect-square">
-                <img
-                  src={url}
-                  alt={`Attachment ${i + 1}`}
-                  className="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-gray-700"
-                />
-                {isEditing && (
-                  <button
-                    type="button"
-                    onClick={() => removeImage(i)}
-                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label="Remove attachment"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+        {editAttachments.length > 0 ? (
+          <div className="space-y-3">
+            {/* Image attachments */}
+            {editAttachments.filter(a => a.type.startsWith('image/')).length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {editAttachments.map((att, i) =>
+                  att.type.startsWith('image/') ? (
+                    <div key={i} className="relative group aspect-square">
+                      <img
+                        src={att.dataUrl}
+                        alt={att.name}
+                        className="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                      />
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(i)}
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          aria-label="Remove attachment"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ) : null
                 )}
               </div>
-            ))}
+            )}
+            {/* Document attachments */}
+            {editAttachments.filter(a => !a.type.startsWith('image/')).length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {editAttachments.map((att, i) =>
+                  !att.type.startsWith('image/') ? (
+                    <div key={i} className="relative group flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                      <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <a href={att.dataUrl} download={att.name} className="text-sm hover:underline truncate max-w-[200px]">{att.name}</a>
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(i)}
+                          className="w-4 h-4 text-red-500 shrink-0"
+                          aria-label="Remove file"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  ) : null
+                )}
+              </div>
+            )}
           </div>
         ) : (
-          <SmallMuted className="italic">No attachments. {isEditing && 'Paste an image in the description field to attach it.'}</SmallMuted>
+          <SmallMuted className="italic">No attachments.</SmallMuted>
+        )}
+        {isEditing && (
+          <div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Paperclip className="w-3.5 h-3.5" /> Attach image or document
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.txt,.md"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                handleFileSelect(e.target.files);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            />
+          </div>
         )}
       </div>
 

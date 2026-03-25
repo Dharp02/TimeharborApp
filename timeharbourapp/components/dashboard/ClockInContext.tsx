@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { sessionManager } from '@/TimeharborAPI/time/SessionManager';
+import { collectAttachments } from '@/TimeharborAPI/time/attachmentUtils';
+import type { SessionAttachment } from '@/TimeharborAPI/db';
 import { useSession } from '@/TimeharborAPI/time/useSession';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -33,7 +35,7 @@ type ClockInContextType = {
   // Actions
   toggleSession: () => void;
   resumeFromBreak: () => void;
-  toggleTicketTimer: (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string) => void;
+  toggleTicketTimer: (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string, attachments?: SessionAttachment[]) => void;
   getFormattedTotalTime: (ticketId: string) => string;
 };
 
@@ -242,6 +244,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const confirmStopTicketAndSession = useCallback(async () => {
     if (!currentSession) return;
 
+    // Convert images and files to persistable attachments
+    const atts = await collectAttachments(stopTicketImages, stopTicketFiles);
+
     // Stop the active ticket
     if (activeTicketId) {
       await sessionManager.stopTicket(currentSession.id);
@@ -258,8 +263,12 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // Clock out
-    await sessionManager.clockOut(currentSession.id, stopTicketComment || undefined);
+    // Clock out with all data
+    await sessionManager.clockOut(currentSession.id, {
+      comment: stopTicketComment || undefined,
+      link: stopTicketLink || undefined,
+      attachments: atts.length > 0 ? atts : undefined,
+    });
 
     const durationStr = stats ? formatDuration(stats.netWorkMs) : '0m';
     updateActiveSession(new Date().toISOString(), durationStr);
@@ -278,7 +287,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setIsStopTicketModalOpen(false);
     setStopTicketComment('');
     setStopTicketLink('');
-  }, [currentSession, activeTicketId, activeTicketTitle, stats, stopTicketComment, stopTicketLink, updateActiveSession, addActivity]);
+  }, [currentSession, activeTicketId, activeTicketTitle, stats, stopTicketComment, stopTicketLink, stopTicketImages, stopTicketFiles, updateActiveSession, addActivity]);
 
   const cancelStopTicketAndSession = () => {
     setIsStopTicketModalOpen(false);
@@ -303,13 +312,18 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     ticketTitle: string,
     _teamId?: string,
     comment?: string,
-    link?: string
+    link?: string,
+    attachments?: SessionAttachment[]
   ) => {
     if (!isSessionActive || !currentSession) return;
 
     if (activeTicketId === ticketId) {
-      // Stop current ticket
-      await sessionManager.stopTicket(currentSession.id);
+      // Stop current ticket, saving data to session
+      await sessionManager.stopTicket(currentSession.id, {
+        comment: comment || undefined,
+        link: link || undefined,
+        attachments: attachments?.length ? attachments : undefined,
+      });
 
       const ticketMs = stats?.ticketBreakdown.find(t => t.ticketId === ticketId)?.totalMs ?? 0;
       addActivity({

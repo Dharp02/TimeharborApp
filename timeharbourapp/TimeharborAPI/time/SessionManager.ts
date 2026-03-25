@@ -1,6 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
-import { db, type DexieWorkSession } from '../db';
+import { db, type DexieWorkSession, type SessionAttachment } from '../db';
 import { computeSession } from '@timeharbor/time-engine';
+
+export interface ClockOutOptions {
+  comment?: string;
+  link?: string;
+  attachments?: SessionAttachment[];
+}
 
 /**
  * SessionManager — per-session document manager.
@@ -77,7 +83,7 @@ export class SessionManager {
     return this.commitSession(session, now);
   }
 
-  async stopTicket(sessionId: string): Promise<DexieWorkSession> {
+  async stopTicket(sessionId: string, options?: ClockOutOptions): Promise<DexieWorkSession> {
     const session = await db.workSessions.get(sessionId);
     if (!session) throw new Error('Session not found');
 
@@ -87,6 +93,13 @@ export class SessionManager {
     session.ticketSegments = session.ticketSegments.map(seg =>
       seg.end === null ? { ...seg, end: now } : seg
     );
+
+    // Save optional data to session
+    if (options) {
+      if (options.comment) session.comment = options.comment;
+      if (options.link) session.link = options.link;
+      if (options.attachments?.length) session.attachments = options.attachments;
+    }
 
     return this.commitSession(session, now);
   }
@@ -168,7 +181,7 @@ export class SessionManager {
     return this.commitSession(session, now);
   }
 
-  async clockOut(sessionId: string, comment?: string): Promise<DexieWorkSession> {
+  async clockOut(sessionId: string, options?: string | ClockOutOptions): Promise<DexieWorkSession> {
     const session = await db.workSessions.get(sessionId);
     if (!session) throw new Error('Session not found');
 
@@ -185,7 +198,15 @@ export class SessionManager {
     );
 
     session.clockOut = now;
-    if (comment) session.comment = comment;
+
+    // Support both old string signature and new options object
+    if (typeof options === 'string') {
+      session.comment = options;
+    } else if (options) {
+      if (options.comment) session.comment = options.comment;
+      if (options.link) session.link = options.link;
+      if (options.attachments?.length) session.attachments = options.attachments;
+    }
 
     return this.commitSession(session, now);
   }

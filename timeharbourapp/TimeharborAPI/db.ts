@@ -85,6 +85,12 @@ export interface Ticket {
   };
 }
 
+export interface SessionAttachment {
+  name: string;
+  type: string; // MIME type
+  dataUrl: string; // base64 data URL
+}
+
 export interface DexieWorkSession {
   id: string;
   clientSessionId: string;
@@ -102,6 +108,8 @@ export interface DexieWorkSession {
   netWorkMs: number;
   ticketBreakdown: TicketTime[];
   comment?: string;
+  link?: string;
+  attachments?: SessionAttachment[];
   autoClosedAt?: number;
   sourceApp: 'timeharbor';
   createdAt: number;

@@ -47,6 +47,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Modal } from "@/components/ui/Modal";
 import { tickets as ticketsApi } from "@/TimeharborAPI";
 import { Ticket as TicketType } from "@/TimeharborAPI/tickets";
+import { collectAttachments } from "@/TimeharborAPI/time/attachmentUtils";
 
 type SourceTab = "All" | "Personal" | "From Timehuddle";
 
@@ -172,19 +173,26 @@ export default function TicketsPage() {
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!pendingTicket) return;
+
+    const atts = await collectAttachments(pastedImages, attachedFiles);
+
     toggleTicketTimer(
       pendingTicket.id,
       pendingTicket.title,
       undefined,
       comment,
       link || undefined,
+      atts.length > 0 ? atts : undefined,
     );
     setIsModalOpen(false);
     setPendingTicket(null);
     setComment("");
     setLink("");
+    pastedImages.forEach(url => URL.revokeObjectURL(url));
+    setPastedImages([]);
+    setAttachedFiles([]);
   };
 
   const handleStatusChange = async (newStatus: string) => {
