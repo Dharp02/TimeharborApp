@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
 import { DateTime } from 'luxon';
 import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
@@ -61,6 +62,7 @@ const toEditState = (a: Activity): EditState => ({
 });
 
 export default function TimesheetPage() {
+  const router = useRouter();
   const { register, lastRefreshed } = useRefresh();
 
   /* ── filter state ───────────────────────────────────── */
@@ -301,11 +303,11 @@ export default function TimesheetPage() {
                         </>
                       ) : (
                         <>
-                          <TableCell className="whitespace-nowrap">{fmtDate(a.startTime)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{fmtTime(a.startTime)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{a.endTime ? fmtTime(a.endTime) : '—'}</TableCell>
-                          <TableCell className="text-primary-600 dark:text-primary-400 font-medium">{a.subtitle || '—'}</TableCell>
-                          <TableCell className="truncate">{a.description || a.title}</TableCell>
+                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{fmtDate(a.startTime)}</TableCell>
+                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{fmtTime(a.startTime)}</TableCell>
+                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{a.endTime ? fmtTime(a.endTime) : '—'}</TableCell>
+                          <TableCell className="text-primary-600 dark:text-primary-400 font-medium cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{a.subtitle || '—'}</TableCell>
+                          <TableCell className="truncate cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{a.description || a.title}</TableCell>
                           <TableCell>
                             {a.metadata?.flag && a.metadata.flag !== 'none' ? (
                               <Badge variant="outline" size="sm">{FLAG_OPTIONS.find(f => f.value === a.metadata?.flag)?.label ?? a.metadata.flag}</Badge>
@@ -334,7 +336,12 @@ export default function TimesheetPage() {
             {sortedActivities.map(a => {
               const isEditing = editingId === a.id;
               return (
-                <div key={a.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                <div key={a.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3"
+                  onClick={() => !isEditing && router.push(`/dashboard/settings/timesheet/${a.id}`)}
+                  role={!isEditing ? 'link' : undefined}
+                  tabIndex={!isEditing ? 0 : undefined}
+                  style={!isEditing ? { cursor: 'pointer' } : undefined}
+                >
                   {isEditing && editDraft ? (
                     <>
                       <div className="grid grid-cols-2 gap-3">
@@ -375,7 +382,7 @@ export default function TimesheetPage() {
                           <p className="font-medium text-gray-900 dark:text-white">{a.title}</p>
                           {a.subtitle && <p className="text-sm text-primary-600 dark:text-primary-400">{a.subtitle}</p>}
                         </div>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                           <button onClick={() => startEdit(a)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Edit entry">
                             <Pencil className="w-4 h-4 text-gray-500" />
                           </button>

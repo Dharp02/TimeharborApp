@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Play, Square, ChevronRight, Clock, Video, Users, RefreshCw, Share2, Check } from 'lucide-react';
+import { Plus, Play, Square, ChevronRight, Clock, Video, Users, RefreshCw, Share2, Check, Paperclip, X, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { Button, Input, Textarea, Badge, Card, CardContent, Text, SmallMuted } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
@@ -33,6 +33,9 @@ export default function OpenTickets() {
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
   const [link, setLink] = useState('');
+  const [pastedImages, setPastedImages] = useState<string[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -366,7 +369,7 @@ export default function OpenTickets() {
 
     <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setLink(''); }}
+        onClose={() => { setIsModalOpen(false); setLink(''); pastedImages.forEach(u => URL.revokeObjectURL(u)); setPastedImages([]); setAttachedFiles([]); }}
         title={modalType === 'stop' ? 'Stop Timer?' : 'Switching Tasks'}
       >
         <div className="space-y-4">
@@ -375,13 +378,100 @@ export default function OpenTickets() {
               ? 'Enter a comment for this session:' 
               : 'Enter a comment for the current task before switching:'}
           </SmallMuted>
-          <Textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="What did you work on?"
-            className="w-full h-32"
-            autoFocus
-          />
+          <div
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const files = Array.from(e.dataTransfer.files);
+              for (const file of files) {
+                if (file.type.startsWith('image/')) {
+                  setPastedImages(prev => [...prev, URL.createObjectURL(file)]);
+                } else {
+                  setAttachedFiles(prev => [...prev, file]);
+                }
+              }
+            }}
+          >
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                for (const item of Array.from(items)) {
+                  if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) setPastedImages(prev => [...prev, URL.createObjectURL(file)]);
+                  }
+                }
+              }}
+              placeholder="What did you work on?"
+              className="w-full h-32"
+              autoFocus
+            />
+          </div>
+          {/* Attachments preview */}
+          {(pastedImages.length > 0 || attachedFiles.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {pastedImages.map((url, i) => (
+                <div key={`img-${i}`} className="relative group">
+                  <img src={url} alt={`Image ${i + 1}`} className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                  <button
+                    type="button"
+                    onClick={() => { URL.revokeObjectURL(url); setPastedImages(prev => prev.filter((_, idx) => idx !== i)); }}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove image"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              {attachedFiles.map((file, i) => (
+                <div key={`file-${i}`} className="relative group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                  <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-xs truncate max-w-[120px]">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}
+                    className="w-4 h-4 rounded-full text-red-500 flex items-center justify-center shrink-0"
+                    aria-label="Remove file"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Attach button */}
+          <div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Paperclip className="w-3.5 h-3.5" /> Attach image or document
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.txt,.md"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                for (const file of files) {
+                  if (file.type.startsWith('image/')) {
+                    setPastedImages(prev => [...prev, URL.createObjectURL(file)]);
+                  } else {
+                    setAttachedFiles(prev => [...prev, file]);
+                  }
+                }
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            />
+          </div>
           <div>
             <SmallMuted className="block text-xs font-medium mb-1">Link (optional)</SmallMuted>
             <Input

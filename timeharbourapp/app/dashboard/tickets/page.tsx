@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Plus,
   Play,
@@ -20,6 +20,8 @@ import {
   UserPlus,
   ExternalLink,
   X,
+  Paperclip,
+  FileText,
 } from "lucide-react";
 import {
   Button,
@@ -70,6 +72,8 @@ export default function TicketsPage() {
   const [comment, setComment] = useState("");
   const [link, setLink] = useState("");
   const [pastedImages, setPastedImages] = useState<string[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const modalFileRef = useRef<HTMLInputElement>(null);
   const [pendingTicket, setPendingTicket] = useState<{
     id: string;
     title: string;
@@ -626,6 +630,7 @@ export default function TicketsPage() {
           setLink("");
           pastedImages.forEach(url => URL.revokeObjectURL(url));
           setPastedImages([]);
+          setAttachedFiles([]);
         }}
         title={modalType === "stop" ? "Stop Working" : "Switch Ticket"}
       >
@@ -639,6 +644,21 @@ export default function TicketsPage() {
             <SmallMuted className="block text-sm font-medium mb-1">
               Work Description (Optional)
             </SmallMuted>
+          <div
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const files = Array.from(e.dataTransfer.files);
+              for (const file of files) {
+                if (file.type.startsWith('image/')) {
+                  setPastedImages(prev => [...prev, URL.createObjectURL(file)]);
+                } else {
+                  setAttachedFiles(prev => [...prev, file]);
+                }
+              }
+            }}
+          >
             <Textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
@@ -649,36 +669,72 @@ export default function TicketsPage() {
                   if (item.type.startsWith('image/')) {
                     e.preventDefault();
                     const file = item.getAsFile();
-                    if (file) {
-                      const url = URL.createObjectURL(file);
-                      setPastedImages(prev => [...prev, url]);
-                    }
+                    if (file) setPastedImages(prev => [...prev, URL.createObjectURL(file)]);
                   }
                 }
               }}
               placeholder="What did you work on?"
               rows={3}
             />
-            {pastedImages.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {pastedImages.map((url, i) => (
-                  <div key={i} className="relative group">
-                    <img src={url} alt={`Pasted image ${i + 1}`} className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        URL.revokeObjectURL(url);
-                        setPastedImages(prev => prev.filter((_, idx) => idx !== i));
-                      }}
-                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      aria-label="Remove image"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+          </div>
+          {(pastedImages.length > 0 || attachedFiles.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {pastedImages.map((url, i) => (
+                <div key={`img-${i}`} className="relative group">
+                  <img src={url} alt={`Image ${i + 1}`} className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                  <button
+                    type="button"
+                    onClick={() => { URL.revokeObjectURL(url); setPastedImages(prev => prev.filter((_, idx) => idx !== i)); }}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove image"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              {attachedFiles.map((file, i) => (
+                <div key={`file-${i}`} className="relative group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                  <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-xs truncate max-w-[120px]">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}
+                    className="w-4 h-4 rounded-full text-red-500 flex items-center justify-center shrink-0"
+                    aria-label="Remove file"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div>
+            <button
+              type="button"
+              onClick={() => modalFileRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Paperclip className="w-3.5 h-3.5" /> Attach image or document
+            </button>
+            <input
+              ref={modalFileRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.txt,.md"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                for (const file of files) {
+                  if (file.type.startsWith('image/')) {
+                    setPastedImages(prev => [...prev, URL.createObjectURL(file)]);
+                  } else {
+                    setAttachedFiles(prev => [...prev, file]);
+                  }
+                }
+                if (modalFileRef.current) modalFileRef.current.value = '';
+              }}
+            />
+          </div>
           </div>
           <div>
             <SmallMuted className="block text-sm font-medium mb-1">

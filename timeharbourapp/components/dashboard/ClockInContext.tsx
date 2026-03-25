@@ -11,7 +11,7 @@ import { useActivityLog } from './ActivityLogContext';
 import { formatDuration, formatDurationClock } from '@timeharbor/time-engine';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
-import { Plus, Play, Ticket, Coffee, PlayCircle, X } from 'lucide-react';
+import { Plus, Play, Ticket, Coffee, PlayCircle, X, Paperclip, FileText } from 'lucide-react';
 import { Button, Input, Textarea } from '@mieweb/ui';
 
 type ClockInContextType = {
@@ -72,6 +72,8 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const [stopTicketComment, setStopTicketComment] = useState('');
   const [stopTicketLink, setStopTicketLink] = useState('');
   const [stopTicketImages, setStopTicketImages] = useState<string[]>([]);
+  const [stopTicketFiles, setStopTicketFiles] = useState<File[]>([]);
+  const stopTicketFileRef = useRef<HTMLInputElement>(null);
   const [isClockInPromptOpen, setIsClockInPromptOpen] = useState(false);
   const [clockInTickets, setClockInTickets] = useState<TicketType[]>([]);
   const [clockInTicketsLoading, setClockInTicketsLoading] = useState(false);
@@ -284,6 +286,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setStopTicketLink('');
     stopTicketImages.forEach(url => URL.revokeObjectURL(url));
     setStopTicketImages([]);
+    setStopTicketFiles([]);
   };
 
   const handleClockInTicketSelect = (ticketId: string, ticketTitle: string) => {
@@ -484,37 +487,47 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
           <p className="text-sm text-gray-600 dark:text-gray-300">
             You are clocking out but the ticket timer is still running. Please add a comment to stop the ticket and clock out.
           </p>
-          <Textarea
-            value={stopTicketComment}
-            onChange={(e) => setStopTicketComment(e.target.value)}
-            onPaste={(e) => {
-              const items = e.clipboardData?.items;
-              if (!items) return;
-              for (const item of Array.from(items)) {
-                if (item.type.startsWith('image/')) {
-                  e.preventDefault();
-                  const file = item.getAsFile();
-                  if (file) {
-                    const url = URL.createObjectURL(file);
-                    setStopTicketImages(prev => [...prev, url]);
-                  }
+          <div
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const files = Array.from(e.dataTransfer.files);
+              for (const file of files) {
+                if (file.type.startsWith('image/')) {
+                  setStopTicketImages(prev => [...prev, URL.createObjectURL(file)]);
+                } else {
+                  setStopTicketFiles(prev => [...prev, file]);
                 }
               }
             }}
-            placeholder="What did you work on?"
-            autoFocus
-          />
-          {stopTicketImages.length > 0 && (
+          >
+            <Textarea
+              value={stopTicketComment}
+              onChange={(e) => setStopTicketComment(e.target.value)}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                for (const item of Array.from(items)) {
+                  if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) setStopTicketImages(prev => [...prev, URL.createObjectURL(file)]);
+                  }
+                }
+              }}
+              placeholder="What did you work on?"
+              autoFocus
+            />
+          </div>
+          {(stopTicketImages.length > 0 || stopTicketFiles.length > 0) && (
             <div className="flex flex-wrap gap-2">
               {stopTicketImages.map((url, i) => (
-                <div key={i} className="relative group">
-                  <img src={url} alt={`Pasted image ${i + 1}`} className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                <div key={`img-${i}`} className="relative group">
+                  <img src={url} alt={`Image ${i + 1}`} className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
                   <button
                     type="button"
-                    onClick={() => {
-                      URL.revokeObjectURL(url);
-                      setStopTicketImages(prev => prev.filter((_, idx) => idx !== i));
-                    }}
+                    onClick={() => { URL.revokeObjectURL(url); setStopTicketImages(prev => prev.filter((_, idx) => idx !== i)); }}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     aria-label="Remove image"
                   >
@@ -522,8 +535,49 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
                   </button>
                 </div>
               ))}
+              {stopTicketFiles.map((file, i) => (
+                <div key={`file-${i}`} className="relative group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                  <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-xs truncate max-w-[120px]">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setStopTicketFiles(prev => prev.filter((_, idx) => idx !== i))}
+                    className="w-4 h-4 rounded-full text-red-500 flex items-center justify-center shrink-0"
+                    aria-label="Remove file"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
+          <div>
+            <button
+              type="button"
+              onClick={() => stopTicketFileRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Paperclip className="w-3.5 h-3.5" /> Attach image or document
+            </button>
+            <input
+              ref={stopTicketFileRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.txt,.md"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                for (const file of files) {
+                  if (file.type.startsWith('image/')) {
+                    setStopTicketImages(prev => [...prev, URL.createObjectURL(file)]);
+                  } else {
+                    setStopTicketFiles(prev => [...prev, file]);
+                  }
+                }
+                if (stopTicketFileRef.current) stopTicketFileRef.current.value = '';
+              }}
+            />
+          </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
             <Input
