@@ -2,6 +2,7 @@ import { syncAll } from './SyncEngine';
 
 class SyncManager {
   private static instance: SyncManager;
+  private syncing = false;
 
   public static getInstance(): SyncManager {
     if (!SyncManager.instance) {
@@ -18,7 +19,13 @@ class SyncManager {
   }
 
   public async syncNow() {
-    await syncAll();
+    if (this.syncing) return;
+    this.syncing = true;
+    try {
+      await syncAll();
+    } finally {
+      this.syncing = false;
+    }
   }
 
   public async addMutation(_url: string, _method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', _body: any, _tempId?: string) {

@@ -80,10 +80,15 @@ export default function OpenTickets() {
     const handleRefresh = () => fetchTickets();
     window.addEventListener('pull-to-refresh', handleRefresh);
 
+    // Re-read Dexie after SyncEngine pulls new tickets from the server
+    const handleSyncComplete = () => fetchTickets();
+    window.addEventListener('sync-complete', handleSyncComplete);
+
     return () => {
       isMountedRef.current = false;
       unregister();
       window.removeEventListener('pull-to-refresh', handleRefresh);
+      window.removeEventListener('sync-complete', handleSyncComplete);
     };
   }, [register, lastRefreshed, fetchTickets]);
 

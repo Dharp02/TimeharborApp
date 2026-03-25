@@ -84,6 +84,11 @@ export default function TicketsPage() {
 
   useEffect(() => {
     loadTickets();
+
+    // Re-read Dexie after SyncEngine pulls new tickets from the server
+    const handleSyncComplete = () => loadTickets();
+    window.addEventListener('sync-complete', handleSyncComplete);
+    return () => window.removeEventListener('sync-complete', handleSyncComplete);
   }, []);
 
   const loadTickets = async () => {

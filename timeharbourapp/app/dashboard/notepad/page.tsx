@@ -18,6 +18,8 @@ import {
   SmallMuted,
 } from '@mieweb/ui';
 import { Modal } from '@/components/ui/Modal';
+import { db, type DexieNote } from '@/TimeharborAPI/db';
+import { getStoredUser } from '@/TimeharborAPI/auth';
 import './notepad.scss';
 
 const NoteEditor = dynamic(
@@ -25,43 +27,68 @@ const NoteEditor = dynamic(
   { ssr: false }
 );
 
-interface Note {
-  id: string;
-  title: string;
-  content: string;
-  updatedAt: string;
-}
+const LEGACY_STORAGE_KEY = 'timeharbor-notepad-notes';
 
-const STORAGE_KEY = 'timeharbor-notepad-notes';
-
-function loadNotes(): Note[] {
-  if (typeof window === 'undefined') return [];
+/** One-time migration from localStorage → Dexie */
+async function migrateFromLocalStorage(userId: string) {
+  if (typeof window === 'undefined') return;
+  const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+  if (!raw) return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const legacy: Array<{ id: string; title: string; content: string; updatedAt: string }> = JSON.parse(raw);
+    for (const note of legacy) {
+      const exists = await db.notes.get(note.id);
+      if (!exists) {
+        await db.notes.put({
+          id: note.id,
+          userId,
+          title: note.title,
+          content: note.content,
+          _dirty: 1,
+          _rev: 1,
+          _deleted: false,
+          createdAt: note.updatedAt,
+          updatedAt: note.updatedAt,
+        });
+      }
+    }
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
-    return [];
+    // Migration failed — leave localStorage as-is, will retry next mount
   }
 }
 
-function saveNotes(notes: Note[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-}
-
 export default function NotepadPage() {
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<DexieNote[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [showList, setShowList] = useState(true);
 
+  // Load notes from Dexie
   useEffect(() => {
-    const loaded = loadNotes();
-    setNotes(loaded);
-    if (loaded.length > 0) {
-      setActiveNoteId(loaded[0].id);
-    }
+    let cancelled = false;
+    const loadNotes = async () => {
+      const user = await getStoredUser();
+      if (!user?.id || cancelled) return;
+      await migrateFromLocalStorage(user.id);
+      const loaded = await db.notes
+        .where('userId')
+        .equals(user.id)
+        .filter(n => !n._deleted)
+        .toArray();
+      loaded.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      if (!cancelled) {
+        setNotes(loaded);
+        if (loaded.length > 0) setActiveNoteId(loaded[0].id);
+      }
+    };
+    loadNotes();
+
+    const onSyncComplete = () => loadNotes();
+    window.addEventListener('sync-complete', onSyncComplete);
+    return () => { cancelled = true; window.removeEventListener('sync-complete', onSyncComplete); };
   }, []);
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
@@ -70,14 +97,12 @@ export default function NotepadPage() {
     n.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Notify the main header about editor state
   const notifyHeader = useCallback((editing: boolean, title?: string) => {
     window.dispatchEvent(
       new CustomEvent('notepad-header', { detail: editing ? { title: title || 'Untitled' } : null })
     );
   }, []);
 
-  // Listen for back button press from the main header
   useEffect(() => {
     const handleBack = () => {
       setShowList(true);
@@ -87,21 +112,25 @@ export default function NotepadPage() {
     return () => window.removeEventListener('notepad-back', handleBack);
   }, [notifyHeader]);
 
-  // Clean up header override on unmount
   useEffect(() => {
     return () => notifyHeader(false);
   }, [notifyHeader]);
 
-  const createNote = () => {
-    const newNote: Note = {
+  const createNote = async () => {
+    const user = await getStoredUser();
+    const newNote: DexieNote = {
       id: crypto.randomUUID(),
+      userId: user?.id || '',
       title: 'Untitled',
       content: '',
+      _dirty: 1,
+      _rev: 1,
+      _deleted: false,
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    const updated = [newNote, ...notes];
-    setNotes(updated);
-    saveNotes(updated);
+    await db.notes.put(newNote);
+    setNotes((prev) => [newNote, ...prev]);
     setActiveNoteId(newNote.id);
     setShowList(false);
     notifyHeader(true, newNote.title);
@@ -109,40 +138,42 @@ export default function NotepadPage() {
 
   const updateNoteContent = useCallback(
     (content: string) => {
-      setNotes((prev) => {
-        const updated = prev.map((n) =>
-          n.id === activeNoteId
-            ? { ...n, content, updatedAt: new Date().toISOString() }
-            : n
-        );
-        saveNotes(updated);
-        return updated;
-      });
+      const now = new Date().toISOString();
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === activeNoteId ? { ...n, content, updatedAt: now, _dirty: 1 } : n
+        )
+      );
+      if (activeNoteId) {
+        db.notes.update(activeNoteId, { content, updatedAt: now, _dirty: 1 });
+      }
     },
     [activeNoteId]
   );
 
   const updateNoteTitle = useCallback(
     (title: string) => {
-      setNotes((prev) => {
-        const updated = prev.map((n) =>
-          n.id === activeNoteId
-            ? { ...n, title, updatedAt: new Date().toISOString() }
-            : n
-        );
-        saveNotes(updated);
-        return updated;
-      });
+      const now = new Date().toISOString();
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === activeNoteId ? { ...n, title, updatedAt: now, _dirty: 1 } : n
+        )
+      );
+      if (activeNoteId) {
+        db.notes.update(activeNoteId, { title, updatedAt: now, _dirty: 1 });
+      }
       notifyHeader(true, title);
     },
     [activeNoteId, notifyHeader]
   );
 
-  const deleteNote = () => {
+  const deleteNote = async () => {
     if (!noteToDelete) return;
+    // Soft-delete: mark _deleted + _dirty so it syncs to server
+    const now = new Date().toISOString();
+    await db.notes.update(noteToDelete, { _deleted: true, _dirty: 1, updatedAt: now });
     const updated = notes.filter((n) => n.id !== noteToDelete);
     setNotes(updated);
-    saveNotes(updated);
     if (activeNoteId === noteToDelete) {
       setActiveNoteId(updated[0]?.id ?? null);
     }

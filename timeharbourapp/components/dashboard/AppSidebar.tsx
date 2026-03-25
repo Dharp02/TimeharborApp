@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
-import { db } from '@/TimeharborAPI/db';
+import { clearDatabase } from '@/TimeharborAPI/db';
 
 const NAV_SECTIONS = [
   {
@@ -92,8 +92,7 @@ export default function AppSidebar() {
   const handleClearCache = async () => {
     if (!window.confirm('Clear all local data? This won\'t log you out, but will remove offline data until it syncs again.')) return;
     try {
-      // Delete the entire Dexie database — covers all tables, even future ones
-      await db.delete();
+      await clearDatabase();
 
       const preserved: Record<string, string> = {};
       for (let i = 0; i < localStorage.length; i++) {

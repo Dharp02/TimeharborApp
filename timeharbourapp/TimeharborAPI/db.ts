@@ -113,6 +113,39 @@ export interface SyncMeta {
   lastPulledAt: string; // ISO
 }
 
+export interface DexieNote {
+  id: string;
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  userId: string;
+  title: string;
+  content: string; // JSON string (BlockNote document)
+  _deleted: boolean;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+
+export interface DexieActivityLog {
+  id: string;          // client-generated ID (also used as clientId for server dedup)
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  userId?: string;
+  teamId?: string;
+  type: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  link?: string;
+  startTime: string;
+  endTime?: string;
+  status?: 'Active' | 'Completed' | 'Pending' | 'Failed';
+  duration?: string;
+  durationMs?: number;
+  metadata?: Record<string, any>;
+}
+
 export class TimeharborDB extends Dexie {
   offlineMutations!: Table<OfflineMutation>;
   profile!: Table<UserProfile>;
@@ -122,9 +155,10 @@ export class TimeharborDB extends Dexie {
   projects!: Table<any>;
   dashboardStats!: Table<{ teamId: string; data: any; updatedAt: number }>;
   dashboardActivity!: Table<{ id: string; teamId: string; data: any; updatedAt: number }>;
-  activityLogs!: Table<any>;
+  activityLogs!: Table<DexieActivityLog>;
   workSessions!: Table<DexieWorkSession>;
   syncMeta!: Table<SyncMeta>;
+  notes!: Table<DexieNote>;
 
   constructor() {
     super('TimeharborDB');
@@ -177,7 +211,26 @@ export class TimeharborDB extends Dexie {
       workSessions: 'id, clientSessionId, userId, date, clockIn, clockOut, _dirty, _rev, updatedAt',
       syncMeta: 'collection'
     });
+
+    this.version(11).stores({
+      notes: 'id, userId, _serverId, _dirty, _rev, updatedAt',
+      activityLogs: 'id, teamId, startTime, _dirty, _rev, userId'
+    });
+
+    this.version(12).stores({
+      tickets: 'id, teamId, _dirty, _serverId'
+    });
   }
 }
 
 export const db = typeof window !== 'undefined' ? new TimeharborDB() : {} as TimeharborDB;
+
+/**
+ * Wipe the entire local database and re-open a fresh instance.
+ * Call this on sign-out to prevent data leaking between users.
+ */
+export async function clearDatabase() {
+  if (typeof window === 'undefined') return;
+  await db.delete();
+  await db.open();
+}

@@ -1,6 +1,8 @@
 import { authClient } from "@/lib/auth-client";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, CapacitorCookies } from "@capacitor/core";
 import { SocialLogin } from "@capgo/capacitor-social-login";
+import { clearDatabase } from "../db";
+import { resetTicketState } from "../tickets";
 
 // Types — preserved from previous interface for backwards compatibility
 export interface User {
@@ -118,9 +120,7 @@ export const signInWithGoogle = async () => {
 };
 
 export const signInWithGithub = async () => {
-  if (Capacitor.isNativePlatform()) {
-    return socialSignInNative("github");
-  }
+  // GitHub has no native Capacitor SDK — always use web redirect flow
   const { data, error } = await authClient.signIn.social({
     provider: "github",
     callbackURL: `${window.location.origin}/dashboard`,
@@ -136,7 +136,7 @@ export const signInWithGithub = async () => {
  * then pass it to Better Auth's signIn.social with the idToken parameter.
  * No redirect, no tunnel needed — the native SDK handles Google auth natively.
  */
-async function socialSignInNative(provider: "google" | "github") {
+async function socialSignInNative(provider: "google") {
   try {
     const res = await SocialLogin.login({
       provider,
@@ -196,7 +196,36 @@ async function socialSignInNative(provider: "google" | "github") {
 }
 
 export const signOut = async () => {
-  await authClient.signOut();
+  try {
+    await clearDatabase();
+    resetTicketState();
+    // Remove legacy notepad localStorage (migrated to Dexie, but clean up just in case)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('timeharbor-notepad-notes');
+    }
+  } catch (e) {
+    console.error('Failed to clear local database on sign-out:', e);
+  }
+
+  // Call backend sign-out — wrapped in try/catch so sign-out always completes
+  // even if the backend is unreachable
+  try {
+    await authClient.signOut();
+  } catch (e) {
+    console.error('Backend sign-out request failed:', e);
+  }
+
+  // On Capacitor native, explicitly clear all cookies from the native HTTP store.
+  // CapacitorHttp manages cookies separately from the WebView, so the Set-Cookie
+  // header from the backend sign-out may not clear them in the native store.
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await CapacitorCookies.clearAllCookies();
+    } catch (e) {
+      console.error('Failed to clear native cookies:', e);
+    }
+  }
+
   notifyListeners("SIGNED_OUT", null);
   return { error: null };
 };

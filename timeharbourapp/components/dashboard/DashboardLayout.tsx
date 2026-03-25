@@ -20,6 +20,7 @@ import ProfileAvatarMenu from './ProfileAvatarMenu';
 import NotificationBell from './NotificationBell';
 import PullToRefresh from '@/components/ui/PullToRefresh';
 import { Button, SidebarProvider, SidebarMobileToggle } from '@mieweb/ui';
+import SyncInitializer from '@/components/SyncInitializer';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -126,6 +127,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ClockInProvider>
       <SidebarProvider>
+        <SyncInitializer />
         <div className="min-h-screen bg-background lg:flex">
           {/* Sidebar (desktop: always visible, mobile: slide-in overlay) */}
           <AppSidebar />

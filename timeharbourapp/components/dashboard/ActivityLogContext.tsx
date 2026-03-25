@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Activity } from '@/TimeharborAPI/dashboard';
-import { db } from '@/TimeharborAPI/db';
+import { db, type DexieActivityLog } from '@/TimeharborAPI/db';
 import { useRefresh } from '../../contexts/RefreshContext';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface ActivityLogContextType {
   activities: Activity[];
@@ -18,12 +19,13 @@ const ActivityLogContext = createContext<ActivityLogContextType | undefined>(und
 
 export function ActivityLogProvider({ children }: { children: React.ReactNode }) {
   const { register, lastRefreshed } = useRefresh();
+  const { user } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const isLoadedRef = React.useRef(false);
 
   const effectiveTeamId = '__personal__';
 
-  // Load from Dexie on mount
+  // Load from Dexie on mount and after sync completes
   useEffect(() => {
     const loadLogs = async () => {
       isLoadedRef.current = false;
@@ -44,6 +46,10 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     };
 
     loadLogs();
+
+    const onSyncComplete = () => loadLogs();
+    window.addEventListener('sync-complete', onSyncComplete);
+    return () => window.removeEventListener('sync-complete', onSyncComplete);
   }, [effectiveTeamId]);
 
 
@@ -53,7 +59,7 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     const newActivity: Activity = {
       id,
       teamId: effectiveTeamId,
-      userId: activity.userId || undefined,
+      userId: user?.id || activity.userId || undefined,
       type: 'LOG', 
       startTime: activity.startTime || new Date().toISOString(),
       status: 'Completed',
@@ -63,8 +69,13 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     // Optimistic Update UI
     setActivities(prev => [newActivity, ...prev]);
 
-    // Persist to Dexie
-    db.activityLogs.put(newActivity).catch(e => console.error('Dexie put failed', e));
+    // Persist to Dexie with sync fields
+    const record: DexieActivityLog = {
+      ...newActivity,
+      _dirty: 1,
+      _rev: 1,
+    };
+    db.activityLogs.put(record).catch(e => console.error('Dexie put failed', e));
     
     return id;
   };
@@ -74,12 +85,11 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
       activity.id === id ? { ...activity, ...updates } : activity
     ));
     
-    // Update Dexie
-    db.activityLogs.update(id, updates);
+    // Update Dexie with dirty flag
+    db.activityLogs.update(id, { ...updates, _dirty: 1 });
   };
 
   const updateActiveSession = (endTime: string, duration: string) => {
-    // Similar to updateActivity but specific logic
     setActivities(prev => prev.map(activity => {
       if (activity.status === 'Active' && activity.type === 'SESSION') {
         const updated = {
@@ -89,8 +99,8 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
           duration
         } as Activity;
         
-        // Update Dexie
-        db.activityLogs.put(updated);
+        // Update Dexie with dirty flag
+        db.activityLogs.put({ ...updated, _dirty: 1, _rev: ((updated as any)._rev || 0) + 1 } as DexieActivityLog);
          
         return updated;
       }

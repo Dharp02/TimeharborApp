@@ -90,6 +90,28 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     };
   }, [router]);
 
+  // Re-validate auth when app resumes from background on Capacitor.
+  // This catches cases where the session was invalidated while the app was
+  // suspended (e.g. sign-out completed but cookies persisted in native store).
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const handler = App.addListener('appStateChange', async ({ isActive }) => {
+      if (!isActive) return;
+      const { user: currentUser, error } = await auth.getUser();
+      if (error) return; // Network error — don't change state
+      if (!currentUser) {
+        setUser(null);
+      } else {
+        setUser(currentUser);
+      }
+    });
+
+    return () => {
+      handler.then((h) => h.remove());
+    };
+  }, []);
+
   useEffect(() => {
     if (loading) return;
 
