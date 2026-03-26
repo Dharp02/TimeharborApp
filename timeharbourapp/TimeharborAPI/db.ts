@@ -154,13 +154,35 @@ export interface DexieActivityLog {
   metadata?: Record<string, any>;
 }
 
+export type ProjectStatus = 'Active' | 'On Hold' | 'Completed' | 'Archived';
+export type ProjectColor =
+  | 'blue' | 'green' | 'purple' | 'orange' | 'red'
+  | 'teal' | 'pink' | 'yellow' | 'indigo' | 'gray';
+
+export interface DexieProject {
+  id: string;
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  _deleted: boolean;
+  name: string;
+  description?: string;
+  status: ProjectStatus;
+  color: ProjectColor;
+  prefix: string;
+  repoUrl?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export class TimeharborDB extends Dexie {
   offlineMutations!: Table<OfflineMutation>;
   profile!: Table<UserProfile>;
   events!: Table<TimeEvent>;
   teams!: Table<Team>;
   tickets!: Table<Ticket>;
-  projects!: Table<any>;
+  projects!: Table<DexieProject>;
   dashboardStats!: Table<{ teamId: string; data: any; updatedAt: number }>;
   dashboardActivity!: Table<{ id: string; teamId: string; data: any; updatedAt: number }>;
   activityLogs!: Table<DexieActivityLog>;
@@ -227,6 +249,10 @@ export class TimeharborDB extends Dexie {
 
     this.version(12).stores({
       tickets: 'id, teamId, _dirty, _serverId'
+    });
+
+    this.version(13).stores({
+      projects: 'id, createdBy, _dirty, _serverId'
     });
   }
 }

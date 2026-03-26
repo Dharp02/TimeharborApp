@@ -125,7 +125,13 @@ export default function ProjectsPage() {
     }
   }, []);
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
+  useEffect(() => {
+    loadProjects();
+
+    const handleSyncComplete = () => loadProjects();
+    window.addEventListener('sync-complete', handleSyncComplete);
+    return () => window.removeEventListener('sync-complete', handleSyncComplete);
+  }, [loadProjects]);
 
   /* ── filter & search ──────────────────────────────────── */
   const filtered = useMemo(() => {

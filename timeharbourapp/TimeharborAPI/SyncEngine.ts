@@ -265,11 +265,13 @@ export async function syncAll() {
     await pushSessions();
     await pushTickets();
     await pushNotes();
+    await pushProjects();
     await pushActivityLogs();
     await pullSessions();
     await recomputeTicketTrackedTimes();
     await pullTickets();
     await pullNotes();
+    await pullProjects();
     await pullActivityLogs();
   } catch (err) {
     console.warn('SyncEngine: sync failed (will retry)', err);
@@ -454,5 +456,95 @@ export async function pullActivityLogs() {
 
   if (serverTime) {
     await setLastPulledAt('activityLogs', serverTime);
+  }
+}
+
+// ── Push Projects ──
+
+export async function pushProjects() {
+  const dirty = await db.projects
+    .where('_dirty')
+    .equals(1)
+    .toArray();
+
+  if (dirty.length === 0) return;
+
+  const projects = dirty.map((p) => ({
+    clientId: p.id,
+    _serverId: p._serverId,
+    name: p.name,
+    description: p.description,
+    status: p.status,
+    color: p.color,
+    prefix: p.prefix,
+    repoUrl: p.repoUrl,
+    _rev: p._rev ?? 1,
+    _deleted: p._deleted ?? false,
+  }));
+
+  const { serverIds } = await apiRequest('/sync/projects/push', {
+    method: 'POST',
+    body: JSON.stringify({ projects }),
+  }) as { accepted: number; serverIds: Record<string, string> };
+
+  for (const p of dirty) {
+    const sid = serverIds?.[p.id];
+    await db.projects.update(p.id, { _dirty: 0, ...(sid ? { _serverId: sid } : {}) });
+  }
+}
+
+// ── Pull Projects ──
+
+export async function pullProjects() {
+  const since = await getLastPulledAt('projects');
+
+  const { projects, serverTime } = await apiRequest('/sync/projects/pull', {
+    method: 'POST',
+    body: JSON.stringify({ lastPulledAt: since }),
+  });
+
+  for (const remote of projects as Array<any>) {
+    const serverId = remote._id.toString();
+    const local = await db.projects
+      .filter((p) => p._serverId === serverId)
+      .first();
+
+    if (local) {
+      if (local._dirty === 1) continue;
+      await db.projects.update(local.id, {
+        name: remote.name,
+        description: remote.description,
+        status: remote.status,
+        color: remote.color,
+        prefix: remote.prefix,
+        repoUrl: remote.repoUrl,
+        _deleted: remote._deleted ?? false,
+        _rev: remote._rev,
+        _serverId: serverId,
+        _dirty: 0,
+        updatedAt: remote.updatedAt,
+      });
+    } else {
+      await db.projects.add({
+        id: serverId,
+        _serverId: serverId,
+        name: remote.name,
+        description: remote.description,
+        status: remote.status,
+        color: remote.color,
+        prefix: remote.prefix,
+        repoUrl: remote.repoUrl,
+        createdBy: remote.createdBy,
+        _deleted: remote._deleted ?? false,
+        _rev: remote._rev,
+        _dirty: 0,
+        createdAt: remote.createdAt,
+        updatedAt: remote.updatedAt,
+      });
+    }
+  }
+
+  if (serverTime) {
+    await setLastPulledAt('projects', serverTime);
   }
 }

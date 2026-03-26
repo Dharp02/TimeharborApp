@@ -7,7 +7,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import googleCalendarPlugin from '@fullcalendar/google-calendar';
-import type { EventInput, DateSelectArg, EventClickArg, DatesSetArg } from '@fullcalendar/core';
+import type { EventInput, DateSelectArg, EventClickArg, DatesSetArg, EventMountArg } from '@fullcalendar/core';
 import { DateTime } from 'luxon';
 import { CalendarDays, Link2, Link2Off, Loader2 } from 'lucide-react';
 import { Button, Card, CardContent, Badge, Text, SmallMuted } from '@mieweb/ui';
@@ -123,6 +123,48 @@ export default function CalendarPage() {
     });
   }, []);
 
+  /* ── magnify tooltip for cramped time-grid events ──── */
+  const handleEventDidMount = useCallback((info: EventMountArg) => {
+    // Only add tooltip to time-grid events
+    if (!info.el.closest('.fc-timegrid-body')) return;
+
+    const title = info.event.title || '';
+    const start = info.event.start
+      ? DateTime.fromJSDate(info.event.start).toFormat('h:mm a')
+      : '';
+    const end = info.event.end
+      ? DateTime.fromJSDate(info.event.end).toFormat('h:mm a')
+      : '';
+    const type = info.event.extendedProps?.type || '';
+    const durationMs = info.event.extendedProps?.durationMs;
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'fc-event-magnify';
+    tooltip.setAttribute('aria-hidden', 'true');
+
+    let html = `<div class="fc-magnify-title">${title}</div>`;
+    if (start) {
+      html += `<div class="fc-magnify-time">${start}${end ? ` – ${end}` : ''}`;
+      if (durationMs) html += ` · ${formatMs(durationMs)}`;
+      html += `</div>`;
+    }
+    if (type) {
+      html += `<span class="fc-magnify-type">${type}</span>`;
+    }
+    tooltip.innerHTML = html;
+    info.el.appendChild(tooltip);
+
+    // Flip tooltip below if event is near the top of the grid
+    const rect = info.el.getBoundingClientRect();
+    if (rect.top < 180) {
+      info.el.classList.add('fc-timegrid-event--flip-tooltip');
+    }
+    // Align left if near left edge
+    if (rect.left < 80) {
+      info.el.classList.add('fc-timegrid-event--align-left');
+    }
+  }, []);
+
   /* ── date select (placeholder for future event creation) */
   const handleDateSelect = useCallback((_info: DateSelectArg) => {
     // Future: open event creation dialog
@@ -198,6 +240,7 @@ export default function CalendarPage() {
             selectMirror
             select={handleDateSelect}
             eventClick={handleEventClick}
+            eventDidMount={handleEventDidMount}
             /* responsive */
             height="auto"
             contentHeight="auto"

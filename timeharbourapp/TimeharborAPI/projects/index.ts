@@ -1,25 +1,10 @@
-import { db } from '../db';
+import { db, type DexieProject, type ProjectStatus, type ProjectColor } from '../db';
 import { v4 as uuidv4 } from 'uuid';
 import { getStoredUser } from '../auth';
 
-/* ── types ──────────────────────────────────────────────── */
-export type ProjectStatus = 'Active' | 'On Hold' | 'Completed' | 'Archived';
-export type ProjectColor =
-  | 'blue' | 'green' | 'purple' | 'orange' | 'red'
-  | 'teal' | 'pink' | 'yellow' | 'indigo' | 'gray';
-
-export interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  status: ProjectStatus;
-  color: ProjectColor;
-  prefix: string;          // e.g. "TH" – short key for ticket references
-  repoUrl?: string;        // optional link to the code repository
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
+/* ── Re-export types from db ────────────────────────────── */
+export type { ProjectStatus, ProjectColor };
+export type Project = DexieProject;
 
 export interface CreateProjectData {
   name: string;
@@ -52,7 +37,7 @@ function derivePrefix(name: string): string {
 /* ── CRUD ───────────────────────────────────────────────── */
 export const createProject = async (data: CreateProjectData): Promise<Project> => {
   const user = await getStoredUser();
-  const project: Project = {
+  const project: DexieProject = {
     id: uuidv4(),
     name: data.name,
     description: data.description,
@@ -61,6 +46,9 @@ export const createProject = async (data: CreateProjectData): Promise<Project> =
     prefix: data.prefix || derivePrefix(data.name),
     repoUrl: data.repoUrl,
     createdBy: user?.id || '',
+    _dirty: 1,
+    _rev: 1,
+    _deleted: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -69,15 +57,23 @@ export const createProject = async (data: CreateProjectData): Promise<Project> =
 };
 
 export const getProjects = async (): Promise<Project[]> => {
-  return db.projects.toArray();
+  return db.projects.filter(p => !p._deleted).toArray();
 };
 
 export const getProject = async (id: string): Promise<Project | undefined> => {
-  return db.projects.get(id);
+  const p = await db.projects.get(id);
+  return p && !p._deleted ? p : undefined;
 };
 
 export const updateProject = async (id: string, data: UpdateProjectData): Promise<Project | undefined> => {
-  await db.projects.update(id, { ...data, updatedAt: new Date().toISOString() });
+  const existing = await db.projects.get(id);
+  if (!existing) return undefined;
+  await db.projects.update(id, {
+    ...data,
+    _dirty: 1,
+    _rev: (existing._rev ?? 0) + 1,
+    updatedAt: new Date().toISOString(),
+  });
   return db.projects.get(id);
 };
 
@@ -85,9 +81,18 @@ export const deleteProject = async (id: string): Promise<void> => {
   // Un-assign tickets from this project
   const tickets = await db.tickets.where('projectId').equals(id).toArray();
   for (const t of tickets) {
-    await db.tickets.update(t.id, { projectId: undefined, projectName: undefined });
+    await db.tickets.update(t.id, { projectId: undefined, projectName: undefined } as any);
   }
-  await db.projects.delete(id);
+  // Soft-delete for sync
+  const existing = await db.projects.get(id);
+  if (existing) {
+    await db.projects.update(id, {
+      _deleted: true,
+      _dirty: 1,
+      _rev: (existing._rev ?? 0) + 1,
+      updatedAt: new Date().toISOString(),
+    });
+  }
 };
 
 /* ── ticket ↔ project helpers ───────────────────────────── */
@@ -97,22 +102,24 @@ export const assignTicketToProject = async (ticketId: string, projectId: string)
   await db.tickets.update(ticketId, {
     projectId,
     projectName: project.name,
+    _dirty: 1,
     updatedAt: new Date().toISOString(),
-  });
+  } as any);
 };
 
 export const removeTicketFromProject = async (ticketId: string): Promise<void> => {
   await db.tickets.update(ticketId, {
     projectId: undefined,
     projectName: undefined,
+    _dirty: 1,
     updatedAt: new Date().toISOString(),
-  });
+  } as any);
 };
 
 export const getProjectTickets = async (projectId: string) => {
-  return db.tickets.filter((t) => (t as any).projectId === projectId).toArray();
+  return db.tickets.filter((t) => (t as any).projectId === projectId && !(t as any)._deleted).toArray();
 };
 
 export const getUnassignedTickets = async () => {
-  return db.tickets.filter((t) => !(t as any).projectId).toArray();
+  return db.tickets.filter((t) => !(t as any).projectId && !(t as any)._deleted).toArray();
 };
