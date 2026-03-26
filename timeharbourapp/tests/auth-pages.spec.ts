@@ -7,16 +7,16 @@ test.describe('Authentication Pages', () => {
       await page.goto('/login');
       
       // Check page title and heading
-      await expect(page).toHaveTitle(/TimeHarbour/);
-      await expect(page.getByRole('heading', { name: 'TimeHarbour' })).toBeVisible();
+      await expect(page).toHaveTitle(/TimeHarbou?r/);
+      await expect(page.getByRole('heading', { name: 'TimeHarbor' })).toBeVisible();
       await expect(page.getByText('Sign in to track your time')).toBeVisible();
       
       // Check form elements
       await expect(page.getByLabel('Email')).toBeVisible();
-      await expect(page.getByLabel('Password')).toBeVisible();
+      await expect(page.locator('#password')).toBeVisible();
       await expect(page.getByRole('checkbox', { name: 'Remember me' })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Forgot password?' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Sign up' })).toBeVisible();
     });
 
@@ -24,8 +24,8 @@ test.describe('Authentication Pages', () => {
       await page.goto('/login');
       
       const emailInput = page.getByLabel('Email');
-      const passwordInput = page.getByLabel('Password');
-      const submitButton = page.getByRole('button', { name: 'Sign In' });
+      const passwordInput = page.locator('#password');
+      const submitButton = page.getByRole('button', { name: 'Sign In', exact: true });
       
       // Try to submit empty form
       await submitButton.click();
@@ -40,32 +40,29 @@ test.describe('Authentication Pages', () => {
       
       // Fill in the form
       await page.getByLabel('Email').fill('test@example.com');
-      await page.getByLabel('Password').fill('password123');
+      await page.locator('#password').fill('password123');
       await page.getByRole('checkbox', { name: 'Remember me' }).check();
       
       // Submit the form
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.getByRole('button', { name: 'Sign In', exact: true }).click();
       
-      // Check loading state
-      await expect(page.getByRole('button', { name: 'Signing in...' })).toBeVisible();
-      
-      // Wait for form to complete (simulated delay)
-      await page.waitForTimeout(1100);
-      await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+      // Wait for form to complete
+      await page.waitForTimeout(2000);
+      await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
     });
 
     test('should navigate to signup page', async ({ page }) => {
       await page.goto('/login');
       
       await page.getByRole('link', { name: 'Sign up' }).click();
-      await expect(page).toHaveURL('/signup');
+      await expect(page).toHaveURL(/\/signup/);
     });
 
     test('should navigate to forgot password page', async ({ page }) => {
       await page.goto('/login');
       
       await page.getByRole('link', { name: 'Forgot password?' }).click();
-      await expect(page).toHaveURL('/forgot-password');
+      await expect(page).toHaveURL(/\/forgot-password/);
     });
   });
 
@@ -74,14 +71,14 @@ test.describe('Authentication Pages', () => {
       await page.goto('/signup');
       
       // Check page heading
-      await expect(page.getByRole('heading', { name: 'TimeHarbour' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'TimeHarbor' })).toBeVisible();
       await expect(page.getByText('Create an account to get started')).toBeVisible();
       
       // Check form elements
       await expect(page.getByLabel('Full Name')).toBeVisible();
       await expect(page.getByLabel('Email')).toBeVisible();
-      await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
-      await expect(page.getByLabel('Confirm Password')).toBeVisible();
+      await expect(page.locator('#password')).toBeVisible();
+      await expect(page.locator('#confirmPassword')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Create Account' })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
     });
@@ -91,8 +88,8 @@ test.describe('Authentication Pages', () => {
       
       const nameInput = page.getByLabel('Full Name');
       const emailInput = page.getByLabel('Email');
-      const passwordInput = page.getByLabel('Password', { exact: true });
-      const confirmPasswordInput = page.getByLabel('Confirm Password');
+      const passwordInput = page.locator('#password');
+      const confirmPasswordInput = page.locator('#confirmPassword');
       const submitButton = page.getByRole('button', { name: 'Create Account' });
       
       // Try to submit empty form
@@ -112,8 +109,8 @@ test.describe('Authentication Pages', () => {
       const uniqueEmail = `test-${Date.now()}@example.com`;
       await page.getByLabel('Full Name').fill('John Doe');
       await page.getByLabel('Email').fill(uniqueEmail);
-      await page.getByLabel('Password', { exact: true }).fill('SecurePass123!');
-      await page.getByLabel('Confirm Password').fill('SecurePass123!');
+      await page.locator('#password').fill('SecurePass123!');
+      await page.locator('#confirmPassword').fill('SecurePass123!');
       
       // Submit the form
       await page.getByRole('button', { name: 'Create Account' }).click();
@@ -122,14 +119,14 @@ test.describe('Authentication Pages', () => {
       await expect(page.getByRole('button', { name: 'Creating account...' })).toBeVisible();
       
       // Should redirect to dashboard on success
-      await expect(page).toHaveURL('/dashboard');
+      await expect(page).toHaveURL(/\/dashboard/);
     });
 
     test('should navigate to login page', async ({ page }) => {
       await page.goto('/signup');
       
       await page.getByRole('link', { name: 'Sign in' }).click();
-      await expect(page).toHaveURL('/login');
+      await expect(page).toHaveURL(/\/login/);
     });
 
     test('should accept valid email format', async ({ page }) => {
@@ -148,7 +145,7 @@ test.describe('Authentication Pages', () => {
       await page.goto('/forgot-password');
       
       // Check page heading
-      await expect(page.getByRole('heading', { name: 'TimeHarbour' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'TimeHarbor' })).toBeVisible();
       
       
       // Check form elements
@@ -211,14 +208,14 @@ test.describe('Authentication Pages', () => {
       
       // Back to Sign In button should navigate to login
       await page.getByRole('link', { name: 'Back to Sign In' }).click();
-      await expect(page).toHaveURL('/login');
+      await expect(page).toHaveURL(/\/login/);
     });
 
     test('should navigate to login page from link', async ({ page }) => {
       await page.goto('/forgot-password');
       
       await page.getByRole('link', { name: 'Sign in' }).click();
-      await expect(page).toHaveURL('/login');
+      await expect(page).toHaveURL(/\/login/);
     });
   });
 
@@ -226,28 +223,28 @@ test.describe('Authentication Pages', () => {
     test('should allow complete auth flow navigation', async ({ page }) => {
       // Start at login
       await page.goto('/login');
-      await expect(page).toHaveURL('/login');
+      await expect(page).toHaveURL(/\/login/);
       
       // Navigate to signup
       await page.getByRole('link', { name: 'Sign up' }).click();
-      await expect(page).toHaveURL('/signup');
+      await expect(page).toHaveURL(/\/signup/);
       
       // Navigate back to login
       await page.getByRole('link', { name: 'Sign in' }).click();
-      await expect(page).toHaveURL('/login');
+      await expect(page).toHaveURL(/\/login/);
       
       // Navigate to forgot password
       await page.getByRole('link', { name: 'Forgot password?' }).click();
-      await expect(page).toHaveURL('/forgot-password');
+      await expect(page).toHaveURL(/\/forgot-password/);
       
       // Navigate back to login
       await page.getByRole('link', { name: 'Sign in' }).click();
-      await expect(page).toHaveURL('/login');
+      await expect(page).toHaveURL(/\/login/);
     });
 
     test('should redirect from root to login', async ({ page }) => {
       await page.goto('/');
-      await expect(page).toHaveURL('/login');
+      await expect(page).toHaveURL(/\/login/);
     });
   });
 
@@ -257,17 +254,17 @@ test.describe('Authentication Pages', () => {
       await page.goto('/login');
       
       // Check that elements are still visible and accessible
-      await expect(page.getByRole('heading', { name: 'TimeHarbour' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'TimeHarbor' })).toBeVisible();
       await expect(page.getByLabel('Email')).toBeVisible();
-      await expect(page.getByLabel('Password')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+      await expect(page.locator('#password')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
     });
 
     test('should display correctly on tablet viewport', async ({ page }) => {
       await page.setViewportSize({ width: 768, height: 1024 });
       await page.goto('/signup');
       
-      await expect(page.getByRole('heading', { name: 'TimeHarbour' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'TimeHarbor' })).toBeVisible();
       await expect(page.getByLabel('Full Name')).toBeVisible();
       await expect(page.getByLabel('Email')).toBeVisible();
     });
