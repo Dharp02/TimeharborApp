@@ -106,13 +106,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Scroll to top on route change
   useEffect(() => {
-    // Use requestAnimationFrame to ensure DOM has updated before scrolling
-    requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
-      // Also scroll documentElement and body for iOS Capacitor webview
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    });
+    window.scrollTo(0, 0);
   }, [pathname]);
 
   // Handle pending navigation from push notifications

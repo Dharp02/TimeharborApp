@@ -225,7 +225,7 @@ async function migrateLinksAttachments() {
     const sessions = await db.workSessions
       .where('_dirty')
       .equals(0)
-      .filter(s => (s.links && s.links.length > 0) || (s.attachments && s.attachments.length > 0))
+      .filter(s => Boolean((s.links && s.links.length > 0) || (s.attachments && s.attachments.length > 0)))
       .toArray();
     for (const s of sessions) {
       await db.workSessions.update(s.id, { _dirty: 1, _rev: s._rev + 1 });
@@ -267,12 +267,14 @@ export async function syncAll() {
     await pushNotes();
     await pushProjects();
     await pushActivityLogs();
+    await pushOperationLogs();
     await pullSessions();
     await recomputeTicketTrackedTimes();
     await pullTickets();
     await pullNotes();
     await pullProjects();
     await pullActivityLogs();
+    await pullOperationLogs();
   } catch (err) {
     console.warn('SyncEngine: sync failed (will retry)', err);
   } finally {
@@ -546,5 +548,96 @@ export async function pullProjects() {
 
   if (serverTime) {
     await setLastPulledAt('projects', serverTime);
+  }
+}
+
+// ── Push Operation Logs ──
+
+export async function pushOperationLogs() {
+  const dirty = await db.operationLogs
+    .where('_dirty')
+    .equals(1)
+    .toArray();
+
+  if (dirty.length === 0) return;
+
+  const logs = dirty.map((l) => ({
+    clientId: l.id,
+    _serverId: l._serverId,
+    category: l.category,
+    action: l.action,
+    result: l.result,
+    target: l.target,
+    targetId: l.targetId,
+    details: l.details,
+    errorMessage: l.errorMessage,
+    timestamp: l.timestamp,
+    _rev: l._rev ?? 1,
+  }));
+
+  const { serverIds } = await apiRequest('/sync/operations/push', {
+    method: 'POST',
+    body: JSON.stringify({ logs }),
+  }) as { accepted: number; serverIds?: Record<string, string> };
+
+  for (const l of dirty) {
+    const sid = serverIds?.[l.id];
+    await db.operationLogs.update(l.id, {
+      _dirty: 0,
+      ...(sid ? { _serverId: sid } : {}),
+    });
+  }
+}
+
+// ── Pull Operation Logs ──
+
+export async function pullOperationLogs() {
+  const since = await getLastPulledAt('operationLogs');
+
+  const { logs, serverTime } = await apiRequest('/sync/operations/pull', {
+    method: 'POST',
+    body: JSON.stringify({ lastPulledAt: since }),
+  });
+
+  for (const remote of logs as Array<any>) {
+    const clientId = remote.clientId;
+    const local = await db.operationLogs.get(clientId);
+
+    if (local) {
+      if (local._dirty === 1) continue;
+      await db.operationLogs.update(clientId, {
+        category: remote.category,
+        action: remote.action,
+        result: remote.result,
+        target: remote.target,
+        targetId: remote.targetId,
+        details: remote.details,
+        errorMessage: remote.errorMessage,
+        timestamp: remote.timestamp,
+        _serverId: remote._id?.toString(),
+        _rev: remote._rev,
+        _dirty: 0,
+      });
+    } else {
+      await db.operationLogs.add({
+        id: clientId,
+        _serverId: remote._id?.toString(),
+        userId: remote.userId,
+        category: remote.category,
+        action: remote.action,
+        result: remote.result,
+        target: remote.target,
+        targetId: remote.targetId,
+        details: remote.details,
+        errorMessage: remote.errorMessage,
+        timestamp: remote.timestamp,
+        _rev: remote._rev,
+        _dirty: 0,
+      });
+    }
+  }
+
+  if (serverTime) {
+    await setLastPulledAt('operationLogs', serverTime);
   }
 }

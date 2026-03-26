@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { db, type DexieWorkSession, type SessionAttachment } from '../db';
 import { computeSession } from '@timeharbor/time-engine';
+import { operationsLog } from '../OperationsLog';
 
 export interface ClockOutOptions {
   comment?: string;
@@ -52,8 +53,14 @@ export class SessionManager {
       updatedAt: now,
     };
 
-    await db.workSessions.add(session);
-    return session;
+    try {
+      await db.workSessions.add(session);
+      await operationsLog.log({ category: 'SESSION', action: 'CLOCK_IN', result: 'success', target: 'WorkSession', targetId: session.id });
+      return session;
+    } catch (err: any) {
+      await operationsLog.log({ category: 'SESSION', action: 'CLOCK_IN', result: 'failure', target: 'WorkSession', errorMessage: err?.message });
+      throw err;
+    }
   }
 
   async startTicket(
@@ -80,7 +87,9 @@ export class SessionManager {
       end: null,
     });
 
-    return this.commitSession(session, now);
+    const result = await this.commitSession(session, now);
+    await operationsLog.log({ category: 'SESSION', action: 'START_TICKET', result: 'success', target: 'Ticket', targetId: ticketId, details: { sessionId, ticketTitle } });
+    return result;
   }
 
   async stopTicket(sessionId: string, options?: ClockOutOptions): Promise<DexieWorkSession> {
@@ -88,6 +97,7 @@ export class SessionManager {
     if (!session) throw new Error('Session not found');
 
     const now = Date.now();
+    const stoppedTicketId = session.ticketSegments.find(seg => seg.end === null)?.ticketId;
 
     // Close the open segment
     session.ticketSegments = session.ticketSegments.map(seg =>
@@ -101,7 +111,9 @@ export class SessionManager {
       if (options.attachments?.length) session.attachments = options.attachments;
     }
 
-    return this.commitSession(session, now);
+    const result = await this.commitSession(session, now);
+    await operationsLog.log({ category: 'SESSION', action: 'STOP_TICKET', result: 'success', target: 'Ticket', targetId: stoppedTicketId, details: { sessionId } });
+    return result;
   }
 
   async switchTicket(
@@ -128,7 +140,9 @@ export class SessionManager {
       end: null,
     });
 
-    return this.commitSession(session, now);
+    const result = await this.commitSession(session, now);
+    await operationsLog.log({ category: 'SESSION', action: 'SWITCH_TICKET', result: 'success', target: 'Ticket', targetId: ticketId, details: { sessionId, ticketTitle } });
+    return result;
   }
 
   async startBreak(sessionId: string): Promise<DexieWorkSession> {
@@ -149,7 +163,9 @@ export class SessionManager {
       end: null,
     });
 
-    return this.commitSession(session, now);
+    const result = await this.commitSession(session, now);
+    await operationsLog.log({ category: 'SESSION', action: 'START_BREAK', result: 'success', target: 'WorkSession', targetId: sessionId });
+    return result;
   }
 
   async endBreak(
@@ -178,7 +194,9 @@ export class SessionManager {
       });
     }
 
-    return this.commitSession(session, now);
+    const result = await this.commitSession(session, now);
+    await operationsLog.log({ category: 'SESSION', action: 'END_BREAK', result: 'success', target: 'WorkSession', targetId: sessionId });
+    return result;
   }
 
   async clockOut(sessionId: string, options?: string | ClockOutOptions): Promise<DexieWorkSession> {
@@ -208,7 +226,9 @@ export class SessionManager {
       if (options.attachments?.length) session.attachments = options.attachments;
     }
 
-    return this.commitSession(session, now);
+    const result = await this.commitSession(session, now);
+    await operationsLog.log({ category: 'SESSION', action: 'CLOCK_OUT', result: 'success', target: 'WorkSession', targetId: sessionId });
+    return result;
   }
 
   // ── Internal: recompute + persist ──

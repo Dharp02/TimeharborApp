@@ -159,6 +159,22 @@ export type ProjectColor =
   | 'blue' | 'green' | 'purple' | 'orange' | 'red'
   | 'teal' | 'pink' | 'yellow' | 'indigo' | 'gray';
 
+export interface DexieOperationLog {
+  id: string;
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  userId: string;
+  category: string;
+  action: string;
+  result: 'success' | 'failure';
+  target?: string;
+  targetId?: string;
+  details?: Record<string, unknown>;
+  errorMessage?: string;
+  timestamp: string; // ISO
+}
+
 export interface DexieProject {
   id: string;
   _serverId?: string;
@@ -189,6 +205,7 @@ export class TimeharborDB extends Dexie {
   workSessions!: Table<DexieWorkSession>;
   syncMeta!: Table<SyncMeta>;
   notes!: Table<DexieNote>;
+  operationLogs!: Table<DexieOperationLog>;
 
   constructor() {
     super('TimeharborDB');
@@ -253,6 +270,10 @@ export class TimeharborDB extends Dexie {
 
     this.version(13).stores({
       projects: 'id, createdBy, _dirty, _serverId'
+    });
+
+    this.version(14).stores({
+      operationLogs: 'id, userId, category, action, result, _dirty, timestamp'
     });
   }
 }

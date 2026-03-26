@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { sessionManager } from '@/TimeharborAPI/time/SessionManager';
 import { collectAttachments } from '@/TimeharborAPI/time/attachmentUtils';
@@ -411,24 +411,42 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     return formatDurationClock(totalMs);
   }, [ticketDurations]);
 
+  const contextValue = useMemo(() => ({
+    isSessionActive,
+    isOnBreak,
+    sessionStartTime,
+    sessionDuration,
+    sessionFormat,
+    activeTicketId,
+    activeTicketTitle,
+    ticketStartTime,
+    ticketDuration,
+    ticketFormat,
+    ticketDurations,
+    toggleSession,
+    resumeFromBreak,
+    toggleTicketTimer,
+    getFormattedTotalTime,
+  }), [
+    isSessionActive,
+    isOnBreak,
+    sessionStartTime,
+    sessionDuration,
+    sessionFormat,
+    activeTicketId,
+    activeTicketTitle,
+    ticketStartTime,
+    ticketDuration,
+    ticketFormat,
+    ticketDurations,
+    toggleSession,
+    resumeFromBreak,
+    toggleTicketTimer,
+    getFormattedTotalTime,
+  ]);
+
   return (
-    <ClockInContext.Provider value={{
-      isSessionActive,
-      isOnBreak,
-      sessionStartTime,
-      sessionDuration,
-      sessionFormat,
-      activeTicketId,
-      activeTicketTitle,
-      ticketStartTime,
-      ticketDuration,
-      ticketFormat,
-      ticketDurations,
-      toggleSession,
-      resumeFromBreak,
-      toggleTicketTimer,
-      getFormattedTotalTime,
-    }}>
+    <ClockInContext.Provider value={contextValue}>
       {children}
 
       {/* Session Options Modal: Take a Break or Clock Out */}

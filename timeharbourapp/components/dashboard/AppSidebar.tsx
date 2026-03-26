@@ -26,6 +26,7 @@ import {
   LogOut,
   Trash2,
   UserPen,
+  ScrollText,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
@@ -59,6 +60,7 @@ const NAV_SECTIONS = [
     label: 'General',
     items: [
       { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
+      { label: 'Op Logs', icon: ScrollText, href: '/dashboard/oplogs' },
       { label: 'Help & Support', icon: HelpCircle, href: '/dashboard/help' },
     ],
   },

@@ -1,6 +1,7 @@
 import { db, type DexieProject, type ProjectStatus, type ProjectColor } from '../db';
 import { v4 as uuidv4 } from 'uuid';
 import { getStoredUser } from '../auth';
+import { operationsLog } from '../OperationsLog';
 
 /* ── Re-export types from db ────────────────────────────── */
 export type { ProjectStatus, ProjectColor };
@@ -52,8 +53,14 @@ export const createProject = async (data: CreateProjectData): Promise<Project> =
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  await db.projects.put(project);
-  return project;
+  try {
+    await db.projects.put(project);
+    await operationsLog.log({ category: 'PROJECT', action: 'CREATE', result: 'success', target: 'Project', targetId: project.id, details: { name: data.name } });
+    return project;
+  } catch (err: any) {
+    await operationsLog.log({ category: 'PROJECT', action: 'CREATE', result: 'failure', target: 'Project', errorMessage: err?.message, details: { name: data.name } });
+    throw err;
+  }
 };
 
 export const getProjects = async (): Promise<Project[]> => {
@@ -68,30 +75,42 @@ export const getProject = async (id: string): Promise<Project | undefined> => {
 export const updateProject = async (id: string, data: UpdateProjectData): Promise<Project | undefined> => {
   const existing = await db.projects.get(id);
   if (!existing) return undefined;
-  await db.projects.update(id, {
-    ...data,
-    _dirty: 1,
-    _rev: (existing._rev ?? 0) + 1,
-    updatedAt: new Date().toISOString(),
-  });
-  return db.projects.get(id);
-};
-
-export const deleteProject = async (id: string): Promise<void> => {
-  // Un-assign tickets from this project
-  const tickets = await db.tickets.where('projectId').equals(id).toArray();
-  for (const t of tickets) {
-    await db.tickets.update(t.id, { projectId: undefined, projectName: undefined } as any);
-  }
-  // Soft-delete for sync
-  const existing = await db.projects.get(id);
-  if (existing) {
+  try {
     await db.projects.update(id, {
-      _deleted: true,
+      ...data,
       _dirty: 1,
       _rev: (existing._rev ?? 0) + 1,
       updatedAt: new Date().toISOString(),
     });
+    await operationsLog.log({ category: 'PROJECT', action: 'UPDATE', result: 'success', target: 'Project', targetId: id, details: { fields: Object.keys(data) } });
+    return db.projects.get(id);
+  } catch (err: any) {
+    await operationsLog.log({ category: 'PROJECT', action: 'UPDATE', result: 'failure', target: 'Project', targetId: id, errorMessage: err?.message });
+    throw err;
+  }
+};
+
+export const deleteProject = async (id: string): Promise<void> => {
+  try {
+    // Un-assign tickets from this project
+    const tickets = await db.tickets.where('projectId').equals(id).toArray();
+    for (const t of tickets) {
+      await db.tickets.update(t.id, { projectId: undefined, projectName: undefined } as any);
+    }
+    // Soft-delete for sync
+    const existing = await db.projects.get(id);
+    if (existing) {
+      await db.projects.update(id, {
+        _deleted: true,
+        _dirty: 1,
+        _rev: (existing._rev ?? 0) + 1,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    await operationsLog.log({ category: 'PROJECT', action: 'DELETE', result: 'success', target: 'Project', targetId: id });
+  } catch (err: any) {
+    await operationsLog.log({ category: 'PROJECT', action: 'DELETE', result: 'failure', target: 'Project', targetId: id, errorMessage: err?.message });
+    throw err;
   }
 };
 
@@ -105,6 +124,7 @@ export const assignTicketToProject = async (ticketId: string, projectId: string)
     _dirty: 1,
     updatedAt: new Date().toISOString(),
   } as any);
+  await operationsLog.log({ category: 'TICKET', action: 'ASSIGN', result: 'success', target: 'Ticket', targetId: ticketId, details: { projectId, projectName: project.name } });
 };
 
 export const removeTicketFromProject = async (ticketId: string): Promise<void> => {
@@ -114,6 +134,7 @@ export const removeTicketFromProject = async (ticketId: string): Promise<void> =
     _dirty: 1,
     updatedAt: new Date().toISOString(),
   } as any);
+  await operationsLog.log({ category: 'TICKET', action: 'UNASSIGN', result: 'success', target: 'Ticket', targetId: ticketId });
 };
 
 export const getProjectTickets = async (projectId: string) => {

@@ -20,6 +20,7 @@ import {
 import { Modal } from '@/components/ui/Modal';
 import { db, type DexieNote } from '@/TimeharborAPI/db';
 import { getStoredUser } from '@/TimeharborAPI/auth';
+import { operationsLog } from '@/TimeharborAPI/OperationsLog';
 import './notepad.scss';
 
 const NoteEditor = dynamic(
@@ -130,6 +131,7 @@ export default function NotepadPage() {
       updatedAt: new Date().toISOString(),
     };
     await db.notes.put(newNote);
+    await operationsLog.log({ category: 'NOTE', action: 'CREATE', result: 'success', target: 'Note', targetId: newNote.id, details: { title: newNote.title } });
     setNotes((prev) => [newNote, ...prev]);
     setActiveNoteId(newNote.id);
     setShowList(false);
@@ -169,9 +171,11 @@ export default function NotepadPage() {
 
   const deleteNote = async () => {
     if (!noteToDelete) return;
+    const deletedNote = notes.find((n) => n.id === noteToDelete);
     // Soft-delete: mark _deleted + _dirty so it syncs to server
     const now = new Date().toISOString();
     await db.notes.update(noteToDelete, { _deleted: true, _dirty: 1, updatedAt: now });
+    await operationsLog.log({ category: 'NOTE', action: 'DELETE', result: 'success', target: 'Note', targetId: noteToDelete, details: { title: deletedNote?.title, contentPreview: deletedNote?.content?.slice(0, 200) } });
     const updated = notes.filter((n) => n.id !== noteToDelete);
     setNotes(updated);
     if (activeNoteId === noteToDelete) {

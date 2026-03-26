@@ -4,6 +4,7 @@ import { SocialLogin } from "@capgo/capacitor-social-login";
 import { clearDatabase } from "../db";
 import { db } from "../db";
 import { resetTicketState } from "../tickets";
+import { operationsLog } from '../OperationsLog';
 
 // Types — preserved from previous interface for backwards compatibility
 export interface User {
@@ -88,6 +89,7 @@ export const signIn = async (
   const { data, error } = await authClient.signIn.email({ email, password });
 
   if (error) {
+    await operationsLog.log({ category: 'AUTH', action: 'SIGN_IN', result: 'failure', target: 'User', errorMessage: error.message ?? 'Sign-in failed' });
     return {
       data: null,
       error: { message: error.message ?? "Sign-in failed", details: [] },
@@ -102,6 +104,7 @@ export const signIn = async (
   };
 
   notifyListeners("SIGNED_IN", { user, session });
+  await operationsLog.log({ category: 'AUTH', action: 'SIGN_IN', result: 'success', target: 'User', targetId: user.id });
   return { data: { user, session }, error: null };
 };
 
@@ -119,6 +122,7 @@ export const signUp = async (
   if (error) {
     const message =
       error.message ?? "Registration failed";
+    await operationsLog.log({ category: 'AUTH', action: 'SIGN_UP', result: 'failure', target: 'User', errorMessage: message });
     return { data: null, error: { message, details: [] } };
   }
 
@@ -130,6 +134,7 @@ export const signUp = async (
   };
 
   notifyListeners("SIGNED_IN", { user, session });
+  await operationsLog.log({ category: 'AUTH', action: 'SIGN_UP', result: 'success', target: 'User', targetId: user.id });
   return { data: { user, session }, error: null };
 };
 
@@ -142,8 +147,10 @@ export const signInWithGoogle = async () => {
     callbackURL: `${window.location.origin}/dashboard`,
   });
   if (error) {
+    await operationsLog.log({ category: 'AUTH', action: 'SIGN_IN', result: 'failure', target: 'Google', errorMessage: error.message ?? 'Google sign-in failed' });
     return { data: null, error: { message: error.message ?? "Google sign-in failed" } };
   }
+  await operationsLog.log({ category: 'AUTH', action: 'SIGN_IN', result: 'success', target: 'Google' });
   return { data, error: null };
 };
 
@@ -154,8 +161,10 @@ export const signInWithGithub = async () => {
     callbackURL: `${window.location.origin}/dashboard`,
   });
   if (error) {
+    await operationsLog.log({ category: 'AUTH', action: 'SIGN_IN', result: 'failure', target: 'GitHub', errorMessage: error.message ?? 'GitHub sign-in failed' });
     return { data: null, error: { message: error.message ?? "GitHub sign-in failed" } };
   }
+  await operationsLog.log({ category: 'AUTH', action: 'SIGN_IN', result: 'success', target: 'GitHub' });
   return { data, error: null };
 };
 
@@ -211,11 +220,13 @@ async function socialSignInNative(provider: "google") {
         expires_in: 60 * 60 * 24 * 7,
       };
       notifyListeners("SIGNED_IN", { user, session });
+      await operationsLog.log({ category: 'AUTH', action: 'SIGN_IN', result: 'success', target: `Native ${provider}`, targetId: user.id });
       return { data: { user, session }, error: null };
     }
 
     return { data, error: null };
   } catch (e: any) {
+    await operationsLog.log({ category: 'AUTH', action: 'SIGN_IN', result: 'failure', target: `Native ${provider}`, errorMessage: e?.message ?? `Failed to sign in with ${provider}` });
     return {
       data: null,
       error: { message: e?.message ?? `Failed to sign in with ${provider}` },
@@ -254,6 +265,9 @@ export const signOut = async () => {
     }
   }
 
+  // Log sign-out AFTER clearing DB — the log call will silently fail because Dexie is wiped,
+  // but we attempt it so it's captured if the DB clear was partial or the table survives.
+  await operationsLog.log({ category: 'AUTH', action: 'SIGN_OUT', result: 'success', target: 'User' });
   notifyListeners("SIGNED_OUT", null);
   return { error: null };
 };
@@ -397,6 +411,7 @@ export const updateProfile = async (data: {
   // 3. Refresh user from session & notify listeners
   const { user } = await getUser();
   notifyListeners('SIGNED_IN', { user });
+  await operationsLog.log({ category: 'PROFILE', action: 'UPDATE', result: 'success', target: 'Profile', details: { fields: Object.keys(data) } });
   return { user, error: null };
 };
 
@@ -427,8 +442,10 @@ export const uploadAvatar = async (file: File): Promise<{ avatarUrl: string | nu
     const { user } = await getUser();
     notifyListeners('SIGNED_IN', { user });
 
+    await operationsLog.log({ category: 'PROFILE', action: 'UPLOAD', result: 'success', target: 'Avatar' });
     return { avatarUrl, error: null };
   } catch {
+    await operationsLog.log({ category: 'PROFILE', action: 'UPLOAD', result: 'failure', target: 'Avatar', errorMessage: 'Upload failed — saved offline' });
     // Offline — save to Dexie for later sync
     await db.profile.put({ key: 'avatarDataUrl', data: dataUrl }).catch(() => {});
     // Store file data for syncing later
@@ -464,8 +481,10 @@ export const deleteAvatar = async (): Promise<{ error: { message: string } | nul
     const { user } = await getUser();
     notifyListeners('SIGNED_IN', { user });
 
+    await operationsLog.log({ category: 'PROFILE', action: 'DELETE', result: 'success', target: 'Avatar' });
     return { error: null };
   } catch {
+    await operationsLog.log({ category: 'PROFILE', action: 'DELETE', result: 'failure', target: 'Avatar', errorMessage: 'Delete failed — queued offline' });
     // Offline — mark for deletion on next sync
     await db.profile.put({ key: 'pendingAvatarDelete', data: true }).catch(() => {});
 

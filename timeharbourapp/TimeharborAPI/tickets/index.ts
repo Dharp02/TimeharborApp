@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { v4 as uuidv4 } from 'uuid';
 import { getStoredUser } from '../auth';
+import { operationsLog } from '../OperationsLog';
 
 export interface Ticket {
   id: string;
@@ -93,8 +94,14 @@ export const createTicket = async (teamId: string, data: CreateTicketData): Prom
     _rev: 1,
     fieldTimestamps: { title: now, status: now, priority: now },
   };
-  await db.tickets.put(ticket);
-  return ticket;
+  try {
+    await db.tickets.put(ticket);
+    await operationsLog.log({ category: 'TICKET', action: 'CREATE', result: 'success', target: 'Ticket', targetId: ticket.id, details: { title: data.title, teamId } });
+    return ticket;
+  } catch (err: any) {
+    await operationsLog.log({ category: 'TICKET', action: 'CREATE', result: 'failure', target: 'Ticket', errorMessage: err?.message, details: { title: data.title, teamId } });
+    throw err;
+  }
 };
 
 export const getTickets = async (teamId: string, options?: { sort?: string; status?: string }): Promise<Ticket[]> => {
@@ -123,22 +130,33 @@ export const updateTicket = async (_teamId: string, ticketId: string, data: Upda
     _rev: (existing._rev ?? 0) + 1,
     fieldTimestamps: newTs,
   };
-  await db.tickets.put(updated);
-  return updated;
+  try {
+    await db.tickets.put(updated);
+    await operationsLog.log({ category: 'TICKET', action: 'UPDATE', result: 'success', target: 'Ticket', targetId: ticketId, details: { fields: Object.keys(data) } });
+    return updated;
+  } catch (err: any) {
+    await operationsLog.log({ category: 'TICKET', action: 'UPDATE', result: 'failure', target: 'Ticket', targetId: ticketId, errorMessage: err?.message });
+    throw err;
+  }
 };
 
 export const deleteTicket = async (_teamId: string, ticketId: string): Promise<void> => {
   const existing = await db.tickets.get(ticketId) as any;
-  if (existing?._serverId) {
-    // Soft-delete so sync can push the deletion to the server
-    await db.tickets.update(ticketId, {
-      _deleted: true,
-      _dirty: 1,
-      _rev: (existing._rev ?? 0) + 1,
-      updatedAt: new Date().toISOString(),
-    } as any);
-  } else {
-    await db.tickets.delete(ticketId);
+  try {
+    if (existing?._serverId) {
+      await db.tickets.update(ticketId, {
+        _deleted: true,
+        _dirty: 1,
+        _rev: (existing._rev ?? 0) + 1,
+        updatedAt: new Date().toISOString(),
+      } as any);
+    } else {
+      await db.tickets.delete(ticketId);
+    }
+    await operationsLog.log({ category: 'TICKET', action: 'DELETE', result: 'success', target: 'Ticket', targetId: ticketId });
+  } catch (err: any) {
+    await operationsLog.log({ category: 'TICKET', action: 'DELETE', result: 'failure', target: 'Ticket', targetId: ticketId, errorMessage: err?.message });
+    throw err;
   }
 };
 
@@ -168,6 +186,7 @@ export const shareToTimehuddle = async (ticketId: string): Promise<Ticket> => {
   if (!existing) throw new Error('Ticket not found');
   const updated = { ...existing, sharedToTimehuddle: true, updatedAt: new Date().toISOString() };
   await db.tickets.put(updated);
+  await operationsLog.log({ category: 'TICKET', action: 'SHARE', result: 'success', target: 'Ticket', targetId: ticketId });
   return updated;
 };
 
