@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Text, SmallMuted, Switch, useThemeContext } from '@mieweb/ui';
+import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -48,7 +49,7 @@ export default function SettingsPage() {
       <div className="flex flex-col items-center pt-6 pb-2">
         <div className="w-24 h-24 rounded-full bg-primary-400 flex items-center justify-center text-white text-3xl font-semibold mb-4 overflow-hidden">
           {user?.image ? (
-            <img src={user.image} alt="Profile" className="w-full h-full object-cover" />
+            <img src={resolveBackendAsset(user.image)} alt="Profile" className="w-full h-full object-cover" />
           ) : (
             getInitials()
           )}

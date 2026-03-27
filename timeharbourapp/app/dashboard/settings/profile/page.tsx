@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
+import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 import { User, Camera, Trash2, Github, Linkedin, Bug, Save, X, Loader2, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { Button, Input } from '@mieweb/ui';
 import { Modal } from '@/components/ui/Modal';
@@ -72,8 +73,7 @@ export default function ProfilePage() {
         // Use local offline avatar (base64) if available, else backend URL
         const avatarSrc = (profile as any).avatarDataUrl || profile.avatarUrl;
         if (avatarSrc) {
-          // Relative paths like /uploads/... work as img src; absolute URLs are fine too
-          setSavedAvatarUrl(avatarSrc);
+          setSavedAvatarUrl(resolveBackendAsset(avatarSrc) ?? avatarSrc);
         }
       }
     }).finally(() => setIsLoadingProfile(false));

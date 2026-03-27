@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
 import { Capacitor } from '@capacitor/core';
@@ -17,116 +17,172 @@ const AuthContext = createContext<AuthContextType>({ user: null, loading: true }
 
 export const useAuth = () => useContext(AuthContext);
 
+const CACHED_USER_KEY = 'th_cached_user';
+
+/** Persist user to localStorage so cold start is instant. */
+function cacheUser(u: any | null) {
+  try {
+    if (u) {
+      localStorage.setItem(CACHED_USER_KEY, JSON.stringify(u));
+    } else {
+      localStorage.removeItem(CACHED_USER_KEY);
+    }
+  } catch { /* quota / SSR */ }
+}
+
+/** Read cached user from localStorage (returns null if none). */
+function getCachedUser(): any | null {
+  try {
+    const raw = localStorage.getItem(CACHED_USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const networkErrorRef = useRef(false);
-  const isMounted = useRef(false);
+  // Hydrate immediately from cache — no loading screen if we have a cached user.
+  const cached = typeof window !== 'undefined' ? getCachedUser() : null;
+  const [user, setUser] = useState<any | null>(cached);
+  const [loading, setLoading] = useState(cached === null);
+  const initRef = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
 
+  // Capacitor listener handles for synchronous cleanup.
+  const urlOpenHandle = useRef<Awaited<ReturnType<typeof App.addListener>> | null>(null);
+  const stateChangeHandle = useRef<Awaited<ReturnType<typeof App.addListener>> | null>(null);
+
+  // ── Wrapper: set user + persist to cache ─────────────────────────────
+  const setUserAndCache = useCallback((u: any | null) => {
+    setUser(u);
+    cacheUser(u);
+  }, []);
+
+  // ── Fetch session and update state ───────────────────────────────────
+  const refreshSession = useCallback(async () => {
+    const { user: u } = await auth.getUser();
+    setUserAndCache(u ?? null);
+    setLoading(false);
+    return u ?? null;
+  }, [setUserAndCache]);
+
+  // ── On mount: init plugins, verify session in background ─────────────
   useEffect(() => {
-    if (!isMounted.current) {
-      // Initialize native social login on Capacitor
+    if (!initRef.current) {
+      initRef.current = true;
       if (Capacitor.isNativePlatform()) {
         SocialLogin.initialize({
           google: {
             iOSClientId: process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID || '',
             iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
           },
-        }).catch(() => { /* non-fatal if plugin not available */ });
+        }).catch(() => {});
+      }
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const hasCached = getCachedUser() !== null;
+      console.log('[AuthProvider] cold start', { hasCachedUser: hasCached });
+
+      // If we have a cached user, we're already showing the dashboard.
+      // Set loading=false immediately so the app is usable right away.
+      if (hasCached) {
+        setLoading(false);
       }
 
-      const checkSession = async () => {
-        const { user, error } = await auth.getUser();
-        if (error) {
-          // Network error — keep existing session state, don't log out
-          networkErrorRef.current = true;
+      // Timeout: if auth.getUser() hangs, force loading=false after 5s.
+      const timeout = setTimeout(() => {
+        if (!cancelled) {
+          console.log('[AuthProvider] session check timed out, forcing loading=false');
           setLoading(false);
-          return;
         }
-        networkErrorRef.current = false;
-        if (user) {
-          setUser(user);
-          // Fetch backend profile to sync avatar (may have been updated from another device)
-          auth.fetchProfile().catch(() => {});
-        }
+      }, 5000);
+
+      // Verify with backend (may hang on cold start — that's OK if we have cache).
+      const { user: u, error } = await auth.getUser();
+      clearTimeout(timeout);
+      if (cancelled) return;
+
+      if (error) {
+        console.log('[AuthProvider] session check failed (offline?), keeping cache');
         setLoading(false);
-      };
-      checkSession();
-      isMounted.current = true;
-    }
+        return;
+      }
+
+      if (u) {
+        console.log('[AuthProvider] session verified', { id: u.id });
+        setUserAndCache(u);
+        auth.fetchProfile().catch(() => {});
+      } else {
+        console.log('[AuthProvider] no session, clearing cache');
+        setUserAndCache(null);
+      }
+      setLoading(false);
+    })();
 
     const subscription = auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
-        setUser(session?.user ?? null);
-        router.refresh();
+        setUserAndCache(session?.user ?? null);
       } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        router.refresh();
+        setUserAndCache(null);
       }
     });
 
     return () => {
+      cancelled = true;
       subscription.unsubscribe();
     };
-  }, [router]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Handle deep link callback from OAuth on native (Capacitor)
+  // ── Deep-link callback from OAuth on native ──────────────────────────
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
+    urlOpenHandle.current?.remove();
 
-    const handler = App.addListener('appUrlOpen', async ({ url }) => {
+    App.addListener('appUrlOpen', async ({ url }) => {
       if (url.startsWith('timeharbor://auth/callback')) {
-        // Close the system browser that was opened for OAuth
-        await Browser.close();
-        // Refresh session — Better Auth set the cookie via the redirect
-        const { user: authUser } = await auth.getUser();
-        if (authUser) {
-          setUser(authUser);
+        await Browser.close().catch(() => {});
+        const u = await refreshSession();
+        if (u) {
+          setLoading(false);
           router.replace('/dashboard');
         }
       }
-    });
+    }).then((h) => { urlOpenHandle.current = h; });
 
-    return () => {
-      handler.then((h) => h.remove());
-    };
-  }, [router]);
+    return () => { urlOpenHandle.current?.remove(); urlOpenHandle.current = null; };
+  }, [router, refreshSession]);
 
-  // Re-validate auth when app resumes from background on Capacitor.
-  // This catches cases where the session was invalidated while the app was
-  // suspended (e.g. sign-out completed but cookies persisted in native store).
+  // ── Re-validate session when app resumes from background ─────────────
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
+    stateChangeHandle.current?.remove();
 
-    const handler = App.addListener('appStateChange', async ({ isActive }) => {
+    App.addListener('appStateChange', async ({ isActive }) => {
       if (!isActive) return;
-      const { user: currentUser, error } = await auth.getUser();
-      if (error) return; // Network error — don't change state
-      if (!currentUser) {
-        setUser(null);
-      } else {
-        setUser(currentUser);
-      }
-    });
+      console.log('[AuthProvider] app resumed, refreshing session');
+      await refreshSession();
+    }).then((h) => { stateChangeHandle.current = h; });
 
-    return () => {
-      handler.then((h) => h.remove());
-    };
-  }, []);
+    return () => { stateChangeHandle.current?.remove(); stateChangeHandle.current = null; };
+  }, [refreshSession]);
 
+  // ── Redirect: only after loading is done ─────────────────────────────
   useEffect(() => {
     if (loading) return;
 
-    const normalizedPath = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
-    
-    const isAuthPage = ['/login', '/signup', '/forgot-password', '/'].includes(normalizedPath);
-    const isDashboardPage = normalizedPath.startsWith('/dashboard');
+    const p = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
+    const isAuthPage = ['/login', '/signup', '/forgot-password', '/'].includes(p);
+    const isDashboard = p.startsWith('/dashboard');
+
+    console.log('[AuthProvider] routing', { user: !!user, path: p });
 
     if (user && isAuthPage) {
       router.replace('/dashboard');
-    } else if (!user && isDashboardPage && !networkErrorRef.current) {
+    } else if (!user && isDashboard) {
       router.replace('/login');
     }
   }, [user, loading, pathname, router]);

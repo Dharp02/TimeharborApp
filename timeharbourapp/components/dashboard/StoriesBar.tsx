@@ -3,6 +3,7 @@
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Plus } from 'lucide-react';
 import { Button } from '@mieweb/ui';
+import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 import styles from './StoriesBar.module.css';
 export default function StoriesBar() {
   const { user } = useAuth();
@@ -32,7 +33,7 @@ export default function StoriesBar() {
           <div className={`${styles.storyAvatar} ${styles.yourStory}`}>
             <div className={styles.avatarCircle}>
               {user?.image ? (
-                <img src={user.image} alt="Profile" className={styles.avatarImage} />
+                <img src={resolveBackendAsset(user.image)} alt="Profile" className={styles.avatarImage} />
               ) : (
                 <span className={styles.initials}>{currentUserInitials}</span>
               )}

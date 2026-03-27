@@ -43,6 +43,7 @@ import {
 } from "@mieweb/ui";
 import { useRouter } from "next/navigation";
 import { useClockIn } from "@/components/dashboard/ClockInContext";
+import { useActivityLog } from "@/components/dashboard/ActivityLogContext";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Modal } from "@/components/ui/Modal";
 import { tickets as ticketsApi } from "@/TimeharborAPI";
@@ -63,6 +64,7 @@ export default function TicketsPage() {
     toggleSession,
     ticketDurations,
   } = useClockIn();
+  const { addActivity } = useActivityLog();
   const { user } = useAuth();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -216,10 +218,19 @@ export default function TicketsPage() {
   const handleDeleteTicket = async () => {
     if (!selectedTicketForAction) return;
     try {
+      const deletedTitle = selectedTicketForAction.title;
       await ticketsApi.deletePersonalTicket(selectedTicketForAction.id);
+      addActivity({
+        type: 'TICKET',
+        title: `Ticket Deleted`,
+        subtitle: deletedTitle,
+        status: 'Completed',
+        startTime: new Date().toISOString(),
+      });
       setIsDeleteModalOpen(false);
       setSelectedTicketForAction(null);
       loadTickets();
+      window.dispatchEvent(new Event('pull-to-refresh'));
     } catch (error: any) {
       console.error("Failed to delete ticket:", error);
     }

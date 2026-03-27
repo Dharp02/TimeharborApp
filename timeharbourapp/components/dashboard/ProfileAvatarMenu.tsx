@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Palette } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@mieweb/ui';
+import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 import BrandSwitcher from './BrandSwitcher';
 
 export default function ProfileAvatarMenu() {
@@ -47,7 +48,7 @@ export default function ProfileAvatarMenu() {
         aria-label="Profile menu"
       >
         {user?.image ? (
-          <img src={user.image} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
+          <img src={resolveBackendAsset(user.image)} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           getInitials()
         )}

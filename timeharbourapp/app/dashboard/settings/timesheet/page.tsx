@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
 import { DateTime } from 'luxon';
 import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
@@ -15,6 +15,7 @@ import {
   Button, Input, Select, Badge,
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@mieweb/ui';
+import TimesheetEntryClient from './[id]/TimesheetEntryClient';
 
 /* ── flag / status options ─────────────────────────────── */
 const FLAG_OPTIONS = [
@@ -63,6 +64,8 @@ const toEditState = (a: Activity): EditState => ({
 
 export default function TimesheetPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const entryId = searchParams.get('entryId');
   const { register, lastRefreshed } = useRefresh();
 
   /* ── filter state ───────────────────────────────────── */
@@ -84,6 +87,7 @@ export default function TimesheetPage() {
 
   /* ── data fetching ──────────────────────────────────── */
   useEffect(() => {
+    if (entryId) return; // skip fetching when showing entry detail
     if (!dateRange.from || !dateRange.to) return;
     const from = dateRange.from.toISODate();
     const to = dateRange.to.toISODate();
@@ -108,7 +112,7 @@ export default function TimesheetPage() {
     loadData();
     const unregister = register(loadData);
     return unregister;
-  }, [dateRange, lastRefreshed, register]);
+  }, [dateRange, entryId, lastRefreshed, register]);
 
   const handleRangeChange = (range: { start: Date | null; end: Date | null }, presetKey?: string) => {
     setDateRange(resolveRange(range, presetKey));
@@ -186,6 +190,14 @@ export default function TimesheetPage() {
   const fmtDate = (iso: string) => DateTime.fromISO(iso).toFormat('MMM d, yyyy');
 
   /* ── render ─────────────────────────────────────────── */
+
+  // When ?entryId=xxx is present, render the detail view instead of the list.
+  // This avoids relying on the [id] dynamic route which is not pre-rendered
+  // in Capacitor static-export builds (output: 'export').
+  if (entryId) {
+    return <TimesheetEntryClient entryIdProp={entryId} />;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-0 py-2 space-y-4">
       {/* Filter Bar */}
@@ -303,11 +315,11 @@ export default function TimesheetPage() {
                         </>
                       ) : (
                         <>
-                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{fmtDate(a.startTime)}</TableCell>
-                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{fmtTime(a.startTime)}</TableCell>
-                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{a.endTime ? fmtTime(a.endTime) : '—'}</TableCell>
-                          <TableCell className="text-primary-600 dark:text-primary-400 font-medium cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{a.subtitle || '—'}</TableCell>
-                          <TableCell className="truncate cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/${a.id}`)}>{a.description || a.title}</TableCell>
+                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{fmtDate(a.startTime)}</TableCell>
+                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{fmtTime(a.startTime)}</TableCell>
+                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.endTime ? fmtTime(a.endTime) : '—'}</TableCell>
+                          <TableCell className="text-primary-600 dark:text-primary-400 font-medium cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.subtitle || '—'}</TableCell>
+                          <TableCell className="truncate cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.description || a.title}</TableCell>
                           <TableCell>
                             {a.metadata?.flag && a.metadata.flag !== 'none' ? (
                               <Badge variant="outline" size="sm">{FLAG_OPTIONS.find(f => f.value === a.metadata?.flag)?.label ?? a.metadata.flag}</Badge>
@@ -337,7 +349,7 @@ export default function TimesheetPage() {
               const isEditing = editingId === a.id;
               return (
                 <div key={a.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3"
-                  onClick={() => !isEditing && router.push(`/dashboard/settings/timesheet/${a.id}`)}
+                  onClick={() => !isEditing && router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}
                   role={!isEditing ? 'link' : undefined}
                   tabIndex={!isEditing ? 0 : undefined}
                   style={!isEditing ? { cursor: 'pointer' } : undefined}

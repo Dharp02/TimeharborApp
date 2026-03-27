@@ -69,7 +69,7 @@ export default function OpenTickets() {
     const cacheTeamId = PERSONAL_TEAM_ID;
     db.tickets
       .where('teamId').equals(cacheTeamId)
-      .filter(t => t.status === 'Open' || t.status === 'In Progress')
+      .filter(t => !t._deleted && (t.status === 'Open' || t.status === 'In Progress'))
       .toArray()
       .then(cached => {
         if (cached.length > 0 && isMountedRef.current) {

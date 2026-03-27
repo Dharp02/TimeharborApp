@@ -12,6 +12,7 @@ import {
   SidebarToggle,
   useSidebar,
 } from '@mieweb/ui';
+import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 import {
   Clock,
   CalendarDays,
@@ -141,7 +142,7 @@ export default function AppSidebar() {
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white font-semibold text-sm overflow-hidden">
               {user?.image ? (
-                <img src={user.image} alt="Profile" className="w-full h-full object-cover" />
+                <img src={resolveBackendAsset(user.image)} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 getInitials()
               )}

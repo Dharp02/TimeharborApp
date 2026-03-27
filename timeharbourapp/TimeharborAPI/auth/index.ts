@@ -46,22 +46,25 @@ const notifyListeners = (event: string, session: any) => {
  *  - Absolute URLs (http/https/data:) are returned as-is */
 function resolveImageUrl(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
+  // In Capacitor prod builds, use the backend URL instead of window.location.origin
+  const effectiveOrigin =
+    process.env.NEXT_PUBLIC_BETTER_AUTH_URL
+    || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
   if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
     // If it's an absolute URL pointing to a different origin's /uploads/ path,
-    // rewrite it to use the current origin so it works cross-device
-    if (typeof window !== 'undefined' && url.includes('/uploads/')) {
+    // rewrite it to use the effective origin so it works cross-device
+    if (url.includes('/uploads/')) {
       try {
         const parsed = new URL(url);
-        if (parsed.origin !== window.location.origin && parsed.pathname.startsWith('/uploads/')) {
-          return `${window.location.origin}${parsed.pathname}`;
+        if (parsed.origin !== effectiveOrigin && parsed.pathname.startsWith('/uploads/')) {
+          return `${effectiveOrigin}${parsed.pathname}`;
         }
       } catch { /* not a valid URL, return as-is */ }
     }
     return url;
   }
   if (url.startsWith('/')) {
-    if (typeof window !== 'undefined') return `${window.location.origin}${url}`;
-    return `http://localhost:3001${url}`;
+    return `${effectiveOrigin}${url}`;
   }
   return url;
 }
@@ -172,6 +175,9 @@ export const signInWithGithub = async () => {
  * On native (Capacitor), use the native Google Sign-In SDK to get an ID token,
  * then pass it to Better Auth's signIn.social with the idToken parameter.
  * No redirect, no tunnel needed — the native SDK handles Google auth natively.
+ *
+ * Uses authClient.signIn.social() so cookies are set on the same domain as
+ * subsequent getSession() calls — avoids cross-origin cookie issues.
  */
 async function socialSignInNative(provider: "google") {
   try {
@@ -189,33 +195,26 @@ async function socialSignInNative(provider: "google") {
       return { data: null, error: { message: "No ID token received from Google" } };
     }
 
-    // Send the native ID token to Better Auth — it verifies and creates session
-    const backendUrl =
-      process.env.NEXT_PUBLIC_CAPACITOR_PROXY_URL || "http://localhost:8080";
-    const response = await fetch(`${backendUrl}/api/auth/sign-in/social`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        provider,
-        idToken: {
-          token: googleResult.idToken,
-          accessToken: googleResult.accessToken?.token,
-        },
-        callbackURL: "/dashboard",
-      }),
+    // Use authClient so the request goes through the same HTTP layer and
+    // domain as getSession(), ensuring cookies are stored consistently.
+    const { data, error } = await authClient.signIn.social({
+      provider,
+      idToken: {
+        token: googleResult.idToken,
+        accessToken: googleResult.accessToken?.token,
+      },
+      callbackURL: "/dashboard",
     });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      return { data: null, error: { message: err.message ?? "Sign-in failed" } };
+    if (error) {
+      await operationsLog.log({ category: 'AUTH', action: 'SIGN_IN', result: 'failure', target: `Native ${provider}`, errorMessage: error.message ?? 'Sign-in failed' });
+      return { data: null, error: { message: error.message ?? "Sign-in failed" } };
     }
 
-    const data = await response.json();
-    if (data.user) {
+    if (data && 'user' in data && data.user) {
       const user = toUser(data.user);
       const session: Session = {
-        access_token: data.token ?? "",
+        access_token: ('token' in data ? data.token : '') ?? "",
         refresh_token: "",
         expires_in: 60 * 60 * 24 * 7,
       };
@@ -287,10 +286,38 @@ export const getSession = async () => {
 };
 
 export const getUser = async () => {
+  console.log('[auth] getUser: calling authClient.getSession()');
+  const start = Date.now();
   const { data, error } = await authClient.getSession();
+  console.log('[auth] getUser: authClient.getSession() resolved in', Date.now() - start, 'ms', { hasData: !!data, hasError: !!error });
   if (error) return { user: null, error };
   if (!data?.user) return { user: null, error: null };
   return { user: toUser(data.user), error: null };
+};
+
+/**
+ * Fetch session directly via fetch(), bypassing Better Auth's internal
+ * session atom. Use this for verifying sessions on Capacitor.
+ */
+export const getUserDirect = async (): Promise<{ user: User | null; error: any }> => {
+  const base = getBackendBase();
+  const url = `${base}/api/auth/get-session`;
+  console.log('[auth] getUserDirect: fetching', url);
+  const start = Date.now();
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { 'x-app-id': 'timeharbor' },
+      credentials: 'include',
+    });
+    const json = await res.json();
+    console.log('[auth] getUserDirect: resolved in', Date.now() - start, 'ms', { status: res.status, hasUser: !!json?.user });
+    if (!res.ok || !json?.user) return { user: null, error: null };
+    return { user: toUser(json.user), error: null };
+  } catch (e) {
+    console.log('[auth] getUserDirect: failed in', Date.now() - start, 'ms', e);
+    return { user: null, error: e };
+  }
 };
 
 export const getStoredUser = async (): Promise<User | null> => {
@@ -307,6 +334,9 @@ export interface ThProfile {
 }
 
 function getBackendBase(): string {
+  // In Capacitor prod builds, NEXT_PUBLIC_BETTER_AUTH_URL points to the real backend.
+  // window.location.origin would be capacitor://localhost which won't work.
+  if (process.env.NEXT_PUBLIC_BETTER_AUTH_URL) return process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
   if (typeof window !== 'undefined') return `${window.location.origin}`;
   return 'http://localhost:3001';
 }
@@ -323,8 +353,11 @@ export const fetchProfile = async (): Promise<{ profile: ThProfile | null; error
   const applyAvatarToContext = async (avatar: string | null) => {
     if (!avatar) return;
     try {
-      const resolved = avatar.startsWith('/') && typeof window !== 'undefined'
-        ? `${window.location.origin}${avatar}` : avatar;
+      const effectiveOrigin =
+        process.env.NEXT_PUBLIC_BETTER_AUTH_URL
+        || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+      const resolved = avatar.startsWith('/')
+        ? `${effectiveOrigin}${avatar}` : avatar;
       const { user } = await getUser();
       // Only notify if the image actually changed (user.image is already resolved by toUser)
       if (user && user.image !== resolved) {
