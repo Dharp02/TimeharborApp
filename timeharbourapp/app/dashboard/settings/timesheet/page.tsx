@@ -8,7 +8,7 @@ import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/date
 import { Activity, fetchActivitiesByDateRange, getTimesheetTotals, TimesheetDayTotal } from '@/TimeharborAPI/dashboard';
 import { formatDurationMs } from '@/lib/formatDuration';
 import {
-  Clock, Calendar, Pencil, X, Check, Plus, Trash2,
+  Clock, Calendar, Pencil, X, Check, Plus, Trash2, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { useRefresh } from '../../../../contexts/RefreshContext';
 import {
@@ -129,6 +129,57 @@ export default function TimesheetPage() {
 
   const totalMs = useMemo(() => timesheetTotals.reduce((s, t) => s + t.totalMs, 0), [timesheetTotals]);
 
+  /* ── group activities by day (Mon–Sun) ──────────────── */
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+
+  const groupedByDay = useMemo(() => {
+    const groups: { dateKey: string; dayName: string; fullDate: string; activities: Activity[]; totalMs: number }[] = [];
+    const map = new Map<string, Activity[]>();
+
+    for (const a of sortedActivities) {
+      const dt = DateTime.fromISO(a.startTime);
+      const key = dt.toFormat('yyyy-MM-dd');
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    }
+
+    // Sort date keys descending (most recent first)
+    const sortedKeys = [...map.keys()].sort((a, b) => b.localeCompare(a));
+
+    for (const key of sortedKeys) {
+      const acts = map.get(key)!;
+      const dt = DateTime.fromFormat(key, 'yyyy-MM-dd');
+      const dayTotal = timesheetTotals.find(t => t.date === key);
+      groups.push({
+        dateKey: key,
+        dayName: dt.toFormat('EEEE'),
+        fullDate: dt.toFormat('MMM d, yyyy'),
+        activities: acts,
+        totalMs: dayTotal?.totalMs ?? 0,
+      });
+    }
+
+    return groups;
+  }, [sortedActivities, timesheetTotals]);
+
+  // Auto-expand today's entry on first load
+  useEffect(() => {
+    if (groupedByDay.length > 0 && expandedDays.size === 0) {
+      const todayKey = DateTime.now().toFormat('yyyy-MM-dd');
+      const firstKey = groupedByDay[0].dateKey;
+      setExpandedDays(new Set([todayKey, firstKey]));
+    }
+  }, [groupedByDay]);
+
+  const toggleDay = (dateKey: string) => {
+    setExpandedDays(prev => {
+      const next = new Set(prev);
+      if (next.has(dateKey)) next.delete(dateKey);
+      else next.add(dateKey);
+      return next;
+    });
+  };
+
   /* ── edit helpers ───────────────────────────────────── */
   const startEdit = (a: Activity) => {
     setEditingId(a.id);
@@ -239,187 +290,228 @@ export default function TimesheetPage() {
         </div>
       )}
 
-      {/* Table */}
+      {/* Day-grouped entries */}
       {isLoading ? (
         <div className="text-center py-12">
           <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4" />
           <p className="text-muted-foreground">Loading timesheet data…</p>
         </div>
-      ) : sortedActivities.length === 0 ? (
+      ) : groupedByDay.length === 0 ? (
         <div className="text-center py-12">
           <Calendar className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">No entries found</h3>
           <p className="text-muted-foreground">Adjust the date range or add a new entry.</p>
         </div>
       ) : (
-        <>
-          {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-            <Table className="w-full table-fixed">
-              <colgroup>
-                <col className="w-[13%]" />
-                <col className="w-[10%]" />
-                <col className="w-[10%]" />
-                <col className="w-[12%]" />
-                <col className="w-[22%]" />
-                <col className="w-[13%]" />
-                <col className="w-[10%]" />
-                <col className="w-[10%]" />
-              </colgroup>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Start</TableHead>
-                  <TableHead>End</TableHead>
-                  <TableHead>Ticket</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Flag</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedActivities.map(a => {
-                  const isEditing = editingId === a.id;
-                  return (
-                    <TableRow key={a.id}>
-                      {isEditing && editDraft ? (
-                        <>
-                          <TableCell>
-                            <Input type="date" value={editDraft.date} onChange={e => updateDraft({ date: e.target.value })} className="w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Input type="time" value={editDraft.startTime} onChange={e => updateDraft({ startTime: e.target.value })} className="w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Input type="time" value={editDraft.endTime} onChange={e => updateDraft({ endTime: e.target.value })} className="w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Input value={editDraft.ticket} onChange={e => updateDraft({ ticket: e.target.value })} placeholder="TKT-123" className="w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Input value={editDraft.description} onChange={e => updateDraft({ description: e.target.value })} placeholder="What did you work on?" className="w-full" />
-                          </TableCell>
-                          <TableCell>
-                            <Select options={FLAG_OPTIONS} value={editDraft.flag} onValueChange={v => updateDraft({ flag: v })} placeholder="Flag" hideLabel />
-                          </TableCell>
-                          <TableCell>
-                            <Select options={STATUS_OPTIONS} value={editDraft.status} onValueChange={v => updateDraft({ status: v })} placeholder="Status" hideLabel />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" onClick={saveEdit} aria-label="Save changes"><Check className="w-4 h-4 text-green-600" /></Button>
-                              <Button variant="ghost" onClick={cancelEdit} aria-label="Cancel editing"><X className="w-4 h-4 text-gray-500" /></Button>
-                            </div>
-                          </TableCell>
-                        </>
-                      ) : (
-                        <>
-                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{fmtDate(a.startTime)}</TableCell>
-                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{fmtTime(a.startTime)}</TableCell>
-                          <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.endTime ? fmtTime(a.endTime) : '—'}</TableCell>
-                          <TableCell className="text-primary-600 dark:text-primary-400 font-medium cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.subtitle || '—'}</TableCell>
-                          <TableCell className="truncate cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.description || a.title}</TableCell>
-                          <TableCell>
-                            {a.metadata?.flag && a.metadata.flag !== 'none' ? (
-                              <Badge variant="outline" size="sm">{FLAG_OPTIONS.find(f => f.value === a.metadata?.flag)?.label ?? a.metadata.flag}</Badge>
-                            ) : '—'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={badgeVariantForStatus(a.status)} size="sm">{a.status || '—'}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" onClick={() => startEdit(a)} aria-label="Edit entry"><Pencil className="w-4 h-4" /></Button>
-                              <Button variant="ghost" onClick={() => deleteEntry(a.id)} aria-label="Delete entry"><Trash2 className="w-4 h-4 text-red-500" /></Button>
-                            </div>
-                          </TableCell>
-                        </>
-                      )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Mobile cards */}
-          <div className="md:hidden space-y-3">
-            {sortedActivities.map(a => {
-              const isEditing = editingId === a.id;
-              return (
-                <div key={a.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3"
-                  onClick={() => !isEditing && router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}
-                  role={!isEditing ? 'link' : undefined}
-                  tabIndex={!isEditing ? 0 : undefined}
-                  style={!isEditing ? { cursor: 'pointer' } : undefined}
+        <div className="space-y-2">
+          {groupedByDay.map(({ dateKey, dayName, fullDate, activities: dayActivities, totalMs: dayMs }) => {
+            const isExpanded = expandedDays.has(dateKey);
+            const isToday = dateKey === DateTime.now().toFormat('yyyy-MM-dd');
+            return (
+              <div key={dateKey} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                {/* Day header – accordion toggle */}
+                <button
+                  type="button"
+                  onClick={() => toggleDay(dateKey)}
+                  className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${
+                    isExpanded
+                      ? 'bg-primary-50 dark:bg-primary-900/20'
+                      : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  }`}
+                  aria-expanded={isExpanded}
+                  aria-controls={`day-${dateKey}`}
                 >
-                  {isEditing && editDraft ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Date</label>
-                          <Input type="date" value={editDraft.date} onChange={e => updateDraft({ date: e.target.value })} />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ticket</label>
-                          <Input value={editDraft.ticket} onChange={e => updateDraft({ ticket: e.target.value })} placeholder="TKT-123" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start</label>
-                          <Input type="time" value={editDraft.startTime} onChange={e => updateDraft({ startTime: e.target.value })} />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End</label>
-                          <Input type="time" value={editDraft.endTime} onChange={e => updateDraft({ endTime: e.target.value })} />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Description</label>
-                        <Input value={editDraft.description} onChange={e => updateDraft({ description: e.target.value })} placeholder="What did you work on?" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Select options={FLAG_OPTIONS} value={editDraft.flag} onValueChange={v => updateDraft({ flag: v })} label="Flag" />
-                        <Select options={STATUS_OPTIONS} value={editDraft.status} onValueChange={v => updateDraft({ status: v })} label="Status" />
-                      </div>
-                      <div className="flex justify-end gap-2 pt-1">
-                        <Button variant="outline" onClick={cancelEdit}><X className="w-4 h-4" /> Cancel</Button>
-                        <Button onClick={saveEdit}><Check className="w-4 h-4" /> Save</Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{a.title}</p>
-                          {a.subtitle && <p className="text-sm text-primary-600 dark:text-primary-400">{a.subtitle}</p>}
-                        </div>
-                        <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => startEdit(a)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Edit entry">
-                            <Pencil className="w-4 h-4 text-gray-500" />
-                          </button>
-                          <button onClick={() => deleteEntry(a.id)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Delete entry">
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
-                        </div>
-                      </div>
-                      {a.description && <p className="text-sm text-muted-foreground line-clamp-2">{a.description}</p>}
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span>{fmtDate(a.startTime)}</span>
-                        <span>·</span>
-                        <span>{fmtTime(a.startTime)}{a.endTime ? ` – ${fmtTime(a.endTime)}` : ''}</span>
-                        {a.metadata?.flag && a.metadata.flag !== 'none' && (
-                          <Badge variant="outline" size="sm">{FLAG_OPTIONS.find(f => f.value === a.metadata?.flag)?.label ?? a.metadata.flag}</Badge>
-                        )}
-                        <Badge variant={badgeVariantForStatus(a.status)} size="sm">{a.status || '—'}</Badge>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </>
+                  <div className="flex items-center gap-3">
+                    {isExpanded
+                      ? <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                      : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
+                    <div className="text-left">
+                      <span className="font-semibold text-foreground">
+                        {dayName}
+                      </span>
+                      {isToday && (
+                        <span className="ml-2 text-xs font-medium px-2 py-0.5 bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400 rounded-full">
+                          Today
+                        </span>
+                      )}
+                      <p className="text-xs text-muted-foreground">{fullDate}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {dayActivities.length} {dayActivities.length === 1 ? 'entry' : 'entries'}
+                    </span>
+                    <span className="text-sm font-bold text-foreground">
+                      {formatDurationMs(dayMs)}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Day entries – collapsible */}
+                {isExpanded && (
+                  <div id={`day-${dateKey}`} className="border-t border-gray-200 dark:border-gray-700">
+                    {/* Desktop table */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <Table className="w-full table-fixed">
+                        <colgroup>
+                          <col className="w-[12%]" />
+                          <col className="w-[12%]" />
+                          <col className="w-[18%]" />
+                          <col className="w-[26%]" />
+                          <col className="w-[12%]" />
+                          <col className="w-[10%]" />
+                          <col className="w-[10%]" />
+                        </colgroup>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Start</TableHead>
+                            <TableHead>End</TableHead>
+                            <TableHead>Ticket</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Flag</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {dayActivities.map(a => {
+                            const isEditing = editingId === a.id;
+                            return (
+                              <TableRow key={a.id}>
+                                {isEditing && editDraft ? (
+                                  <>
+                                    <TableCell>
+                                      <Input type="time" value={editDraft.startTime} onChange={e => updateDraft({ startTime: e.target.value })} className="w-full" />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input type="time" value={editDraft.endTime} onChange={e => updateDraft({ endTime: e.target.value })} className="w-full" />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input value={editDraft.ticket} onChange={e => updateDraft({ ticket: e.target.value })} placeholder="TKT-123" className="w-full" />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input value={editDraft.description} onChange={e => updateDraft({ description: e.target.value })} placeholder="What did you work on?" className="w-full" />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Select options={FLAG_OPTIONS} value={editDraft.flag} onValueChange={v => updateDraft({ flag: v })} placeholder="Flag" hideLabel />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Select options={STATUS_OPTIONS} value={editDraft.status} onValueChange={v => updateDraft({ status: v })} placeholder="Status" hideLabel />
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex justify-end gap-1">
+                                        <Button variant="ghost" onClick={saveEdit} aria-label="Save changes"><Check className="w-4 h-4 text-green-600" /></Button>
+                                        <Button variant="ghost" onClick={cancelEdit} aria-label="Cancel editing"><X className="w-4 h-4 text-gray-500" /></Button>
+                                      </div>
+                                    </TableCell>
+                                  </>
+                                ) : (
+                                  <>
+                                    <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{fmtTime(a.startTime)}</TableCell>
+                                    <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.endTime ? fmtTime(a.endTime) : '—'}</TableCell>
+                                    <TableCell className="text-primary-600 dark:text-primary-400 font-medium cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.subtitle || '—'}</TableCell>
+                                    <TableCell className="truncate cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.description || a.title}</TableCell>
+                                    <TableCell>
+                                      {a.metadata?.flag && a.metadata.flag !== 'none' ? (
+                                        <Badge variant="outline" size="sm">{FLAG_OPTIONS.find(f => f.value === a.metadata?.flag)?.label ?? a.metadata.flag}</Badge>
+                                      ) : '—'}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant={badgeVariantForStatus(a.status)} size="sm">{a.status || '—'}</Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex justify-end gap-1">
+                                        <Button variant="ghost" onClick={() => startEdit(a)} aria-label="Edit entry"><Pencil className="w-4 h-4" /></Button>
+                                        <Button variant="ghost" onClick={() => deleteEntry(a.id)} aria-label="Delete entry"><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                                      </div>
+                                    </TableCell>
+                                  </>
+                                )}
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Mobile cards */}
+                    <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                      {dayActivities.map(a => {
+                        const isEditing = editingId === a.id;
+                        return (
+                          <div
+                            key={a.id}
+                            className="p-4 space-y-3"
+                            onClick={() => !isEditing && router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}
+                            role={!isEditing ? 'link' : undefined}
+                            tabIndex={!isEditing ? 0 : undefined}
+                            style={!isEditing ? { cursor: 'pointer' } : undefined}
+                          >
+                            {isEditing && editDraft ? (
+                              <>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start</label>
+                                    <Input type="time" value={editDraft.startTime} onChange={e => updateDraft({ startTime: e.target.value })} />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End</label>
+                                    <Input type="time" value={editDraft.endTime} onChange={e => updateDraft({ endTime: e.target.value })} />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ticket</label>
+                                    <Input value={editDraft.ticket} onChange={e => updateDraft({ ticket: e.target.value })} placeholder="TKT-123" />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Description</label>
+                                  <Input value={editDraft.description} onChange={e => updateDraft({ description: e.target.value })} placeholder="What did you work on?" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <Select options={FLAG_OPTIONS} value={editDraft.flag} onValueChange={v => updateDraft({ flag: v })} label="Flag" />
+                                  <Select options={STATUS_OPTIONS} value={editDraft.status} onValueChange={v => updateDraft({ status: v })} label="Status" />
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <Button variant="outline" onClick={cancelEdit}><X className="w-4 h-4" /> Cancel</Button>
+                                  <Button onClick={saveEdit}><Check className="w-4 h-4" /> Save</Button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-medium text-foreground">{a.title}</p>
+                                    {a.subtitle && <p className="text-sm text-primary-600 dark:text-primary-400">{a.subtitle}</p>}
+                                  </div>
+                                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                                    <button onClick={() => startEdit(a)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Edit entry">
+                                      <Pencil className="w-4 h-4 text-gray-500" />
+                                    </button>
+                                    <button onClick={() => deleteEntry(a.id)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Delete entry">
+                                      <Trash2 className="w-4 h-4 text-red-500" />
+                                    </button>
+                                  </div>
+                                </div>
+                                {a.description && <p className="text-sm text-muted-foreground line-clamp-2">{a.description}</p>}
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                  <span>{fmtTime(a.startTime)}{a.endTime ? ` – ${fmtTime(a.endTime)}` : ''}</span>
+                                  {a.metadata?.flag && a.metadata.flag !== 'none' && (
+                                    <Badge variant="outline" size="sm">{FLAG_OPTIONS.find(f => f.value === a.metadata?.flag)?.label ?? a.metadata.flag}</Badge>
+                                  )}
+                                  <Badge variant={badgeVariantForStatus(a.status)} size="sm">{a.status || '—'}</Badge>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

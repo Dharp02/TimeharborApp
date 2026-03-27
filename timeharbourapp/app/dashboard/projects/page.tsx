@@ -374,7 +374,7 @@ export default function ProjectsPage() {
           {filtered.map((project) => {
             const isExpanded = expandedId === project.id;
             return (
-              <Card key={project.id} className="flex flex-col overflow-hidden">
+              <Card key={project.id} className="flex flex-col overflow-visible">
                 {/* Color band */}
                 <div
                   className="h-1 rounded-t-xl"
@@ -402,22 +402,23 @@ export default function ProjectsPage() {
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       }
+                      placement="bottom-end"
                     >
                       <DropdownContent>
-                        <DropdownItem onSelect={() => openEdit(project)}>
-                          <Pencil className="w-4 h-4" /> Edit
+                        <DropdownItem icon={<Pencil className="w-4 h-4" />} onSelect={() => openEdit(project)}>
+                          Edit
                         </DropdownItem>
-                        <DropdownItem onSelect={() => openMove(project.id)}>
-                          <ArrowRightLeft className="w-4 h-4" /> Add Tickets
+                        <DropdownItem icon={<ArrowRightLeft className="w-4 h-4" />} onSelect={() => openMove(project.id)}>
+                          Add Tickets
                         </DropdownItem>
                         {project.repoUrl && (
-                          <DropdownItem onSelect={() => window.open(project.repoUrl, '_blank', 'noopener')}>
-                            <ExternalLink className="w-4 h-4" /> Open Repo
+                          <DropdownItem icon={<ExternalLink className="w-4 h-4" />} onSelect={() => window.open(project.repoUrl, '_blank', 'noopener')}>
+                            Open Repo
                           </DropdownItem>
                         )}
                         <DropdownSeparator />
-                        <DropdownItem onSelect={() => setDeleteTarget(project)} className="text-red-600 dark:text-red-400">
-                          <Trash2 className="w-4 h-4" /> Delete
+                        <DropdownItem icon={<Trash2 className="w-4 h-4" />} variant="danger" onSelect={() => setDeleteTarget(project)}>
+                          Delete
                         </DropdownItem>
                       </DropdownContent>
                     </Dropdown>
