@@ -28,6 +28,8 @@ import {
   Trash2,
   UserPen,
   ScrollText,
+  MessageSquarePlus,
+  Bug,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
@@ -63,6 +65,8 @@ const NAV_SECTIONS = [
       { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
       { label: 'Op Logs', icon: ScrollText, href: '/dashboard/oplogs' },
       { label: 'Help & Support', icon: HelpCircle, href: '/dashboard/help' },
+      { label: 'Send Feedback', icon: MessageSquarePlus, href: 'https://github.com/Dharp02/TimeharborApp/discussions/49', external: true },
+      { label: 'Report an Issue', icon: Bug, href: 'https://github.com/Dharp02/TimeharborApp/issues/new', external: true },
     ],
   },
 ];
@@ -172,8 +176,14 @@ export default function AppSidebar() {
                   key={item.href}
                   label={item.label}
                   icon={<item.icon className="w-5 h-5" />}
-                  isActive={isActive(item.href)}
-                  onClick={() => handleNavClick(item.href)}
+                  isActive={'external' in item ? false : isActive(item.href)}
+                  onClick={() => {
+                    if ('external' in item) {
+                      window.open(item.href, '_blank', 'noopener,noreferrer');
+                    } else {
+                      handleNavClick(item.href);
+                    }
+                  }}
                 />
               ))}
             </SidebarNavGroup>
