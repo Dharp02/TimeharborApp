@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Ticket, ArrowLeft, Check, X } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -26,14 +26,38 @@ export default function CreateTicketPage() {
     reference: '' 
   });
 
+  // Track pending GitHub URL that needs title resolution when back online
+  const pendingUrlRef = useRef<string | null>(null);
+
   const handleTitlePaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pasted = e.clipboardData.getData('text');
     const result = await resolveGitHubUrl(pasted);
     if (result) {
       e.preventDefault();
       setNewTicket(prev => ({ ...prev, title: result.title, reference: result.url }));
+      if (result.isFallback) {
+        // Couldn't reach GitHub API — retry when network comes back
+        pendingUrlRef.current = result.url;
+      } else {
+        pendingUrlRef.current = null;
+      }
     }
   };
+
+  // Retry fetching GitHub title when network reconnects
+  useEffect(() => {
+    const retryResolve = async () => {
+      const url = pendingUrlRef.current;
+      if (!url) return;
+      const result = await resolveGitHubUrl(url);
+      if (result && !result.isFallback) {
+        pendingUrlRef.current = null;
+        setNewTicket(prev => ({ ...prev, title: result.title }));
+      }
+    };
+    window.addEventListener('online', retryResolve);
+    return () => window.removeEventListener('online', retryResolve);
+  }, []);
 
   const handleCreateTicket = async () => {
     if (!newTicket.title.trim()) {
