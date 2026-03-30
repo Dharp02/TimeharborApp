@@ -85,6 +85,25 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   // Pre-break ticket tracking (not in Dexie — ephemeral UI state)
   const preBreakTicketRef = useRef<{ id: string; title: string } | null>(null);
 
+  // Recover pre-break ticket from session data on mount/session change.
+  // If the user was on break and the app was killed, the ref would be lost.
+  // Look at the last closed ticket segment before the open break to recover it.
+  if (isOnBreak && !preBreakTicketRef.current && currentSession) {
+    const lastBreak = currentSession.breaks.at(-1);
+    if (lastBreak && lastBreak.end === null) {
+      // Find the ticket segment that was closed when the break started
+      const closedBeforeBreak = currentSession.ticketSegments
+        .filter(s => s.end !== null && s.end <= lastBreak.start + 1000) // 1s tolerance
+        .sort((a, b) => (b.end ?? 0) - (a.end ?? 0));
+      if (closedBeforeBreak.length > 0) {
+        preBreakTicketRef.current = {
+          id: closedBeforeBreak[0].ticketId,
+          title: closedBeforeBreak[0].ticketTitle,
+        };
+      }
+    }
+  }
+
   // ── Derived values from useSession stats ──
 
   const isSessionActive = isOpen;

@@ -62,11 +62,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // ── Fetch session and update state ───────────────────────────────────
   const refreshSession = useCallback(async () => {
-    const { user: u } = await auth.getUser();
+    const { user: u, error } = await auth.getUser();
+
+    // If the session check returned an error (network timeout, backend
+    // temporarily unreachable, etc.) keep the existing cached user so
+    // transient failures don't sign the user out.
+    if (error && !u) {
+      console.log('[AuthProvider] refreshSession: backend error, keeping cached user');
+      setLoading(false);
+      return user;
+    }
+
     setUserAndCache(u ?? null);
     setLoading(false);
     return u ?? null;
-  }, [setUserAndCache]);
+  }, [setUserAndCache, user]);
 
   // ── On mount: init plugins, verify session in background ─────────────
   useEffect(() => {
@@ -107,14 +117,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
 
       // Timeout: if auth.getUser() hangs, force loading=false after 5s.
-      // If we're online and still timing out, clear the stale cache.
+      // Keep the cached user — if the session is truly expired, the next
+      // successful backend check will clear it.
       const timeout = setTimeout(() => {
         if (!cancelled) {
-          console.log('[AuthProvider] session check timed out');
-          if (typeof navigator !== 'undefined' && navigator.onLine && hasCached) {
-            console.log('[AuthProvider] online but timed out — clearing stale cache');
-            setUserAndCache(null);
-          }
+          console.log('[AuthProvider] session check timed out, keeping cached user');
           setLoading(false);
         }
       }, 5000);
@@ -125,15 +132,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (cancelled) return;
 
       if (error) {
-        // Only keep the cache if we're genuinely offline.
-        // If we're online but the session check failed, the session is likely
-        // expired/invalid — clear the stale cache so the user lands on login.
-        if (typeof navigator !== 'undefined' && !navigator.onLine) {
-          console.log('[AuthProvider] session check failed (offline), keeping cache');
-        } else {
-          console.log('[AuthProvider] session check failed while online, clearing stale cache');
-          setUserAndCache(null);
-        }
+        // Backend returned an error (network failure, 500, timeout, etc.)
+        // Keep the cached user — transient errors shouldn't sign the user out.
+        // If the session is truly expired, `data` will be null with NO error
+        // on the next successful check, which is handled below.
+        console.log('[AuthProvider] session check error, keeping cached user', { error });
         setLoading(false);
         return;
       }
@@ -142,9 +145,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         console.log('[AuthProvider] session verified', { id: u.id });
         setUserAndCache(u);
         auth.fetchProfile().catch(() => {});
-      } else {
-        console.log('[AuthProvider] no session, clearing cache');
+      } else if (!hasCached) {
+        // Only clear if there was no cached user to begin with.
+        // If the user had a cached session, keep them signed in —
+        // they should only be signed out when they press "Sign Out"
+        // (like Instagram/Facebook). The session cookie may have
+        // expired but the local data is still valid for offline use.
+        console.log('[AuthProvider] no session and no cache, staying on login');
         setUserAndCache(null);
+      } else {
+        console.log('[AuthProvider] backend says no session but cached user exists, keeping cache');
       }
       setLoading(false);
     })();
@@ -197,6 +207,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }).then((h) => { stateChangeHandle.current = h; });
 
     return () => { stateChangeHandle.current?.remove(); stateChangeHandle.current = null; };
+  }, [refreshSession]);
+
+  // ── Re-validate session when network reconnects (offline → online) ───
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[AuthProvider] network reconnected, refreshing session');
+      refreshSession();
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
   }, [refreshSession]);
 
   // ── Redirect: only after loading is done ─────────────────────────────

@@ -193,24 +193,46 @@ export async function pullTickets() {
         updatedAt: remote.updatedAt,
       } as any);
     } else {
-      await db.tickets.add({
-        id: serverId,
-        _serverId: serverId,
-        title: remote.title,
-        description: remote.description,
-        status: remote.status,
-        priority: remote.priority,
-        link: remote.link,
-        projectId: remote.projectId,
-        createdBy: remote.createdBy,
-        fieldTimestamps: remote.fieldTimestamps,
-        _deleted: remote._deleted ?? false,
-        _rev: remote._rev,
-        _dirty: 0,
-        teamId: '__personal__',
-        createdAt: remote.createdAt,
-        updatedAt: remote.updatedAt,
-      } as any);
+      // Check for orphaned local ticket (pushed before serverIds fix)
+      const orphan = await db.tickets
+        .filter((t: any) => !t._serverId && t._dirty === 0 && t.title === remote.title)
+        .first();
+      if (orphan) {
+        await db.tickets.update(orphan.id, {
+          title: remote.title,
+          description: remote.description,
+          status: remote.status,
+          priority: remote.priority,
+          link: remote.link,
+          projectId: remote.projectId,
+          fieldTimestamps: remote.fieldTimestamps,
+          _deleted: remote._deleted ?? false,
+          _rev: remote._rev,
+          _serverId: serverId,
+          _dirty: 0,
+          teamId: (orphan as any).teamId || '__personal__',
+          updatedAt: remote.updatedAt,
+        } as any);
+      } else {
+        await db.tickets.add({
+          id: serverId,
+          _serverId: serverId,
+          title: remote.title,
+          description: remote.description,
+          status: remote.status,
+          priority: remote.priority,
+          link: remote.link,
+          projectId: remote.projectId,
+          createdBy: remote.createdBy,
+          fieldTimestamps: remote.fieldTimestamps,
+          _deleted: remote._deleted ?? false,
+          _rev: remote._rev,
+          _dirty: 0,
+          teamId: '__personal__',
+          createdAt: remote.createdAt,
+          updatedAt: remote.updatedAt,
+        } as any);
+      }
     }
   }
 
