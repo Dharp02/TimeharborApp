@@ -3,6 +3,7 @@ import { syncAll } from './SyncEngine';
 class SyncManager {
   private static instance: SyncManager;
   private syncing = false;
+  private stopped = false;
 
   public static getInstance(): SyncManager {
     if (!SyncManager.instance) {
@@ -12,14 +13,25 @@ class SyncManager {
   }
 
   public init() {
+    this.stopped = false;
     // Sync on network reconnect
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => this.syncNow());
     }
   }
 
+  /** Block all future syncs and wait for any in-flight sync to finish. */
+  public async stop() {
+    this.stopped = true;
+    // Wait for an in-flight sync to drain (poll for up to 3 s).
+    const deadline = Date.now() + 3000;
+    while (this.syncing && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
   public async syncNow() {
-    if (this.syncing) return;
+    if (this.syncing || this.stopped) return;
     this.syncing = true;
     try {
       await syncAll();

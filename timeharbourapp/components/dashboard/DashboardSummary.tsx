@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import * as API from '@/TimeharborAPI';
 import { formatDurationMs } from '@/lib/formatDuration';
+import { useRefresh } from '@/contexts/RefreshContext';
 
 interface DashboardStats {
   totalHoursToday: string;
@@ -21,28 +22,37 @@ const DEFAULT_STATS: DashboardStats = {
 export default function DashboardSummary() {
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
   const [loading, setLoading] = useState(true);
+  const { register } = useRefresh();
+
+  const loadStats = useCallback(async () => {
+    try {
+      const data = await API.dashboard.getStats();
+      setStats({
+        ...data,
+        totalMsToday: data.totalMsToday ?? 0,
+        totalMsWeek: data.totalMsWeek ?? 0,
+      });
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const data = await API.dashboard.getStats();
-        setStats({
-          ...data,
-          totalMsToday: data.totalMsToday ?? 0,
-          totalMsWeek: data.totalMsWeek ?? 0,
-        });
-      } catch (error) {
-        console.error('Error loading dashboard stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadStats();
+
+    const unregister = register(loadStats);
 
     const handleStatsRefresh = () => loadStats();
     window.addEventListener('dashboard-stats-refresh', handleStatsRefresh);
-    return () => window.removeEventListener('dashboard-stats-refresh', handleStatsRefresh);
-  }, []);
+    window.addEventListener('sync-complete', handleStatsRefresh);
+    return () => {
+      unregister();
+      window.removeEventListener('dashboard-stats-refresh', handleStatsRefresh);
+      window.removeEventListener('sync-complete', handleStatsRefresh);
+    };
+  }, [loadStats, register]);
 
   if (loading) {
     return (

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
+import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
@@ -87,6 +88,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const hasCached = getCachedUser() !== null;
       console.log('[AuthProvider] cold start', { hasCachedUser: hasCached });
 
+      // Defence-in-depth: on native cold start with no cached user, proactively
+      // clear cookies BEFORE the session check. This covers the edge case where
+      // signOut cleared localStorage but the app was killed before native cookies
+      // were fully purged (e.g. recording was active and clearDatabase blocked).
+      if (!hasCached && Capacitor.isNativePlatform()) {
+        try {
+          const { CapacitorCookies } = await import('@capacitor/core');
+          await CapacitorCookies.clearAllCookies();
+          console.log('[AuthProvider] no cached user on native — cleared cookies');
+        } catch { /* best-effort */ }
+      }
+
       // If we have a cached user, we're already showing the dashboard.
       // Set loading=false immediately so the app is usable right away.
       if (hasCached) {
@@ -94,9 +107,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
 
       // Timeout: if auth.getUser() hangs, force loading=false after 5s.
+      // If we're online and still timing out, clear the stale cache.
       const timeout = setTimeout(() => {
         if (!cancelled) {
-          console.log('[AuthProvider] session check timed out, forcing loading=false');
+          console.log('[AuthProvider] session check timed out');
+          if (typeof navigator !== 'undefined' && navigator.onLine && hasCached) {
+            console.log('[AuthProvider] online but timed out — clearing stale cache');
+            setUserAndCache(null);
+          }
           setLoading(false);
         }
       }, 5000);
@@ -107,7 +125,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (cancelled) return;
 
       if (error) {
-        console.log('[AuthProvider] session check failed (offline?), keeping cache');
+        // Only keep the cache if we're genuinely offline.
+        // If we're online but the session check failed, the session is likely
+        // expired/invalid — clear the stale cache so the user lands on login.
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          console.log('[AuthProvider] session check failed (offline), keeping cache');
+        } else {
+          console.log('[AuthProvider] session check failed while online, clearing stale cache');
+          setUserAndCache(null);
+        }
         setLoading(false);
         return;
       }
@@ -126,6 +152,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const subscription = auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
         setUserAndCache(session?.user ?? null);
+        // Trigger data sync immediately after sign-in so the dashboard
+        // has data regardless of whether SyncInitializer has mounted yet.
+        syncManager.syncNow?.().catch(() => {});
       } else if (event === 'SIGNED_OUT') {
         setUserAndCache(null);
       }

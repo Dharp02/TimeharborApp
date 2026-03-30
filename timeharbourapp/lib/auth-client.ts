@@ -10,6 +10,7 @@ const baseURL =
 export const authClient = createAuthClient({
   baseURL,
   fetchOptions: {
+    credentials: 'include' as RequestCredentials,
     headers: {
       "X-App-Id": "timeharbor",
     },

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Activity } from '@/TimeharborAPI/dashboard';
 import { db, type DexieActivityLog } from '@/TimeharborAPI/db';
 import { useRefresh } from '../../contexts/RefreshContext';
@@ -26,31 +26,36 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
   const effectiveTeamId = '__personal__';
 
   // Load from Dexie on mount and after sync completes
-  useEffect(() => {
-    const loadLogs = async () => {
-      isLoadedRef.current = false;
-      try {
-        const localLogs = await db.activityLogs
-          .where('teamId')
-          .equals(effectiveTeamId)
-          .toArray();
-          
-        localLogs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-          
-        setActivities(localLogs);
-      } catch (e) {
-        console.error('Failed to load activity logs from Dexie', e);
-      } finally {
-        isLoadedRef.current = true;
-      }
-    };
+  const loadLogs = useCallback(async () => {
+    isLoadedRef.current = false;
+    try {
+      const localLogs = await db.activityLogs
+        .where('teamId')
+        .equals(effectiveTeamId)
+        .toArray();
+        
+      localLogs.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        
+      setActivities(localLogs);
+    } catch (e) {
+      console.error('Failed to load activity logs from Dexie', e);
+    } finally {
+      isLoadedRef.current = true;
+    }
+  }, [effectiveTeamId]);
 
+  useEffect(() => {
     loadLogs();
+
+    const unregister = register(loadLogs);
 
     const onSyncComplete = () => loadLogs();
     window.addEventListener('sync-complete', onSyncComplete);
-    return () => window.removeEventListener('sync-complete', onSyncComplete);
-  }, [effectiveTeamId]);
+    return () => {
+      unregister();
+      window.removeEventListener('sync-complete', onSyncComplete);
+    };
+  }, [effectiveTeamId, loadLogs, register]);
 
 
 

@@ -78,6 +78,9 @@ export interface Ticket {
     full_name: string;
     email: string;
   };
+  _deleted?: boolean;
+  _dirty?: number;
+  _rev?: number;
 }
 
 export class TimeharborDB extends Dexie {

@@ -37,6 +37,10 @@ export interface AuthError {
 type AuthListener = (event: string, session: any) => void;
 const listeners: AuthListener[] = [];
 
+/** True while signOut() is executing — prevents the $sessionSignal listener
+ *  from re-caching the user via a stale SIGNED_IN callback. */
+let signingOut = false;
+
 const notifyListeners = (event: string, session: any) => {
   listeners.forEach((listener) => listener(event, session));
 };
@@ -234,28 +238,35 @@ async function socialSignInNative(provider: "google") {
 }
 
 export const signOut = async () => {
-  try {
-    await clearDatabase();
-    resetTicketState();
-    // Remove legacy notepad localStorage (migrated to Dexie, but clean up just in case)
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('timeharbor-notepad-notes');
-    }
-  } catch (e) {
-    console.error('Failed to clear local database on sign-out:', e);
-  }
+  // ── 1. Lock: block the $sessionSignal listener from re-caching ──────
+  signingOut = true;
 
-  // Call backend sign-out — wrapped in try/catch so sign-out always completes
-  // even if the backend is unreachable
+  // ── 2. Synchronous: clear cached user + notify SIGNED_OUT immediately
+  // This ensures the UI redirects to login RIGHT AWAY, before any slow
+  // async work (like clearDatabase). Even if the user kills the app
+  // during cleanup, the cached user is already gone.
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('th_cached_user');
+    localStorage.removeItem('timeharbor-notepad-notes');
+  }
+  notifyListeners("SIGNED_OUT", null);
+
+  // ── 3. Stop SyncManager so in-flight requests can't re-establish cookies
+  // Dynamic import avoids circular dependency (SyncEngine → auth).
+  try {
+    const { syncManager } = await import('../SyncManager');
+    await syncManager.stop();
+  } catch { /* best-effort */ }
+
+  // ── 4. Backend sign-out + cookie clearing BEFORE database wipe ──────
+  // These MUST run before clearDatabase() because db.delete() can block
+  // when Dexie has active useLiveQuery subscriptions (e.g. recording timer).
   try {
     await authClient.signOut();
   } catch (e) {
     console.error('Backend sign-out request failed:', e);
   }
 
-  // On Capacitor native, explicitly clear all cookies from the native HTTP store.
-  // CapacitorHttp manages cookies separately from the WebView, so the Set-Cookie
-  // header from the backend sign-out may not clear them in the native store.
   if (Capacitor.isNativePlatform()) {
     try {
       await CapacitorCookies.clearAllCookies();
@@ -264,9 +275,28 @@ export const signOut = async () => {
     }
   }
 
-  // Log sign-out AFTER clearing DB — the log call will silently fail because Dexie is wiped,
-  // but we attempt it so it's captured if the DB clear was partial or the table survives.
-  await operationsLog.log({ category: 'AUTH', action: 'SIGN_OUT', result: 'success', target: 'User' });
+  // ── 5. Clear local database (may be slow with active subscriptions) ─
+  try {
+    await clearDatabase();
+    resetTicketState();
+  } catch (e) {
+    console.error('Failed to clear local database on sign-out:', e);
+  }
+
+  // ── 6. Final cookie sweep — catches any late-arriving Set-Cookie ────
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await CapacitorCookies.clearAllCookies();
+    } catch { /* best-effort */ }
+  }
+
+  try {
+    await operationsLog.log({ category: 'AUTH', action: 'SIGN_OUT', result: 'success', target: 'User' });
+  } catch { /* Dexie wiped — expected */ }
+
+  // ── 7. Unlock and send a final SIGNED_OUT in case the $sessionSignal
+  //    listener snuck a SIGNED_IN through before the flag was set.
+  signingOut = false;
   notifyListeners("SIGNED_OUT", null);
   return { error: null };
 };
@@ -680,6 +710,9 @@ export const onAuthStateChange = (callback: AuthListener) => {
   let unsub: (() => void) | undefined;
   if (sessionAtom?.listen) {
     unsub = sessionAtom.listen(async () => {
+      // Skip if a sign-out is in progress — the atom change is from
+      // authClient.signOut() and we must NOT re-cache the user.
+      if (signingOut) return;
       const { data } = await authClient.getSession();
       if (data?.user) {
         callback("SIGNED_IN", { user: toUser(data.user), session: data.session });
