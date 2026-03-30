@@ -405,19 +405,19 @@ export default function ProjectsPage() {
                       placement="bottom-end"
                     >
                       <DropdownContent>
-                        <DropdownItem icon={<Pencil className="w-4 h-4" />} onSelect={() => openEdit(project)}>
+                        <DropdownItem icon={<Pencil className="w-4 h-4" />} onClick={() => openEdit(project)}>
                           Edit
                         </DropdownItem>
-                        <DropdownItem icon={<ArrowRightLeft className="w-4 h-4" />} onSelect={() => openMove(project.id)}>
+                        <DropdownItem icon={<ArrowRightLeft className="w-4 h-4" />} onClick={() => openMove(project.id)}>
                           Add Tickets
                         </DropdownItem>
                         {project.repoUrl && (
-                          <DropdownItem icon={<ExternalLink className="w-4 h-4" />} onSelect={() => window.open(project.repoUrl, '_blank', 'noopener')}>
+                          <DropdownItem icon={<ExternalLink className="w-4 h-4" />} onClick={() => window.open(project.repoUrl, '_blank', 'noopener')}>
                             Open Repo
                           </DropdownItem>
                         )}
                         <DropdownSeparator />
-                        <DropdownItem icon={<Trash2 className="w-4 h-4" />} variant="danger" onSelect={() => setDeleteTarget(project)}>
+                        <DropdownItem icon={<Trash2 className="w-4 h-4" />} variant="danger" onClick={() => setDeleteTarget(project)}>
                           Delete
                         </DropdownItem>
                       </DropdownContent>

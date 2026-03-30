@@ -351,8 +351,23 @@ export const getUserDirect = async (): Promise<{ user: User | null; error: any }
 };
 
 export const getStoredUser = async (): Promise<User | null> => {
-  const { user } = await getUser();
-  return user;
+  try {
+    const { user } = await getUser();
+    if (user) return user;
+  } catch {
+    // Network call failed (likely offline) — fall through to cache
+  }
+  // Offline fallback: read from localStorage cache
+  try {
+    const raw = typeof window !== 'undefined'
+      ? localStorage.getItem('th_cached_user')
+      : null;
+    if (raw) {
+      const cached = JSON.parse(raw);
+      return cached ? toUser(cached) : null;
+    }
+  } catch { /* parse error */ }
+  return null;
 };
 
 export interface ThProfile {
@@ -369,6 +384,24 @@ function getBackendBase(): string {
   if (process.env.NEXT_PUBLIC_BETTER_AUTH_URL) return process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
   if (typeof window !== 'undefined') return `${window.location.origin}`;
   return 'http://localhost:3001';
+}
+
+/** Fetch a server avatar image and cache it as base64 in Dexie for offline use */
+async function cacheAvatarAsBase64(avatarUrl: string): Promise<void> {
+  if (!avatarUrl || avatarUrl.startsWith('data:')) return;
+  const resolved = avatarUrl.startsWith('/')
+    ? `${getBackendBase()}${avatarUrl}`
+    : avatarUrl;
+  const res = await fetch(resolved, { credentials: 'include' });
+  if (!res.ok) return;
+  const blob = await res.blob();
+  const reader = new FileReader();
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+  await db.profile.put({ key: 'avatarDataUrl', data: dataUrl });
 }
 
 export const fetchProfile = async (): Promise<{ profile: ThProfile | null; error: { message: string } | null }> => {
@@ -388,7 +421,7 @@ export const fetchProfile = async (): Promise<{ profile: ThProfile | null; error
         || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
       const resolved = avatar.startsWith('/')
         ? `${effectiveOrigin}${avatar}` : avatar;
-      const { user } = await getUser();
+      const user = await getStoredUser();
       // Only notify if the image actually changed (user.image is already resolved by toUser)
       if (user && user.image !== resolved) {
         notifyListeners('SIGNED_IN', { user: { ...user, image: resolved } });
@@ -406,7 +439,9 @@ export const fetchProfile = async (): Promise<{ profile: ThProfile | null; error
       const cachedProfile = await db.profile.get('thProfile').catch(() => null);
       const profile = cachedProfile?.data ?? null;
       if (profile && localAvatar) profile.avatarDataUrl = localAvatar;
-      await applyAvatarToContext(localAvatar || profile?.avatarUrl);
+      // Prefer cached base64 avatar for offline display
+      const offlineAvatar = localAvatar || (await db.profile.get('avatarDataUrl').catch(() => null))?.data || profile?.avatarUrl;
+      await applyAvatarToContext(offlineAvatar);
       return { profile, error: null };
     }
     const { profile } = await res.json();
@@ -421,6 +456,8 @@ export const fetchProfile = async (): Promise<{ profile: ThProfile | null; error
     } else if (profile?.avatarUrl) {
       // Backend has an avatar (e.g. uploaded from another device) — apply it
       await applyAvatarToContext(profile.avatarUrl);
+      // Proactively cache avatar as base64 for offline use
+      cacheAvatarAsBase64(profile.avatarUrl).catch(() => {});
     }
     return { profile, error: null };
   } catch (e: any) {
@@ -428,7 +465,9 @@ export const fetchProfile = async (): Promise<{ profile: ThProfile | null; error
     const cachedProfile = await db.profile.get('thProfile').catch(() => null);
     const profile = cachedProfile?.data ?? null;
     if (profile && localAvatar) profile.avatarDataUrl = localAvatar;
-    await applyAvatarToContext(localAvatar || profile?.avatarUrl);
+    // Prefer cached base64 avatar for offline display
+    const offlineAvatar = localAvatar || (await db.profile.get('avatarDataUrl').catch(() => null))?.data || profile?.avatarUrl;
+    await applyAvatarToContext(offlineAvatar);
     return { profile: profile ?? null, error: null };
   }
 };
@@ -440,42 +479,68 @@ export const updateProfile = async (data: {
   linkedin_url?: string;
   redmine_url?: string;
 }) => {
-  // 1. Update Better Auth user (name)
+  // Build payloads
   const updatePayload: Record<string, string> = {};
   if (data.full_name) updatePayload.name = data.full_name;
 
-  if (Object.keys(updatePayload).length > 0) {
-    const { error } = await authClient.updateUser(updatePayload);
-    if (error) {
-      return { user: null, error: { message: error.message ?? 'Update failed' } };
-    }
-  }
-
-  // 2. Update Timeharbor profile (linked accounts + displayName)
   const profilePayload: Record<string, string> = {};
   if (data.full_name) profilePayload.displayName = data.full_name;
   if (data.github_url !== undefined) profilePayload.githubUrl = data.github_url;
   if (data.linkedin_url !== undefined) profilePayload.linkedinUrl = data.linkedin_url;
   if (data.redmine_url !== undefined) profilePayload.redmineUrl = data.redmine_url;
 
-  if (Object.keys(profilePayload).length > 0) {
-    const res = await fetch(`${getBackendBase()}/api/timeharbor/me/th-profile`, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-App-Id': 'timeharbor' },
-      body: JSON.stringify(profilePayload),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { user: null, error: { message: err.error ?? `Profile update failed (${res.status})` } };
+  try {
+    // 1. Update Better Auth user (name) — network call
+    if (Object.keys(updatePayload).length > 0) {
+      const { error } = await authClient.updateUser(updatePayload);
+      if (error) {
+        return { user: null, error: { message: error.message ?? 'Update failed' } };
+      }
     }
-  }
 
-  // 3. Refresh user from session & notify listeners
-  const { user } = await getUser();
-  notifyListeners('SIGNED_IN', { user });
-  await operationsLog.log({ category: 'PROFILE', action: 'UPDATE', result: 'success', target: 'Profile', details: { fields: Object.keys(data) } });
-  return { user, error: null };
+    // 2. Update Timeharbor profile (linked accounts + displayName) — network call
+    if (Object.keys(profilePayload).length > 0) {
+      const res = await fetch(`${getBackendBase()}/api/timeharbor/me/th-profile`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-App-Id': 'timeharbor' },
+        body: JSON.stringify(profilePayload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { user: null, error: { message: err.error ?? `Profile update failed (${res.status})` } };
+      }
+    }
+
+    // 3. Refresh user from session & notify listeners
+    const { user } = await getUser();
+    notifyListeners('SIGNED_IN', { user });
+    await operationsLog.log({ category: 'PROFILE', action: 'UPDATE', result: 'success', target: 'Profile', details: { fields: Object.keys(data) } });
+    return { user, error: null };
+  } catch {
+    // Offline — save changes locally for later sync
+    // Update cached profile in Dexie
+    const cachedProfile = await db.profile.get('thProfile').catch(() => null);
+    const existing = cachedProfile?.data ?? {};
+    const merged = { ...existing, ...profilePayload };
+    await db.profile.put({ key: 'thProfile', data: merged }).catch(() => {});
+
+    // Queue the pending profile update for sync
+    await db.profile.put({ key: 'pendingProfileUpdate', data: { ...data, updatedAt: new Date().toISOString() } }).catch(() => {});
+
+    // Update cached user in localStorage so UI reflects changes immediately
+    const cachedUser = await getStoredUser();
+    if (cachedUser && data.full_name) {
+      const updatedUser = { ...cachedUser, full_name: data.full_name, name: data.full_name };
+      notifyListeners('SIGNED_IN', { user: updatedUser });
+      try {
+        localStorage.setItem('th_cached_user', JSON.stringify(updatedUser));
+      } catch { /* quota */ }
+    }
+
+    await operationsLog.log({ category: 'PROFILE', action: 'UPDATE', result: 'success', target: 'Profile', details: { fields: Object.keys(data), offline: true } });
+    return { user: cachedUser, error: null };
+  }
 };
 
 export const uploadAvatar = async (file: File): Promise<{ avatarUrl: string | null; error: { message: string } | null }> => {
@@ -608,6 +673,45 @@ export const syncPendingAvatar = async (): Promise<void> => {
     await db.profile.delete('pendingAvatarFile').catch(() => {});
 
     await authClient.updateUser({ image: avatarUrl });
+    const { user } = await getUser();
+    notifyListeners('SIGNED_IN', { user });
+  } catch { /* Will retry next sync */ }
+};
+
+/** Sync any pending profile updates when connectivity is restored */
+export const syncPendingProfile = async (): Promise<void> => {
+  const pending = await db.profile.get('pendingProfileUpdate').catch(() => null);
+  if (!pending?.data) return;
+
+  const data = pending.data;
+  try {
+    // 1. Update Better Auth user (name)
+    if (data.full_name) {
+      const { error } = await authClient.updateUser({ name: data.full_name });
+      if (error) return; // Will retry next sync
+    }
+
+    // 2. Update Timeharbor profile
+    const profilePayload: Record<string, string> = {};
+    if (data.full_name) profilePayload.displayName = data.full_name;
+    if (data.github_url !== undefined) profilePayload.githubUrl = data.github_url;
+    if (data.linkedin_url !== undefined) profilePayload.linkedinUrl = data.linkedin_url;
+    if (data.redmine_url !== undefined) profilePayload.redmineUrl = data.redmine_url;
+
+    if (Object.keys(profilePayload).length > 0) {
+      const res = await fetch(`${getBackendBase()}/api/timeharbor/me/th-profile`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-App-Id': 'timeharbor' },
+        body: JSON.stringify(profilePayload),
+      });
+      if (!res.ok) return; // Will retry next sync
+    }
+
+    // Success — clear the pending update
+    await db.profile.delete('pendingProfileUpdate').catch(() => {});
+
+    // Refresh user
     const { user } = await getUser();
     notifyListeners('SIGNED_IN', { user });
   } catch { /* Will retry next sync */ }

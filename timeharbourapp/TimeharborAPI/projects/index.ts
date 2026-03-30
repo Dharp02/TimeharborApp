@@ -92,8 +92,8 @@ export const updateProject = async (id: string, data: UpdateProjectData): Promis
 
 export const deleteProject = async (id: string): Promise<void> => {
   try {
-    // Un-assign tickets from this project
-    const tickets = await db.tickets.where('projectId').equals(id).toArray();
+    // Un-assign tickets from this project (projectId is not indexed, so use filter)
+    const tickets = await db.tickets.filter(t => t.projectId === id).toArray();
     for (const t of tickets) {
       await db.tickets.update(t.id, { projectId: undefined, projectName: undefined } as any);
     }
