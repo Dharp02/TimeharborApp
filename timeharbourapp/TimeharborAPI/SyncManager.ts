@@ -30,6 +30,11 @@ class SyncManager {
     }
   }
 
+  /** Re-enable syncing after a stop (e.g. after sign-out → sign-in). */
+  public resume() {
+    this.stopped = false;
+  }
+
   public async syncNow() {
     if (this.syncing || this.stopped) return;
     this.syncing = true;

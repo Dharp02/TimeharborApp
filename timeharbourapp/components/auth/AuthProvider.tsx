@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useState, useRef, useCallback } f
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
+import { clearDatabase } from '@/TimeharborAPI/db';
+import { resetTicketState } from '@/TimeharborAPI/tickets';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
@@ -12,9 +14,10 @@ import { SocialLogin } from '@capgo/capacitor-social-login';
 type AuthContextType = {
   user: any | null;
   loading: boolean;
+  initialSyncing: boolean;
 };
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ user: null, loading: true, initialSyncing: false });
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -46,6 +49,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const cached = typeof window !== 'undefined' ? getCachedUser() : null;
   const [user, setUser] = useState<any | null>(cached);
   const [loading, setLoading] = useState(cached === null);
+  const [initialSyncing, setInitialSyncing] = useState(false);
   const initRef = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -162,9 +166,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const subscription = auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
         setUserAndCache(session?.user ?? null);
-        // Trigger data sync immediately after sign-in so the dashboard
-        // has data regardless of whether SyncInitializer has mounted yet.
-        syncManager.syncNow?.().catch(() => {});
+        // Clear stale Dexie data, then sync fresh data from backend.
+        // Show a loading gate until the initial sync completes.
+        setInitialSyncing(true);
+        (async () => {
+          try {
+            await clearDatabase();
+            resetTicketState();
+            syncManager.resume?.();
+            await syncManager.syncNow?.();
+          } catch (err) {
+            console.warn('[AuthProvider] initial sync after sign-in failed', err);
+          } finally {
+            setInitialSyncing(false);
+          }
+        })();
       } else if (event === 'SIGNED_OUT') {
         setUserAndCache(null);
       }
@@ -237,7 +253,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [user, loading, pathname, router]);
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, initialSyncing }}>
       {children}
     </AuthContext.Provider>
   );

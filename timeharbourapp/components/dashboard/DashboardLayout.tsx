@@ -24,7 +24,7 @@ import SyncInitializer from '@/components/SyncInitializer';
 import { BrandWatcher } from './BrandSwitcher';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, initialSyncing } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -130,6 +130,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <SidebarProvider>
         <SyncInitializer />
         <BrandWatcher />
+        {initialSyncing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              <p className="text-sm text-muted-foreground">Syncing your data…</p>
+            </div>
+          </div>
+        )}
         <div className="min-h-screen bg-background lg:flex">
           {/* Sidebar (desktop: always visible, mobile: slide-in overlay) */}
           <AppSidebar />
