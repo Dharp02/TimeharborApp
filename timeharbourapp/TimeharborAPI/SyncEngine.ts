@@ -179,6 +179,12 @@ export async function pullTickets() {
       .equals(serverId)
       .first();
 
+    // If the server record is deleted, remove it locally and skip
+    if (remote._deleted) {
+      if (local) await db.tickets.delete(local.id);
+      continue;
+    }
+
     if (local) {
       if ((local as any)._dirty === 1) continue;
       await db.tickets.update(local.id, {
@@ -189,7 +195,6 @@ export async function pullTickets() {
         link: remote.link,
         projectId: remote.projectId,
         fieldTimestamps: remote.fieldTimestamps,
-        _deleted: remote._deleted ?? false,
         _rev: remote._rev,
         _serverId: serverId,
         _dirty: 0,
@@ -210,7 +215,6 @@ export async function pullTickets() {
           link: remote.link,
           projectId: remote.projectId,
           fieldTimestamps: remote.fieldTimestamps,
-          _deleted: remote._deleted ?? false,
           _rev: remote._rev,
           _serverId: serverId,
           _dirty: 0,
@@ -229,7 +233,6 @@ export async function pullTickets() {
           projectId: remote.projectId,
           createdBy: remote.createdBy,
           fieldTimestamps: remote.fieldTimestamps,
-          _deleted: remote._deleted ?? false,
           _rev: remote._rev,
           _dirty: 0,
           teamId: '__personal__',
@@ -361,12 +364,17 @@ export async function pullNotes() {
       .filter((n) => n._serverId === serverId)
       .first();
 
+    // If the server record is deleted, remove it locally and skip
+    if (remote._deleted) {
+      if (local) await db.notes.delete(local.id);
+      continue;
+    }
+
     if (local) {
       if (local._dirty === 1) continue;
       await db.notes.update(local.id, {
         title: remote.title,
         content: remote.content,
-        _deleted: remote._deleted ?? false,
         _rev: remote._rev,
         _serverId: serverId,
         _dirty: 0,
@@ -379,7 +387,7 @@ export async function pullNotes() {
         userId: remote.userId,
         title: remote.title,
         content: remote.content,
-        _deleted: remote._deleted ?? false,
+        _deleted: false,
         _rev: remote._rev,
         _dirty: 0,
         createdAt: remote.createdAt,
@@ -546,6 +554,12 @@ export async function pullProjects() {
       .filter((p) => p._serverId === serverId)
       .first();
 
+    // If the server record is deleted, remove it locally and skip
+    if (remote._deleted) {
+      if (local) await db.projects.delete(local.id);
+      continue;
+    }
+
     if (local) {
       if (local._dirty === 1) continue;
       await db.projects.update(local.id, {
@@ -555,7 +569,6 @@ export async function pullProjects() {
         color: remote.color,
         prefix: remote.prefix,
         repoUrl: remote.repoUrl,
-        _deleted: remote._deleted ?? false,
         _rev: remote._rev,
         _serverId: serverId,
         _dirty: 0,
@@ -572,7 +585,7 @@ export async function pullProjects() {
         prefix: remote.prefix,
         repoUrl: remote.repoUrl,
         createdBy: remote.createdBy,
-        _deleted: remote._deleted ?? false,
+        _deleted: false,
         _rev: remote._rev,
         _dirty: 0,
         createdAt: remote.createdAt,

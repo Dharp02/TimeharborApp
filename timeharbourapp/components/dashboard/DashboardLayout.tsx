@@ -52,7 +52,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!pathname) return 'Time Tracker';
 
     if (pathname === '/dashboard/tickets/create') return 'New Ticket';
-    if (pathname.match(/\/dashboard\/tickets\/[^/]+\/edit/)) return 'Edit Ticket';
+    if (pathname === '/dashboard/tickets/edit' || pathname.match(/\/dashboard\/tickets\/[^/]+\/edit/)) return 'Edit Ticket';
     if (pathname.startsWith('/dashboard/tickets')) return 'Tickets';
     if (pathname.startsWith('/dashboard/calendar')) return 'Calendar';
     if (pathname.startsWith('/dashboard/projects')) return 'Projects';

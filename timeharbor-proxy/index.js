@@ -4,7 +4,7 @@ const httpProxy = require('http-proxy');
 const proxy = httpProxy.createProxyServer({});
 
 const FRONTEND_URL = 'http://localhost:3000';
-const BACKEND_URL = 'http://localhost:3001';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
 // Add CORS headers so browser-based clients can read error responses
 // even when the backend itself is down and the proxy returns a 5xx.

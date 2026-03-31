@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Ticket as TicketIcon, Check, X } from 'lucide-react';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import type { Ticket, UpdateTicketData } from '@/TimeharborAPI/tickets';
@@ -9,8 +9,8 @@ import { Button, Input, Textarea, Select } from '@mieweb/ui';
 
 export default function EditTicketClient() {
   const router = useRouter();
-  const params = useParams();
-  const ticketId = params.id as string;
+  const searchParams = useSearchParams();
+  const ticketId = searchParams.get('id') || '';
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -26,6 +26,12 @@ export default function EditTicketClient() {
   });
 
   useEffect(() => {
+    if (!ticketId) {
+      setError('No ticket ID provided.');
+      setIsLoading(false);
+      return;
+    }
+
     const load = async () => {
       try {
         const all = await ticketsApi.getAllTickets();
@@ -69,7 +75,7 @@ export default function EditTicketClient() {
         link: form.reference,
       };
       await ticketsApi.updatePersonalTicket(ticketId, data);
-      router.push('/dashboard/tickets');
+      router.push('/dashboard/tickets/');
     } catch (err: any) {
       setError(err.message || 'Failed to update ticket.');
     } finally {
@@ -179,7 +185,7 @@ export default function EditTicketClient() {
             {/* Desktop Actions */}
             <div className="pt-4 hidden md:flex gap-4">
               <Button
-                onClick={() => router.push('/dashboard/tickets')}
+                onClick={() => router.push('/dashboard/tickets/')}
                 disabled={isSaving}
                 variant="outline"
                 className="flex-1 py-3"
@@ -202,7 +208,7 @@ export default function EditTicketClient() {
       <div className="md:hidden px-0 -mt-3 pb-8">
         <div className="flex gap-4">
           <Button
-            onClick={() => router.push('/dashboard/tickets')}
+            onClick={() => router.push('/dashboard/tickets/')}
             disabled={isSaving}
             variant="outline"
             className="flex-1 py-3"

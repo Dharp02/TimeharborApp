@@ -8,7 +8,7 @@ module.exports = {
       node_args: "--max-old-space-size=8192",
       env: {
         NODE_ENV: "development",
-        PORT: 3000,
+        PORT: 8080,
         NODE_OPTIONS: "--max-old-space-size=8192"
       }
     },
@@ -21,14 +21,6 @@ module.exports = {
         NODE_ENV: "development",
         PORT: 3001,
         NODE_OPTIONS: "--max-old-space-size=4096"
-      }
-    },
-    {
-      name: "timeharbor-proxy",
-      cwd: "/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbor-proxy",
-      script: "index.js",
-      env: {
-        PORT: 8080
       }
     }
   ]

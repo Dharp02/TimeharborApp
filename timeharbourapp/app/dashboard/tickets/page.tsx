@@ -335,7 +335,7 @@ export default function TicketsPage() {
                   </DropdownItem>
                   <DropdownItem
                     icon={<Pencil className="w-4 h-4" />}
-                    onClick={() => router.push(`/dashboard/tickets/${ticket.id}/edit`)}
+                    onClick={() => router.push(`/dashboard/tickets/edit/?id=${ticket.id}`)}
                   >
                     Edit Ticket
                   </DropdownItem>
@@ -965,7 +965,7 @@ export default function TicketsPage() {
                     className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline"
                     onClick={() => {
                       setDetailTicket(null);
-                      router.push(`/dashboard/tickets/${detailTicket.id}/edit`);
+                      router.push(`/dashboard/tickets/edit/?id=${detailTicket.id}`);
                     }}
                   >
                     Add description
@@ -1026,7 +1026,7 @@ export default function TicketsPage() {
                 className="flex-1 whitespace-nowrap"
                 onClick={() => {
                   setDetailTicket(null);
-                  router.push(`/dashboard/tickets/${detailTicket.id}/edit`);
+                  router.push(`/dashboard/tickets/edit/?id=${detailTicket.id}`);
                 }}
               >
                 <Pencil className="w-4 h-4" /> Edit Ticket
