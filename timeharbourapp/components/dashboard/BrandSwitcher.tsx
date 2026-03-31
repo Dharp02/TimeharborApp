@@ -76,28 +76,25 @@ async function loadBrand(key: BrandKey): Promise<BrandConfig> {
   return brands[key]();
 }
 
-interface BrandSwitcherProps {
-  variant?: 'dropdown' | 'inline';
-}
+// Module-level brand cache so both BrandWatcher and BrandSwitcher share state
+let brandCache: BrandConfig | null = null;
 
-export default function BrandSwitcher({ variant = 'dropdown' }: BrandSwitcherProps) {
-  const [activeBrand, setActiveBrand] = useState<BrandKey>('bluehive');
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const brandRef = useRef<BrandConfig | null>(null);
-
-  // Re-apply brand when theme changes (light ↔ dark)
+/**
+ * Always-mounted component that loads the stored brand on mount and
+ * re-applies brand semantic colors whenever the theme (light ↔ dark) changes.
+ * Render this in a layout that never unmounts (e.g. DashboardLayout).
+ */
+export function BrandWatcher() {
   const reapplyBrand = useCallback(() => {
-    if (brandRef.current) applyBrand(brandRef.current);
+    if (brandCache) applyBrand(brandCache);
   }, []);
 
   // Load persisted brand on mount
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY) as BrandKey | null;
     if (stored && BRAND_OPTIONS.some((b) => b.key === stored)) {
-      setActiveBrand(stored);
       loadBrand(stored).then((brand) => {
-        brandRef.current = brand;
+        brandCache = brand;
         applyBrand(brand);
       });
     }
@@ -117,6 +114,26 @@ export default function BrandSwitcher({ variant = 'dropdown' }: BrandSwitcherPro
     return () => observer.disconnect();
   }, [reapplyBrand]);
 
+  return null;
+}
+
+interface BrandSwitcherProps {
+  variant?: 'dropdown' | 'inline';
+}
+
+export default function BrandSwitcher({ variant = 'dropdown' }: BrandSwitcherProps) {
+  const [activeBrand, setActiveBrand] = useState<BrandKey>('bluehive');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Sync local state with persisted brand on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY) as BrandKey | null;
+    if (stored && BRAND_OPTIONS.some((b) => b.key === stored)) {
+      setActiveBrand(stored);
+    }
+  }, []);
+
   // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -133,7 +150,7 @@ export default function BrandSwitcher({ variant = 'dropdown' }: BrandSwitcherPro
     setOpen(false);
     localStorage.setItem(STORAGE_KEY, key);
     const brand = await loadBrand(key);
-    brandRef.current = brand;
+    brandCache = brand;
     applyBrand(brand);
   };
 
