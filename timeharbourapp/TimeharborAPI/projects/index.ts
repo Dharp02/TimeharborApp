@@ -97,15 +97,19 @@ export const deleteProject = async (id: string): Promise<void> => {
     for (const t of tickets) {
       await db.tickets.update(t.id, { projectId: undefined, projectName: undefined } as any);
     }
-    // Soft-delete for sync
+    // Soft-delete for sync if synced, otherwise hard-delete
     const existing = await db.projects.get(id);
     if (existing) {
-      await db.projects.update(id, {
-        _deleted: true,
-        _dirty: 1,
-        _rev: (existing._rev ?? 0) + 1,
-        updatedAt: new Date().toISOString(),
-      });
+      if (existing._serverId) {
+        await db.projects.update(id, {
+          _deleted: true,
+          _dirty: 1,
+          _rev: (existing._rev ?? 0) + 1,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await db.projects.delete(id);
+      }
     }
     await operationsLog.log({ category: 'PROJECT', action: 'DELETE', result: 'success', target: 'Project', targetId: id });
   } catch (err: any) {

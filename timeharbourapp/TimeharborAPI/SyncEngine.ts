@@ -147,14 +147,18 @@ export async function pushTickets() {
     body: JSON.stringify({ tickets }),
   }) as { accepted: number; serverIds?: Record<string, string> };
 
-  // Mark as clean and store serverIds returned by backend
+  // Mark as clean, store serverIds, and purge deleted records
   for (let i = 0; i < dirty.length; i++) {
     const t = dirty[i];
-    const sid = serverIds?.[t.id];
-    await db.tickets.update(t.id, {
-      _dirty: 0,
-      ...(sid ? { _serverId: sid } : {}),
-    } as any);
+    if ((t as any)._deleted) {
+      await db.tickets.delete(t.id);
+    } else {
+      const sid = serverIds?.[t.id];
+      await db.tickets.update(t.id, {
+        _dirty: 0,
+        ...(sid ? { _serverId: sid } : {}),
+      } as any);
+    }
   }
 }
 
@@ -332,8 +336,12 @@ export async function pushNotes() {
   }) as { accepted: number; serverIds: Record<string, string> };
 
   for (const n of dirty) {
-    const sid = serverIds?.[n.id];
-    await db.notes.update(n.id, { _dirty: 0, ...(sid ? { _serverId: sid } : {}) });
+    if (n._deleted) {
+      await db.notes.delete(n.id);
+    } else {
+      const sid = serverIds?.[n.id];
+      await db.notes.update(n.id, { _dirty: 0, ...(sid ? { _serverId: sid } : {}) });
+    }
   }
 }
 
@@ -513,8 +521,12 @@ export async function pushProjects() {
   }) as { accepted: number; serverIds: Record<string, string> };
 
   for (const p of dirty) {
-    const sid = serverIds?.[p.id];
-    await db.projects.update(p.id, { _dirty: 0, ...(sid ? { _serverId: sid } : {}) });
+    if (p._deleted) {
+      await db.projects.delete(p.id);
+    } else {
+      const sid = serverIds?.[p.id];
+      await db.projects.update(p.id, { _dirty: 0, ...(sid ? { _serverId: sid } : {}) });
+    }
   }
 }
 

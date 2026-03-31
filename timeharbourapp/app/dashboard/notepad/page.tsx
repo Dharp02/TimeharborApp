@@ -172,9 +172,14 @@ export default function NotepadPage() {
   const deleteNote = async () => {
     if (!noteToDelete) return;
     const deletedNote = notes.find((n) => n.id === noteToDelete);
-    // Soft-delete: mark _deleted + _dirty so it syncs to server
     const now = new Date().toISOString();
-    await db.notes.update(noteToDelete, { _deleted: true, _dirty: 1, updatedAt: now });
+    if (deletedNote?._serverId) {
+      // Soft-delete for sync: flag so push can tell the server to hard-delete
+      await db.notes.update(noteToDelete, { _deleted: true, _dirty: 1, updatedAt: now });
+    } else {
+      // Never synced — just remove from IndexedDB
+      await db.notes.delete(noteToDelete);
+    }
     await operationsLog.log({ category: 'NOTE', action: 'DELETE', result: 'success', target: 'Note', targetId: noteToDelete, details: { title: deletedNote?.title, contentPreview: deletedNote?.content?.slice(0, 200) } });
     const updated = notes.filter((n) => n.id !== noteToDelete);
     setNotes(updated);
