@@ -634,7 +634,7 @@ export default function TicketsPage() {
         <div className="flex justify-center pb-4">
           {activeTab === "From Timehuddle" ? (
             <Button
-              onClick={() => window.open("https://timehuddle.com", "_blank")}
+              onClick={() => alert("Timehuddle is coming soon!")}
               className="px-8 py-3 bg-amber-500 text-white rounded-full hover:bg-amber-600 transition-colors shadow-lg text-base font-semibold"
             >
               <Users className="w-5 h-5 mr-2" /> Open Timehuddle

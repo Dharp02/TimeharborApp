@@ -181,6 +181,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             setInitialSyncing(false);
           }
         })();
+      } else if (event === 'USER_UPDATED') {
+        // Profile/avatar change — update user state without clearing the database
+        setUserAndCache(session?.user ?? null);
       } else if (event === 'SIGNED_OUT') {
         setUserAndCache(null);
       }

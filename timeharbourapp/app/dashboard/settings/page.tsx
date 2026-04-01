@@ -102,7 +102,7 @@ export default function SettingsPage() {
 
         {/* Open Timehuddle */}
         <button
-          onClick={() => window.open('https://timehuddle.com', '_blank')}
+          onClick={() => alert('Timehuddle is coming soon!')}
           className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
         >
           <div className="flex items-center gap-4">

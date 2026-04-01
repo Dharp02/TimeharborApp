@@ -424,7 +424,7 @@ export const fetchProfile = async (): Promise<{ profile: ThProfile | null; error
       const user = await getStoredUser();
       // Only notify if the image actually changed (user.image is already resolved by toUser)
       if (user && user.image !== resolved) {
-        notifyListeners('SIGNED_IN', { user: { ...user, image: resolved } });
+        notifyListeners('USER_UPDATED', { user: { ...user, image: resolved } });
       }
     } catch { /* ignore */ }
   };
@@ -514,7 +514,7 @@ export const updateProfile = async (data: {
 
     // 3. Refresh user from session & notify listeners
     const { user } = await getUser();
-    notifyListeners('SIGNED_IN', { user });
+    notifyListeners('USER_UPDATED', { user });
     await operationsLog.log({ category: 'PROFILE', action: 'UPDATE', result: 'success', target: 'Profile', details: { fields: Object.keys(data) } });
     return { user, error: null };
   } catch {
@@ -532,7 +532,7 @@ export const updateProfile = async (data: {
     const cachedUser = await getStoredUser();
     if (cachedUser && data.full_name) {
       const updatedUser = { ...cachedUser, full_name: data.full_name, name: data.full_name };
-      notifyListeners('SIGNED_IN', { user: updatedUser });
+      notifyListeners('USER_UPDATED', { user: updatedUser });
       try {
         localStorage.setItem('th_cached_user', JSON.stringify(updatedUser));
       } catch { /* quota */ }
@@ -568,7 +568,7 @@ export const uploadAvatar = async (file: File): Promise<{ avatarUrl: string | nu
     // Store relative path in Better Auth so it works from any device/origin
     await authClient.updateUser({ image: avatarUrl });
     const { user } = await getUser();
-    notifyListeners('SIGNED_IN', { user });
+    notifyListeners('USER_UPDATED', { user });
 
     await operationsLog.log({ category: 'PROFILE', action: 'UPLOAD', result: 'success', target: 'Avatar' });
     return { avatarUrl, error: null };
@@ -582,7 +582,7 @@ export const uploadAvatar = async (file: File): Promise<{ avatarUrl: string | nu
     // Update auth context so header avatar reflects the change immediately
     try {
       const { user } = await getUser();
-      if (user) notifyListeners('SIGNED_IN', { user: { ...user, image: dataUrl } });
+      if (user) notifyListeners('USER_UPDATED', { user: { ...user, image: dataUrl } });
     } catch { /* ignore */ }
 
     return { avatarUrl: dataUrl, error: null };
@@ -607,7 +607,7 @@ export const deleteAvatar = async (): Promise<{ error: { message: string } | nul
     // Clear Better Auth user.image
     await authClient.updateUser({ image: '' });
     const { user } = await getUser();
-    notifyListeners('SIGNED_IN', { user });
+    notifyListeners('USER_UPDATED', { user });
 
     await operationsLog.log({ category: 'PROFILE', action: 'DELETE', result: 'success', target: 'Avatar' });
     return { error: null };
@@ -619,7 +619,7 @@ export const deleteAvatar = async (): Promise<{ error: { message: string } | nul
     // Update auth context so header avatar clears immediately
     try {
       const { user } = await getUser();
-      if (user) notifyListeners('SIGNED_IN', { user: { ...user, image: undefined } });
+      if (user) notifyListeners('USER_UPDATED', { user: { ...user, image: undefined } });
     } catch { /* ignore */ }
 
     return { error: null };
@@ -641,7 +641,7 @@ export const syncPendingAvatar = async (): Promise<void> => {
         await db.profile.delete('pendingAvatarDelete').catch(() => {});
         await authClient.updateUser({ image: '' });
         const { user } = await getUser();
-        notifyListeners('SIGNED_IN', { user });
+        notifyListeners('USER_UPDATED', { user });
       }
     } catch { /* Will retry next sync */ }
     return;
@@ -674,7 +674,7 @@ export const syncPendingAvatar = async (): Promise<void> => {
 
     await authClient.updateUser({ image: avatarUrl });
     const { user } = await getUser();
-    notifyListeners('SIGNED_IN', { user });
+    notifyListeners('USER_UPDATED', { user });
   } catch { /* Will retry next sync */ }
 };
 
@@ -713,7 +713,7 @@ export const syncPendingProfile = async (): Promise<void> => {
 
     // Refresh user
     const { user } = await getUser();
-    notifyListeners('SIGNED_IN', { user });
+    notifyListeners('USER_UPDATED', { user });
   } catch { /* Will retry next sync */ }
 };
 

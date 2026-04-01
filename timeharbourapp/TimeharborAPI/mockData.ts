@@ -36,7 +36,7 @@ export const mockTickets: Ticket[] = [
     trackedTime: '45m',
     trackedMs: 2700000,
     pulseVideo: {
-      url: 'https://vault.timehuddle.app/pulse/abc123',
+      url: '#',
       recordedAt: '2026-03-17T14:00:00.000Z',
       duration: '1:24',
     },
@@ -69,7 +69,7 @@ export const mockTickets: Ticket[] = [
     trackedTime: '2h 10m',
     trackedMs: 7800000,
     pulseVideo: {
-      url: 'https://vault.timehuddle.app/pulse/def456',
+      url: '#',
       recordedAt: '2026-03-16T15:00:00.000Z',
       duration: '3:10',
     },
@@ -92,7 +92,7 @@ export const mockTickets: Ticket[] = [
     trackedTime: '1h 15m',
     trackedMs: 4500000,
     pulseVideo: {
-      url: 'https://vault.timehuddle.app/pulse/ghi789',
+      url: '#',
       recordedAt: '2026-03-18T10:30:00.000Z',
       duration: '0:48',
     },
@@ -135,7 +135,7 @@ export const mockTickets: Ticket[] = [
     trackedTime: '4h 30m',
     trackedMs: 16200000,
     pulseVideo: {
-      url: 'https://vault.timehuddle.app/pulse/jkl012',
+      url: '#',
       recordedAt: '2026-03-17T16:00:00.000Z',
       duration: '2:15',
     },

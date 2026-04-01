@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "path";
+import pkg from "./package.json" with { type: "json" };
 
 // output: 'export' is ONLY for Capacitor (iOS/Android) native builds.
 // Server deployments (UAT, prod) use `next start` and must NOT set this —
@@ -8,6 +9,10 @@ import path from "path";
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === 'true';
 
 const nextConfig: NextConfig = {
+  // Expose the package.json version so components can display it
+  env: {
+    NEXT_PUBLIC_APP_VERSION: pkg.version,
+  },
   // Transpile @timeharbor/time-engine (linked from sibling workspace)
   transpilePackages: ['@timeharbor/time-engine'],
   // Allow cross-origin dev requests from the local machine IP (for mobile testing via proxy)
@@ -36,6 +41,10 @@ const nextConfig: NextConfig = {
             {
               source: '/api/timeharbor/:path*',
               destination: `${backendUrl}/api/timeharbor/:path*`,
+            },
+            {
+              source: '/uploads/:path*',
+              destination: `${backendUrl}/uploads/:path*`,
             },
           ];
         },
