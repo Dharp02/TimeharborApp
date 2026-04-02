@@ -206,7 +206,7 @@ export default function AppSidebar() {
         {!isCollapsed && (
           <div className="flex items-center justify-center px-2 mt-2">
             <span className="text-xs text-muted-foreground">
-              TimeHarbor v{process.env.NEXT_PUBLIC_APP_VERSION}
+              TimeHarbor v{process.env.NEXT_PUBLIC_APP_VERSION}{process.env.NEXT_PUBLIC_APP_BUILD ? ` build ${process.env.NEXT_PUBLIC_APP_BUILD}` : ''}
             </span>
           </div>
         )}
