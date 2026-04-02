@@ -1,0 +1,313 @@
+/* ── FullCalendar Theme Override ───────────────────────── */
+/* Maps FullCalendar's CSS custom properties to @mieweb/ui tokens */
+
+.calendar-page {
+
+  /* ── FullCalendar variable bridge ──────────────────── */
+  --fc-border-color: var(--mieweb-border);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--mieweb-muted);
+  --fc-today-bg-color: color-mix(in srgb, var(--mieweb-primary-100) 40%, transparent);
+  --fc-event-bg-color: var(--mieweb-primary-600);
+  --fc-event-border-color: var(--mieweb-primary-700);
+  --fc-event-text-color: #fff;
+  --fc-button-bg-color: var(--mieweb-primary-700);
+  --fc-button-border-color: var(--mieweb-primary-800);
+  --fc-button-hover-bg-color: var(--mieweb-primary-800);
+  --fc-button-hover-border-color: var(--mieweb-primary-900);
+  --fc-button-active-bg-color: var(--mieweb-primary-900);
+  --fc-button-active-border-color: var(--mieweb-primary-950);
+  --fc-list-event-hover-bg-color: var(--mieweb-muted);
+  --fc-highlight-color: color-mix(in srgb, var(--mieweb-primary-200) 30%, transparent);
+  --fc-non-business-color: color-mix(in srgb, var(--mieweb-muted) 40%, transparent);
+
+  /* ── Typography ────────────────────────────────────── */
+  .fc {
+    font-family: var(--mieweb-font-sans, inherit);
+  }
+
+  /* ── Toolbar ───────────────────────────────────────── */
+  .fc .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .fc .fc-toolbar-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--mieweb-foreground);
+  }
+
+  /* Buttons inherit @mieweb/ui primary styling */
+  .fc .fc-button {
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.15s ease;
+    text-transform: capitalize;
+  }
+
+  .fc .fc-button-group > .fc-button {
+    border-radius: 0;
+
+    &:first-child {
+      border-top-left-radius: 0.5rem;
+      border-bottom-left-radius: 0.5rem;
+    }
+
+    &:last-child {
+      border-top-right-radius: 0.5rem;
+      border-bottom-right-radius: 0.5rem;
+    }
+  }
+
+  /* ── Day headers ───────────────────────────────────── */
+  .fc .fc-col-header-cell {
+    background: var(--mieweb-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mieweb-muted-foreground);
+    padding: 0.5rem 0;
+  }
+
+  /* ── Day cells ─────────────────────────────────────── */
+  .fc .fc-daygrid-day-number {
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.375rem 0.5rem;
+    color: var(--mieweb-foreground);
+  }
+
+  .fc .fc-day-today .fc-daygrid-day-number {
+    background: var(--mieweb-primary-600);
+    color: #fff;
+    border-radius: 9999px;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0.25rem;
+    padding: 0;
+  }
+
+  .fc .fc-day-other .fc-daygrid-day-number {
+    opacity: 0.4;
+  }
+
+  /* ── Events ────────────────────────────────────────── */
+  .fc .fc-event {
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+    cursor: pointer;
+    border: none;
+    line-height: 1.4;
+  }
+
+  .fc .fc-daygrid-event-dot {
+    border-color: var(--mieweb-primary-500);
+  }
+
+  .fc .fc-event-time {
+    font-weight: 600;
+  }
+
+  /* Event type colors */
+  .fc-event--clock-in {
+    --fc-event-bg-color: var(--mieweb-success, #22c55e);
+    --fc-event-border-color: var(--mieweb-success, #16a34a);
+    --fc-event-text-color: var(--mieweb-success-foreground, #fff);
+  }
+
+  .fc-event--break {
+    --fc-event-bg-color: var(--mieweb-warning, #eab308);
+    --fc-event-border-color: var(--mieweb-warning, #ca8a04);
+    --fc-event-text-color: var(--mieweb-warning-foreground, #1a1a1a);
+  }
+
+  .fc-event--ticket {
+    --fc-event-bg-color: var(--mieweb-info, #3b82f6);
+    --fc-event-border-color: var(--mieweb-info, #2563eb);
+    --fc-event-text-color: var(--mieweb-info-foreground, #fff);
+  }
+
+  .fc-event--google {
+    --fc-event-bg-color: #4285f4;
+    --fc-event-border-color: #3367d6;
+    --fc-event-text-color: #fff;
+  }
+
+  /* Ensure time-grid events always have readable text */
+  .fc .fc-timegrid-event .fc-event-main {
+    color: var(--fc-event-text-color, #fff);
+  }
+
+  /* ── List view ─────────────────────────────────────── */
+  .fc .fc-list {
+    border-radius: 0.75rem;
+    overflow: hidden;
+  }
+
+  .fc .fc-list-day-cushion {
+    background: var(--mieweb-muted);
+    font-weight: 600;
+    color: var(--mieweb-foreground);
+  }
+
+  .fc .fc-list-event td {
+    color: var(--mieweb-foreground);
+    border-color: var(--mieweb-border);
+  }
+
+  /* ── Time grid ─────────────────────────────────────── */
+  .fc .fc-timegrid-slot-label-cushion {
+    font-size: 0.75rem;
+    color: var(--mieweb-muted-foreground);
+  }
+
+  .fc .fc-timegrid-event {
+    border-radius: 0.375rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: relative;
+  }
+
+  /* ── Hover/touch magnify tooltip for cramped events ── */
+  .fc .fc-timegrid-event:hover,
+  .fc .fc-timegrid-event:focus-within {
+    z-index: 999 !important;
+  }
+
+  .fc-event-magnify {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 220px;
+    max-width: 300px;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--mieweb-foreground, #171717);
+    background: var(--mieweb-background, #fff);
+    border: 1px solid var(--mieweb-border, #e5e5e5);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    white-space: normal;
+    word-break: break-word;
+    z-index: 9999;
+    pointer-events: none;
+
+    /* Arrow pointing down */
+    &::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: var(--mieweb-background, #fff);
+    }
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 7px solid transparent;
+      border-top-color: var(--mieweb-border, #e5e5e5);
+    }
+  }
+
+  .fc-magnify-title {
+    font-weight: 600;
+    margin-bottom: 0.125rem;
+  }
+
+  .fc-magnify-time {
+    font-size: 0.75rem;
+    color: var(--mieweb-muted-foreground, #737373);
+  }
+
+  .fc-magnify-type {
+    display: inline-block;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 0.0625rem 0.375rem;
+    border-radius: 0.25rem;
+    margin-top: 0.25rem;
+    background: var(--mieweb-muted, #f5f5f5);
+    color: var(--mieweb-muted-foreground, #737373);
+  }
+
+  .fc .fc-timegrid-event:hover .fc-event-magnify,
+  .fc .fc-timegrid-event:focus-within .fc-event-magnify {
+    display: block;
+  }
+
+  /* Flip tooltip below if event is near top of grid */
+  .fc .fc-timegrid-event--flip-tooltip .fc-event-magnify {
+    bottom: auto;
+    top: calc(100% + 6px);
+
+    &::after {
+      top: auto;
+      bottom: 100%;
+      border-top-color: transparent;
+      border-bottom-color: var(--mieweb-background, #fff);
+    }
+
+    &::before {
+      top: auto;
+      bottom: 100%;
+      border-top-color: transparent;
+      border-bottom-color: var(--mieweb-border, #e5e5e5);
+    }
+  }
+
+  /* Keep tooltip within viewport */
+  .fc .fc-timegrid-event--align-left .fc-event-magnify {
+    left: 0;
+    transform: none;
+
+    &::after,
+    &::before {
+      left: 1rem;
+      transform: none;
+    }
+  }
+
+  /* ── Mobile responsive ─────────────────────────────── */
+  @media (max-width: 767px) {
+    .fc .fc-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .fc .fc-toolbar-chunk {
+      display: flex;
+      justify-content: center;
+    }
+
+    .fc .fc-toolbar-title {
+      font-size: 1rem;
+      text-align: center;
+    }
+
+    .fc .fc-button {
+      font-size: 0.875rem;
+      padding: 0.5rem 1.25rem;
+    }
+
+    /* Hide header text on tiny screens, show only abbreviations */
+    .fc .fc-col-header-cell-cushion {
+      font-size: 0.625rem;
+    }
+  }
+}

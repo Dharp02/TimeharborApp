@@ -2,32 +2,25 @@ module.exports = {
   apps: [
     {
       name: "timeharbor-frontend",
-      cwd: "/Users/mieloaner/mieprojects/TimeharborApp/timeharbourapp",
-      script: "npm",
-      args: "run dev",
+      cwd: "/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbourapp",
+      script: "npx",
+      args: "next dev -H 0.0.0.0",
+      node_args: "--max-old-space-size=8192",
       env: {
         NODE_ENV: "development",
-        PORT: 3000,
+        PORT: 8080,
         NODE_OPTIONS: "--max-old-space-size=8192"
       }
     },
     {
       name: "timeharbor-backend",
-      cwd: "/Users/mieloaner/mieprojects/TimeharborApp/express-api",
-      script: "npm",
-      args: "run dev",
+      cwd: "/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbor-timehuddle-backend/apps/api",
+      script: "npx",
+      args: "tsx src/server.ts",
       env: {
         NODE_ENV: "development",
         PORT: 3001,
         NODE_OPTIONS: "--max-old-space-size=4096"
-      }
-    },
-    {
-      name: "timeharbor-proxy",
-      cwd: "/Users/mieloaner/mieprojects/TimeharborApp/timeharbor-proxy",
-      script: "index.js",
-      env: {
-        PORT: 8080
       }
     }
   ]

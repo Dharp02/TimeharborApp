@@ -1,19 +1,9 @@
-import NetworkDetector from './NetworkDetector';
-import { db, type OfflineMutation } from './db';
-import { authenticatedFetch } from './auth';
-import { localTimeStore } from './time/LocalTimeStore';
-import { TimeService } from './time/TimeService';
-import { getApiUrl } from './apiUrl';
+import { syncAll } from './SyncEngine';
 
 class SyncManager {
   private static instance: SyncManager;
-  private detector: NetworkDetector;
-  private isSyncing: boolean = false;
-
-  private constructor() {
-    this.detector = NetworkDetector.getInstance();
-    this.detector.setSyncHandler(this.syncData);
-  }
+  private syncing = false;
+  private stopped = false;
 
   public static getInstance(): SyncManager {
     if (!SyncManager.instance) {
@@ -23,211 +13,43 @@ class SyncManager {
   }
 
   public init() {
-    this.detector.init();
+    this.stopped = false;
+    // Sync on network reconnect
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => this.syncNow());
+    }
+  }
+
+  /** Block all future syncs and wait for any in-flight sync to finish. */
+  public async stop() {
+    this.stopped = true;
+    // Wait for an in-flight sync to drain (poll for up to 3 s).
+    const deadline = Date.now() + 3000;
+    while (this.syncing && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
+  /** Re-enable syncing after a stop (e.g. after sign-out → sign-in). */
+  public resume() {
+    this.stopped = false;
   }
 
   public async syncNow() {
-    await this.detector.triggerSync();
-  }
-
-  private syncData = async (): Promise<void> => {
-    if (this.isSyncing) return;
-    this.isSyncing = true;
-
+    if (this.syncing || this.stopped) return;
+    this.syncing = true;
     try {
-      // 1. Sync Mutations (Teams, Tickets, etc.)
-      await this.syncMutations();
-
-      // 2. Sync Time Events (Clock In/Out, Start/Stop Ticket)
-      await this.syncTimeEvents();
-      
-    } catch (error) {
-      console.error('Sync process failed:', error);
+      await syncAll();
     } finally {
-      this.isSyncing = false;
-    }
-  };
-
-  private async syncMutations() {
-    const mutations = await db.offlineMutations.toArray();
-    
-    if (mutations.length === 0) return;
-
-    console.log(`Found ${mutations.length} offline mutations to sync`);
-
-    for (const mutation of mutations) {
-      try {
-        await this.processMutation(mutation);
-        // If successful, delete from DB
-        if (mutation.id) {
-          await db.offlineMutations.delete(mutation.id);
-        }
-      } catch (error: any) {
-        console.error(`Failed to sync mutation ${mutation.id}:`, error);
-        
-        if (error.message === 'Session expired. Please sign in again.') {
-          console.log('Session expired, clearing offline mutations');
-          await db.offlineMutations.clear();
-          break;
-        }
-
-        // If it's a client error (4xx), the request is invalid and retrying won't help. 
-        // We should delete it to unblock the queue.
-        if (error.message.startsWith('CLIENT_ERROR')) {
-           console.warn(`Mutation ${mutation.id} failed with client error, removing from queue:`, error.message);
-           if (mutation.id) {
-             await db.offlineMutations.delete(mutation.id);
-           }
-           // Continue to next mutation
-           continue;
-        }
-
-        // Stop processing to maintain order
-        break; 
-      }
+      this.syncing = false;
     }
   }
 
-  private async processMutation(mutation: OfflineMutation) {
-    const { url, method, body, tempId } = mutation;
-    
-    const backendUrl = getApiUrl();
-    
-    // Strip /api prefix from mutation URL to avoid duplication or 404s
-    // blocked by backend not expecting /api prefix when hitting directly
-    let relativeUrl = url;
-    if (relativeUrl.startsWith('/api/')) {
-      relativeUrl = relativeUrl.substring(4); 
-    }
-    
-    const fullUrl = url.startsWith('http') ? url : `${backendUrl}${relativeUrl}`;
-
-    const response = await authenticatedFetch(fullUrl, {
-      method,
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Session expired. Please sign in again.');
-      }
-      
-      // If client error (4xx), throw a specific error that we can catch and handle (delete mutation)
-      if (response.status >= 400 && response.status < 500) {
-        const text = await response.text();
-        throw new Error(`CLIENT_ERROR: ${response.status} - ${text}`);
-      }
-
-      const responseText = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
-    }
-
-    // Handle ID updates if the server returns a new ID
-    if (method === 'POST' && tempId) {
-      try {
-        const responseData = await response.json();
-        const newId = responseData.id;
-
-        if (newId && newId !== tempId) {
-          console.log(`Updating ID mapping: ${tempId} -> ${newId}`);
-          await this.updateLocalIds(tempId, newId);
-        }
-      } catch (e) {
-        // Response might not be JSON or might not have ID, ignore
-      }
-    }
-  }
-
-  private async updateLocalIds(tempId: string, newId: string) {
-    // 1. Update Tickets
-    const ticket = await db.tickets.get(tempId);
-    if (ticket) {
-      await db.tickets.delete(tempId);
-      ticket.id = newId;
-      await db.tickets.put(ticket);
-    }
-
-    // 2. Update Teams
-    const team = await db.teams.get(tempId);
-    if (team) {
-      await db.teams.delete(tempId);
-      team.id = newId;
-      await db.teams.put(team);
-    }
-
-    // 3. Update Pending Time Events
-    // Update ticketId references
-    await db.events
-      .where('ticketId').equals(tempId)
-      .modify({ ticketId: newId });
-    
-    // Update teamId references
-    await db.events
-      .where('teamId').equals(tempId)
-      .modify({ teamId: newId });
-
-    // 4. Update Subsequent Mutations
-    // We need to update URLs and Bodies of pending mutations that reference the old ID
-    const pendingMutations = await db.offlineMutations.toArray();
-    for (const mut of pendingMutations) {
-      let updated = false;
-      let newUrl = mut.url;
-      let newBody = mut.body;
-
-      // Update URL
-      if (newUrl.includes(tempId)) {
-        newUrl = newUrl.replace(new RegExp(tempId, 'g'), newId);
-        updated = true;
-      }
-
-      // Update Body
-      const bodyStr = JSON.stringify(newBody);
-      if (bodyStr.includes(tempId)) {
-        const newBodyStr = bodyStr.replace(new RegExp(tempId, 'g'), newId);
-        newBody = JSON.parse(newBodyStr);
-        updated = true;
-      }
-
-      if (updated && mut.id) {
-        await db.offlineMutations.update(mut.id, { url: newUrl, body: newBody });
-      }
-    }
-  }
-
-  private async syncTimeEvents() {
-    const events = await localTimeStore.getPendingEvents();
-    if (events.length === 0) return;
-
-    console.log(`Syncing ${events.length} time events...`);
-    
-    try {
-      await TimeService.syncTimeData(events);
-      await localTimeStore.clearEvents(events.map(e => e.id));
-      console.log('Synced offline time data successfully');
-    } catch (error) {
-      console.error('Failed to sync time events:', error);
-    }
-  }
-
-  // Helper to add mutation
-  public async addMutation(url: string, method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', body: any, tempId?: string) {
-    await db.offlineMutations.add({
-      url,
-      method,
-      body,
-      timestamp: Date.now(),
-      retryCount: 0,
-      tempId
-    });
-
-    if (this.detector.getStatus() === 'online') {
-      this.detector.triggerSync();
-    }
+  public async addMutation(_url: string, _method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', _body: any, _tempId?: string) {
+    // Legacy — mutations now go through SessionManager/Dexie + SyncEngine
   }
 }
 
-// Create the sync manager instance only in browser environments
-// This prevents initialization errors during Server-Side Rendering (SSR)
-export const syncManager = typeof window !== 'undefined' 
-  ? SyncManager.getInstance() 
+export const syncManager = typeof window !== 'undefined'
+  ? SyncManager.getInstance()
   : {} as SyncManager;

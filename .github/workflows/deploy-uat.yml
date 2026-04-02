@@ -38,21 +38,14 @@ jobs:
             echo "🛑 Stopping PM2 services..."
             sudo pm2 stop ecosystem.uat.config.js || true
             
-            echo "⚙️  Installing dependencies for express-api..."
-            cd express-api
+            echo "⚙️  Installing dependencies for timeharbor-timehuddle-backend..."
+            cd timeharbor-timehuddle-backend
             sudo npm install
             
-            echo "🏗️  Building TypeScript backend..."
+            echo "🏗️  Building Fastify backend..."
+            cd apps/api
             sudo npm run build
-            
-            echo "🗃️  Checking for database migrations..."
-            PENDING_MIGRATIONS=$(sudo npx sequelize-cli db:migrate:status 2>&1 | grep -c "pending" || true)
-            if [ "$PENDING_MIGRATIONS" -gt 0 ]; then
-              echo "📊 Running $PENDING_MIGRATIONS pending migration(s)..."
-              sudo npx sequelize-cli db:migrate
-            else
-              echo "✅ No pending migrations, database is up to date"
-            fi
+            cd ../..
             cd ..
             
             echo "⚙️  Installing dependencies for timeharbor-proxy..."

@@ -19,3 +19,34 @@ export function getApiUrl(): string {
   }
   return 'http://localhost:3001';
 }
+
+/**
+ * Returns the backend origin (no /api suffix).
+ * Used to resolve relative asset paths like /uploads/avatars/…
+ */
+export function getBackendOrigin(): string {
+  if (process.env.NEXT_PUBLIC_BETTER_AUTH_URL) {
+    return process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
+  }
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    // Strip trailing /api from e.g. https://timehubbackend.os.mieweb.org/api
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return 'http://localhost:3001';
+}
+
+/**
+ * Resolves a backend asset path to an absolute URL.
+ * If the path is already absolute (starts with http), returns it as-is.
+ * If relative (e.g. /uploads/avatars/…), prepends the backend origin.
+ */
+export function resolveBackendAsset(path: string | undefined | null): string | undefined {
+  if (!path) return undefined;
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+    return path;
+  }
+  return `${getBackendOrigin()}${path.startsWith('/') ? '' : '/'}${path}`;
+}

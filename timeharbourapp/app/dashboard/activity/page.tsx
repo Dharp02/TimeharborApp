@@ -1,34 +1,30 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@mieweb/ui';
 import { Clock, Loader2 } from 'lucide-react';
-import { DateRangePicker, DateRange, DateRangePreset } from '@/components/DateRangePicker';
 import { DateTime } from 'luxon';
+import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
+import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
 import { Activity, fetchActivitiesByDateRange } from '@/TimeharborAPI/dashboard';
 import { useRefresh } from '../../../contexts/RefreshContext';
-import { useTeam } from '@/components/dashboard/TeamContext';
-import { useSocket } from '@/contexts/SocketContext';
 
 export default function ActivityPage() {
-  const { currentTeam } = useTeam();
-  const { socket } = useSocket();
   const { register } = useRefresh();
   const [visibleCount, setVisibleCount] = useState(20);
-  const [dateRange, setDateRange] = useState<DateRange>({
+  const [dateRange, setDateRange] = useState<LuxonDateRange>({
     from: DateTime.now().startOf('day'),
     to: DateTime.now().endOf('day'),
   });
-  const [preset, setPreset] = useState<DateRangePreset>('today');
+  const [preset, setPreset] = useState<string>('today');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Always fetch from work_logs (the source of truth) for all date presets, including today.
   const fetchData = useCallback(async (from: DateTime, to: DateTime) => {
-    if (!currentTeam?.id) return;
     setIsLoading(true);
     try {
       const data = await fetchActivitiesByDateRange(
-        currentTeam.id,
+        '',
         from.toISO() || '',
         to.toISO() || '',
       );
@@ -38,7 +34,7 @@ export default function ActivityPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentTeam?.id]);
+  }, []);
 
   // Fetch on mount, date range change, or refresh
   useEffect(() => {
@@ -50,17 +46,9 @@ export default function ActivityPage() {
     return unregister;
   }, [fetchData, dateRange, register]);
 
-  // Re-fetch on socket stats_updated for live updates (only for "today" view)
-  useEffect(() => {
-    if (!socket || preset !== 'today') return;
-    const handler = () => fetchData(dateRange.from!, dateRange.to!);
-    socket.on('stats_updated', handler);
-    return () => { socket.off('stats_updated', handler); };
-  }, [socket, preset, fetchData, dateRange]);
-
-  const handleRangeChange = (range: DateRange, newPreset: DateRangePreset) => {
-    setDateRange(range);
-    setPreset(newPreset);
+  const handleRangeChange = (range: { start: Date | null; end: Date | null }, presetKey?: string) => {
+    setDateRange(resolveRange(range, presetKey));
+    setPreset(presetKey || '');
     setVisibleCount(20);
   };
 
@@ -74,9 +62,12 @@ export default function ActivityPage() {
     <div className="max-w-4xl mx-auto px-0 py-2 md:p-6 space-y-4">
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm">
         <div className="flex-1 w-full md:w-auto">
-          <DateRangePicker
-            initialPreset={preset}
-            onRangeChange={handleRangeChange}
+          <DateRangePickerWithPresets
+            value={{ start: dateRange.from.toJSDate(), end: dateRange.to.toJSDate() }}
+            onChange={handleRangeChange}
+            activePreset={preset}
+            presets={dateFilterPresets}
+            variant="responsive"
             className="w-full md:w-auto"
           />
         </div>
@@ -88,14 +79,20 @@ export default function ActivityPage() {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary-500 mb-4" />
             <p>Loading activities...</p>
           </div>
         ) : activities.length === 0 ? (
           <div className="p-12 text-center text-gray-500 dark:text-gray-400">
             <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-            <p className="text-lg font-medium">No activity recorded yet</p>
-            <p className="text-sm mt-1">Clock in or start working on tickets to see activity here.</p>
+            <p className="text-lg font-medium">
+              {preset === 'today' ? 'No activity today' : 'No activity for this period'}
+            </p>
+            <p className="text-sm mt-1">
+              {preset === 'today'
+                ? 'Clock in or start working on tickets to see activity here.'
+                : 'Try selecting a different date range.'}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -109,7 +106,7 @@ export default function ActivityPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-4">
                     <div className={`mt-1 p-2 rounded-full ${
-                      activity.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                      activity.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-primary-100 text-primary-600'
                     }`}>
                       <Clock className="w-5 h-5" />
                     </div>
@@ -158,12 +155,13 @@ export default function ActivityPage() {
 
         {hasMore && (
           <div className="p-4 border-t border-gray-100 dark:border-gray-700 text-center">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setVisibleCount(prev => prev + 20)}
-              className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
             >
               Load More
-            </button>
+            </Button>
           </div>
         )}
       </div>

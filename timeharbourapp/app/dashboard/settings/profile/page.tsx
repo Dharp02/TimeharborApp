@@ -1,296 +1,538 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthProvider';
-import { User, FileText, Image as ImageIcon, Edit, Share2 } from 'lucide-react';
-import * as API from '@/TimeharborAPI/dashboard';
 import { auth } from '@/TimeharborAPI';
+import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
+import { User, Camera, Trash2, Github, Linkedin, Bug, Save, X, Loader2, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { Button, Input } from '@mieweb/ui';
 import { Modal } from '@/components/ui/Modal';
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useRef, useState, useEffect, useCallback } from 'react';
+import Cropper from 'react-easy-crop';
+import type { Area } from 'react-easy-crop';
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  
-  // Local state for fetching data directly
-  const [memberData, setMemberData] = useState<API.MemberActivityData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Edit Profile State
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editGithub, setEditGithub] = useState('');
-  const [editLinkedin, setEditLinkedin] = useState('');
+  // Form state
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [redmineUrl, setRedmineUrl] = useState('');
+
+  // Profile picture state
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
+  // Crop modal state
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+
+  const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
+    setCroppedAreaPixels(croppedPixels);
+  }, []);
+
+  // UI state
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
-  // Function to fetch member activity
-  const fetchData = async () => {
-    if (!user?.id) return;
-    try {
-      setLoading(true);
-      // We use the same API as the member dashboard
-      const data = await API.getMemberActivity(user.id);
-      setMemberData(data);
-    } catch (err) {
-      console.error('Error fetching profile data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Track the saved avatar URL from backend (separate from local preview)
+  const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(null);
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
 
+  // Initialize form from user data
   useEffect(() => {
-    fetchData();
-  }, [user?.id]);
-
-  const handleEditClick = () => {
-    if (memberData?.member) {
-      setEditName(memberData.member.name);
-      setEditEmail(memberData.member.email || '');
-      setEditGithub(memberData.member.github || '');
-      setEditLinkedin(memberData.member.linkedin || '');
-      setSaveError(null);
-      setIsEditModalOpen(true);
+    if (user) {
+      setName(user.full_name || user.name || '');
+      setEmail(user.email || '');
     }
+  }, [user?.full_name, user?.name, user?.email]);
+
+  // Load linked accounts + avatar from backend profile (once on mount)
+  const profileLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!user || profileLoadedRef.current) return;
+    profileLoadedRef.current = true;
+
+    auth.fetchProfile().then(({ profile }) => {
+      if (profile) {
+        setGithubUrl(profile.githubUrl || '');
+        setLinkedinUrl(profile.linkedinUrl || '');
+        setRedmineUrl(profile.redmineUrl || '');
+        // Use local offline avatar (base64) if available, else backend URL
+        const avatarSrc = (profile as any).avatarDataUrl || profile.avatarUrl;
+        if (avatarSrc) {
+          setSavedAvatarUrl(resolveBackendAsset(avatarSrc) ?? avatarSrc);
+        }
+      }
+    }).finally(() => setIsLoadingProfile(false));
+  }, [user]);
+
+  const markChanged = () => {
+    setHasChanges(true);
+    setSaveMessage(null);
   };
 
-  const handleSaveProfile = async () => {
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      const { error } = await auth.updateProfile({
-        full_name: editName,
-        email: editEmail,
-        github: editGithub || undefined,
-        linkedin: editLinkedin || undefined
-      });
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      if (error) {
-        setSaveError(error.message);
-      } else {
-        setIsEditModalOpen(false);
-        // Refresh data to show updates
-        fetchData();
+    setAvatarError(null);
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setAvatarError('Please select a JPEG, PNG, WebP, or GIF image.');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setAvatarError('Image must be smaller than 5MB.');
+      return;
+    }
+
+    // Open crop modal instead of directly setting preview
+    const objectUrl = URL.createObjectURL(file);
+    setCropImage(objectUrl);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setRotation(0);
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleCropConfirm = async () => {
+    if (!cropImage || !croppedAreaPixels) return;
+
+    const canvas = document.createElement('canvas');
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    await new Promise<void>((resolve) => {
+      img.onload = () => resolve();
+      img.src = cropImage;
+    });
+
+    // Apply rotation
+    const radians = (rotation * Math.PI) / 180;
+    const sin = Math.abs(Math.sin(radians));
+    const cos = Math.abs(Math.cos(radians));
+    const rotW = img.width * cos + img.height * sin;
+    const rotH = img.width * sin + img.height * cos;
+
+    const rotCanvas = document.createElement('canvas');
+    rotCanvas.width = rotW;
+    rotCanvas.height = rotH;
+    const rotCtx = rotCanvas.getContext('2d')!;
+    rotCtx.translate(rotW / 2, rotH / 2);
+    rotCtx.rotate(radians);
+    rotCtx.drawImage(img, -img.width / 2, -img.height / 2);
+
+    // Crop from rotated canvas
+    const size = Math.min(croppedAreaPixels.width, croppedAreaPixels.height, 512);
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(
+      rotCanvas,
+      croppedAreaPixels.x,
+      croppedAreaPixels.y,
+      croppedAreaPixels.width,
+      croppedAreaPixels.height,
+      0,
+      0,
+      size,
+      size,
+    );
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.92),
+    );
+    if (!blob) return;
+
+    const croppedFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+    const previewUrl = URL.createObjectURL(blob);
+
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    URL.revokeObjectURL(cropImage);
+
+    setAvatarFile(croppedFile);
+    setAvatarPreview(previewUrl);
+    setCropImage(null);
+    markChanged();
+  };
+
+  const handleCropCancel = () => {
+    if (cropImage) URL.revokeObjectURL(cropImage);
+    setCropImage(null);
+  };
+
+  const handleRemoveAvatar = () => {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarPreview(null);
+    setAvatarFile(null);
+    setAvatarError(null);
+    setAvatarRemoved(true);
+    markChanged();
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      // Handle avatar upload/delete first
+      if (avatarFile) {
+        const { avatarUrl, error: uploadError } = await auth.uploadAvatar(avatarFile);
+        if (uploadError) {
+          setSaveMessage({ type: 'error', text: uploadError.message });
+          setIsSaving(false);
+          return;
+        }
+        setSavedAvatarUrl(avatarUrl);
+        setAvatarFile(null);
+        setAvatarRemoved(false);
+      } else if (avatarRemoved && savedAvatarUrl) {
+        const { error: deleteError } = await auth.deleteAvatar();
+        if (deleteError) {
+          setSaveMessage({ type: 'error', text: deleteError.message });
+          setIsSaving(false);
+          return;
+        }
+        setSavedAvatarUrl(null);
+        setAvatarRemoved(false);
       }
-    } catch (err) {
-      setSaveError('An unexpected error occurred');
+
+      const { error } = await auth.updateProfile({
+        full_name: name,
+        email,
+        github_url: githubUrl,
+        linkedin_url: linkedinUrl,
+        redmine_url: redmineUrl,
+      });
+      if (error) {
+        setSaveMessage({ type: 'error', text: error.message });
+      } else {
+        setSaveMessage({ type: 'success', text: 'Profile saved successfully.' });
+        setHasChanges(false);
+      }
+    } catch {
+      // If avatar was saved offline but profile update failed (network error),
+      // still show partial success so the user knows the avatar is queued
+      if (avatarFile || avatarRemoved) {
+        setSaveMessage({ type: 'success', text: 'Avatar saved locally. Profile will sync when you\'re back online.' });
+        setHasChanges(false);
+      } else {
+        setSaveMessage({ type: 'error', text: 'You appear to be offline. Changes will sync when connectivity is restored.' });
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (loading || !memberData) {
-    return (
-       <div className="flex justify-center p-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-       </div>
-    );
-  }
+  const handleDiscard = () => {
+    if (user) {
+      setName(user.full_name || user.name || '');
+      setEmail(user.email || '');
+    }
+    setGithubUrl('');
+    setLinkedinUrl('');
+    setRedmineUrl('');
+    handleRemoveAvatar();
+    setAvatarRemoved(false);
+    // Restore saved avatar if one exists
+    if (savedAvatarUrl) {
+      setAvatarPreview(null);
+    }
+    setHasChanges(false);
+    setSaveMessage(null);
+  };
 
-  const { member } = memberData;
-  const pulseCount = 0; // Hardcoded as per request
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
+
+  const initials = (name || 'U')
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
-    <div className="mt-2 px-0 pb-4 pt-0 space-y-2 md:mt-0 md:p-4 md:space-y-6">
-      <div className="max-w-5xl mx-auto space-y-4">
-        {/* Top Section: Profile Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl transition-colors">
+    <div className="mt-2 px-0 pb-4 pt-0 md:mt-0 md:p-6">
+      <div className="max-w-4xl mr-auto space-y-8">
+
+        {/* Profile Picture */}
+        <section aria-labelledby="avatar-heading">
+          <h2 id="avatar-heading" className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+            Profile Picture
+          </h2>
           <div className="flex items-center gap-5">
-            <div className="w-20 h-20 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0 text-2xl text-white font-medium">
-              <User className="w-10 h-10" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{member.name}</h1>
-              <p className="text-gray-500 dark:text-gray-400 mb-3">{member.email}</p>
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 text-sm font-medium border border-gray-200 dark:border-gray-700 flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${member.status === 'online' ? 'bg-green-500' : 'bg-slate-500'}`} />
-                  {member.status === 'online' ? 'Online' : 'Offline'}
-                </span>
-                {(member.github || member.linkedin) && (
-                  <div className="flex items-center gap-3 border-l border-gray-200 dark:border-gray-700 pl-3">
-                    {member.github && (
-                      <Link
-                        href={member.github}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                        aria-label="GitHub Profile"
-                      >
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                        </svg>
-                      </Link>
-                    )}
-                    {member.linkedin && (
-                      <Link
-                        href={member.linkedin}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#0077b5] hover:opacity-80 transition-opacity"
-                        aria-label="LinkedIn Profile"
-                      >
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                          <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-                        </svg>
-                      </Link>
-                    )}
-                  </div>
+            <div className="relative group">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-primary-600 flex items-center justify-center text-white text-2xl font-semibold shrink-0">
+                {avatarPreview ? (
+                  <img
+                    src={avatarPreview}
+                    alt="Profile preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : savedAvatarUrl && !avatarRemoved ? (
+                  <img
+                    src={savedAvatarUrl}
+                    alt="Profile picture"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span>{initials}</span>
                 )}
               </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                aria-label="Upload profile picture"
+              >
+                <Camera className="w-6 h-6 text-white" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Upload a new profile picture"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Upload</span>
+                </Button>
+                {(avatarPreview || (savedAvatarUrl && !avatarRemoved)) && (
+                  <Button
+                    variant="outline"
+                    onClick={handleRemoveAvatar}
+                    className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
+                    aria-label="Remove profile picture"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Remove</span>
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                JPEG, PNG, WebP or GIF. Max 5MB.
+              </p>
+              {avatarError && (
+                <p className="text-xs text-red-500" role="alert">{avatarError}</p>
+              )}
             </div>
           </div>
-        </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_IMAGE_TYPES.join(',')}
+            onChange={handleAvatarSelect}
+            className="hidden"
+            aria-hidden="true"
+          />
+        </section>
 
-        {/* Stats Section - Custom for Profile Page */}
-        <div className="space-y-4">
-          {/* Profile Actions - Row 1 */}
-          <div className="flex gap-3 md:gap-4">
-            <button 
-              onClick={handleEditClick} 
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-2xl transition-colors shadow-lg shadow-blue-500/20"
-            >
-              <Edit className="w-4 h-4" />
-              <span>Edit Profile</span>
-            </button>
-            <button 
-              onClick={() => {}} 
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-blue-600 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-2xl transition-colors shadow-lg"
-            >
-              <Share2 className="w-4 h-4" />
-              <span>Share Profile</span>
-            </button>
+        {/* Crop Modal */}
+        <Modal
+          isOpen={!!cropImage}
+          onClose={handleCropCancel}
+          title="Adjust Photo"
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div className="relative w-full" style={{ height: '350px' }}>
+              {cropImage && (
+                <Cropper
+                  image={cropImage}
+                  crop={crop}
+                  zoom={zoom}
+                  rotation={rotation}
+                  aspect={1}
+                  cropShape="round"
+                  showGrid={false}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onRotationChange={setRotation}
+                  onCropComplete={onCropComplete}
+                />
+              )}
+            </div>
+
+            {/* Controls */}
+            <div className="space-y-3 px-2">
+              <div className="flex items-center gap-3">
+                <ZoomOut className="w-4 h-4 text-muted-foreground shrink-0" />
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.05}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1 accent-primary-600"
+                  aria-label="Zoom"
+                />
+                <ZoomIn className="w-4 h-4 text-muted-foreground shrink-0" />
+              </div>
+              <div className="flex items-center gap-3">
+                <RotateCw className="w-4 h-4 text-muted-foreground shrink-0" />
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  step={1}
+                  value={rotation}
+                  onChange={(e) => setRotation(Number(e.target.value))}
+                  className="flex-1 accent-primary-600"
+                  aria-label="Rotation"
+                />
+                <span className="text-xs text-muted-foreground w-8 text-right">{rotation}°</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="ghost" onClick={handleCropCancel}>
+                Cancel
+              </Button>
+              <Button onClick={handleCropConfirm}>
+                Use This Photo
+              </Button>
+            </div>
           </div>
-
-          {/* Media & Pulses - Row 2 */}
-          <div className="grid grid-cols-3 gap-2 md:gap-4">
-             {/* Documents */}
-             <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-                 <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-                    <div className="p-1.5 md:p-2 bg-orange-500/10 rounded-lg text-orange-500 w-fit mx-auto md:mx-0">
-                       <FileText className="w-4 h-4 md:w-5 md:h-5" />
-                    </div>
-                    <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Docs</span>
-                 </div>
-                 <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">0</span>
-             </div>
-
-             {/* Images */}
-             <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-                 <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-                    <div className="p-1.5 md:p-2 bg-pink-500/10 rounded-lg text-pink-500 w-fit mx-auto md:mx-0">
-                       <ImageIcon className="w-4 h-4 md:w-5 md:h-5" />
-                    </div>
-                    <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Images</span>
-                 </div>
-                 <span className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">0</span>
-             </div>
-
-             {/* Pulses */}
-             <div className="bg-white dark:bg-gray-800 rounded-2xl md:rounded-3xl p-3 md:p-6 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col justify-center transition-colors">
-                <div className="flex flex-col xl:flex-row xl:items-center gap-1.5 md:gap-3 mb-1 md:mb-2 text-center md:text-left">
-                   <div className="p-1.5 md:p-2 bg-emerald-500/10 rounded-lg text-emerald-500 w-fit mx-auto md:mx-0">
-                      <svg className="w-4 h-4 md:w-5 md:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                      </svg>
-                   </div>
-                   <span className="text-gray-500 dark:text-gray-400 text-xs md:text-sm">Pulses</span>
-                </div>
-                <p className="text-gray-900 dark:text-white font-bold text-lg md:text-2xl text-center md:text-left">{pulseCount}</p>
-             </div>
+        </Modal>
+        {/* Personal Information */}
+        <section aria-labelledby="personal-heading">
+          <h2 id="personal-heading" className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+            Personal Information
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="profile-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Full Name
+              </label>
+              <Input
+                id="profile-name"
+                type="text"
+                value={name}
+                onChange={(e) => { setName(e.target.value); markChanged(); }}
+                placeholder="Your full name"
+              />
+            </div>
+            <div>
+              <label htmlFor="profile-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Email Address
+              </label>
+              <Input
+                id="profile-email"
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); markChanged(); }}
+                placeholder="you@example.com"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Changing email may require re-verification.
+              </p>
+            </div>
           </div>
+        </section>
+
+        {/* Linked Accounts */}
+        <section aria-labelledby="links-heading">
+          <h2 id="links-heading" className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+            Linked Accounts
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="profile-github" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Github className="w-4 h-4" />
+                GitHub
+              </label>
+              <Input
+                id="profile-github"
+                type="url"
+                value={githubUrl}
+                onChange={(e) => { setGithubUrl(e.target.value); markChanged(); }}
+                placeholder="https://github.com/username"
+              />
+            </div>
+            <div>
+              <label htmlFor="profile-linkedin" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Linkedin className="w-4 h-4" />
+                LinkedIn
+              </label>
+              <Input
+                id="profile-linkedin"
+                type="url"
+                value={linkedinUrl}
+                onChange={(e) => { setLinkedinUrl(e.target.value); markChanged(); }}
+                placeholder="https://linkedin.com/in/username"
+              />
+            </div>
+            <div>
+              <label htmlFor="profile-redmine" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Bug className="w-4 h-4" />
+                Redmine
+              </label>
+              <Input
+                id="profile-redmine"
+                type="url"
+                value={redmineUrl}
+                onChange={(e) => { setRedmineUrl(e.target.value); markChanged(); }}
+                placeholder="https://redmine.example.com/users/123"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Save / Discard */}
+        {saveMessage && (
+          <div
+            role="alert"
+            className={`p-3 rounded-lg text-sm ${
+              saveMessage.type === 'success'
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+            }`}
+          >
+            {saveMessage.text}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3">
+          <Button
+            variant="outline"
+            onClick={handleDiscard}
+            disabled={!hasChanges}
+            aria-label="Discard changes"
+          >
+            <X className="w-4 h-4" />
+            <span>Discard</span>
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={!hasChanges || isSaving}
+            aria-label="Save profile changes"
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
+          </Button>
         </div>
       </div>
-
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit Profile"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Full Name
-            </label>
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Your name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="your.email@example.com"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Changing email may require re-verification.
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              GitHub URL
-            </label>
-            <input
-              type="url"
-              value={editGithub}
-              onChange={(e) => setEditGithub(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="https://github.com/username"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              LinkedIn URL
-            </label>
-            <input
-              type="url"
-              value={editLinkedin}
-              onChange={(e) => setEditLinkedin(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="https://linkedin.com/in/username"
-            />
-          </div>
-
-          {saveError && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-lg">
-              {saveError}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              onClick={() => setIsEditModalOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              disabled={isSaving}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveProfile}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

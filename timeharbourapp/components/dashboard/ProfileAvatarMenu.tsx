@@ -1,19 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bell, ArrowRightLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useNotifications } from '@/contexts/NotificationContext';
+import { Palette } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { Button } from '@mieweb/ui';
+import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
+import BrandSwitcher from './BrandSwitcher';
 
-interface ProfileAvatarMenuProps {
-  onTeamSwitchClick: () => void;
-}
-
-export default function ProfileAvatarMenu({ onTeamSwitchClick }: ProfileAvatarMenuProps) {
+export default function ProfileAvatarMenu() {
   const { user } = useAuth();
-  const { unreadCount } = useNotifications();
-  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -44,61 +39,33 @@ export default function ProfileAvatarMenu({ onTeamSwitchClick }: ProfileAvatarMe
     };
   }, [isMenuOpen]);
 
-  const handleNotificationsClick = () => {
-    setIsMenuOpen(false);
-    router.push('/dashboard/notifications');
-  };
-
-  const handleTeamSwitchClick = () => {
-    setIsMenuOpen(false);
-    onTeamSwitchClick();
-  };
-
   return (
     <div className="relative" ref={menuRef}>
       {/* Avatar Circle */}
-      <button
+      <Button
         onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className="relative w-10 h-10 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-semibold text-sm hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+        className="relative w-10 h-10 rounded-full bg-primary-600 dark:bg-primary-500 flex items-center justify-center text-white font-semibold text-sm hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors overflow-hidden !p-0"
         aria-label="Profile menu"
       >
-        {getInitials()}
-        {unreadCount > 0 && (
-          <span className="absolute -bottom-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white dark:ring-gray-800">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+        {user?.image ? (
+          <img src={resolveBackendAsset(user.image)} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          getInitials()
         )}
-      </button>
+      </Button>
 
       {/* Dropdown Menu */}
       {isMenuOpen && (
         <div className="absolute right-0 top-12 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          <button
-            onClick={handleNotificationsClick}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-gray-700"
-          >
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+                <Palette className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+              </div>
+              <div className="font-medium text-gray-900 dark:text-white">Brand</div>
             </div>
-            <div className="flex-1 text-left">
-              <div className="font-medium text-gray-900 dark:text-white">Notifications</div>
-              {unreadCount > 0 && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">{unreadCount} unread</div>
-              )}
-            </div>
-          </button>
-
-          <button
-            onClick={handleTeamSwitchClick}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-          >
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <ArrowRightLeft className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="font-medium text-gray-900 dark:text-white">Switch Team</div>
-            </div>
-          </button>
+            <BrandSwitcher variant="inline" />
+          </div>
         </div>
       )}
     </div>

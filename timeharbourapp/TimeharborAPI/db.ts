@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import type { TicketSegment, Break, TicketTime } from '@timeharbor/time-engine';
 
 export interface OfflineMutation {
   id?: number;
@@ -51,7 +52,7 @@ export interface Ticket {
   id: string;
   title: string;
   description?: string;
-  status: 'Open' | 'In Progress' | 'Closed';
+  status: 'Open' | 'In Progress' | 'Closed' | 'Done';
   priority: 'Low' | 'Medium' | 'High';
   link?: string;
   teamId: string;
@@ -59,6 +60,19 @@ export interface Ticket {
   assignedTo?: string;
   createdAt: string;
   updatedAt: string;
+  source?: 'personal' | 'timehuddle';
+  syncedWithTimehuddle?: boolean;
+  sharedToTimehuddle?: boolean;
+  pulseVideo?: {
+    url: string;
+    recordedAt: string;
+    duration: string;
+  };
+  trackedTime?: string;
+  trackedMs?: number;
+  teamName?: string;
+  projectId?: string;
+  projectName?: string;
   creator?: {
     id: string;
     full_name: string;
@@ -69,6 +83,116 @@ export interface Ticket {
     full_name: string;
     email: string;
   };
+  _deleted?: boolean;
+  _dirty?: number;
+  _rev?: number;
+}
+
+export interface SessionAttachment {
+  name: string;
+  type: string; // MIME type
+  dataUrl: string; // base64 data URL
+}
+
+export interface DexieWorkSession {
+  id: string;
+  clientSessionId: string;
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  clockIn: number; // epoch ms
+  clockOut: number | null;
+  ticketSegments: TicketSegment[];
+  breaks: Break[];
+  totalSessionMs: number;
+  totalBreakMs: number;
+  netWorkMs: number;
+  ticketBreakdown: TicketTime[];
+  comment?: string;
+  links?: string[];
+  attachments?: SessionAttachment[];
+  autoClosedAt?: number;
+  sourceApp: 'timeharbor';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SyncMeta {
+  collection: string;
+  lastPulledAt: string; // ISO
+}
+
+export interface DexieNote {
+  id: string;
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  userId: string;
+  title: string;
+  content: string; // JSON string (BlockNote document)
+  _deleted: boolean;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+
+export interface DexieActivityLog {
+  id: string;          // client-generated ID (also used as clientId for server dedup)
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  userId?: string;
+  teamId?: string;
+  type: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  link?: string;
+  startTime: string;
+  endTime?: string;
+  status?: 'Active' | 'Completed' | 'Pending' | 'Failed';
+  duration?: string;
+  durationMs?: number;
+  metadata?: Record<string, any>;
+}
+
+export type ProjectStatus = 'Active' | 'On Hold' | 'Completed' | 'Archived';
+export type ProjectColor =
+  | 'blue' | 'green' | 'purple' | 'orange' | 'red'
+  | 'teal' | 'pink' | 'yellow' | 'indigo' | 'gray';
+
+export interface DexieOperationLog {
+  id: string;
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  userId: string;
+  category: string;
+  action: string;
+  result: 'success' | 'failure';
+  target?: string;
+  targetId?: string;
+  details?: Record<string, unknown>;
+  errorMessage?: string;
+  timestamp: string; // ISO
+}
+
+export interface DexieProject {
+  id: string;
+  _serverId?: string;
+  _dirty: 0 | 1;
+  _rev: number;
+  _deleted: boolean;
+  name: string;
+  description?: string;
+  status: ProjectStatus;
+  color: ProjectColor;
+  prefix: string;
+  repoUrl?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export class TimeharborDB extends Dexie {
@@ -77,9 +201,14 @@ export class TimeharborDB extends Dexie {
   events!: Table<TimeEvent>;
   teams!: Table<Team>;
   tickets!: Table<Ticket>;
+  projects!: Table<DexieProject>;
   dashboardStats!: Table<{ teamId: string; data: any; updatedAt: number }>;
   dashboardActivity!: Table<{ id: string; teamId: string; data: any; updatedAt: number }>;
-  activityLogs!: Table<any>; // New table
+  activityLogs!: Table<DexieActivityLog>;
+  workSessions!: Table<DexieWorkSession>;
+  syncMeta!: Table<SyncMeta>;
+  notes!: Table<DexieNote>;
+  operationLogs!: Table<DexieOperationLog>;
 
   constructor() {
     super('TimeharborDB');
@@ -123,7 +252,43 @@ export class TimeharborDB extends Dexie {
     this.version(8).stores({
       activityLogs: 'id, teamId, startTime' // Add explicit table for activity logs
     });
+
+    this.version(9).stores({
+      projects: 'id, createdBy'
+    });
+
+    this.version(10).stores({
+      workSessions: 'id, clientSessionId, userId, date, clockIn, clockOut, _dirty, _rev, updatedAt',
+      syncMeta: 'collection'
+    });
+
+    this.version(11).stores({
+      notes: 'id, userId, _serverId, _dirty, _rev, updatedAt',
+      activityLogs: 'id, teamId, startTime, _dirty, _rev, userId'
+    });
+
+    this.version(12).stores({
+      tickets: 'id, teamId, _dirty, _serverId'
+    });
+
+    this.version(13).stores({
+      projects: 'id, createdBy, _dirty, _serverId'
+    });
+
+    this.version(14).stores({
+      operationLogs: 'id, userId, category, action, result, _dirty, timestamp'
+    });
   }
 }
 
 export const db = typeof window !== 'undefined' ? new TimeharborDB() : {} as TimeharborDB;
+
+/**
+ * Wipe the entire local database and re-open a fresh instance.
+ * Call this on sign-out to prevent data leaking between users.
+ */
+export async function clearDatabase() {
+  if (typeof window === 'undefined') return;
+  await db.delete();
+  await db.open();
+}

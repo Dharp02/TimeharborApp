@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { forgotPassword } from '@/TimeharborAPI/auth';
+import { Input, Button, Alert, AlertDescription } from '@mieweb/ui';
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
@@ -40,7 +41,7 @@ export default function ForgotPasswordForm() {
         </p>
         <Link 
           href="/login"
-          className="inline-block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
+          className="inline-block w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
         >
           Back to Sign In
         </Link>
@@ -52,24 +53,18 @@ export default function ForgotPasswordForm() {
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
       <form onSubmit={handleSubmit} className="space-y-6" aria-label="Forgot password form">
         {error && (
-          <div role="alert" className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded-lg px-4 py-3">
-            {error}
-          </div>
+          <Alert variant="danger">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
         <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-          >
-            Email Address
-          </label>
-          <input
+          <Input
             id="email"
+            label="Email Address"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
             placeholder="you@example.com"
           />
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -77,17 +72,17 @@ export default function ForgotPasswordForm() {
           </p>
         </div>
 
-        <button
+        <Button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
+          className="w-full"
         >
           {isLoading ? 'Sending link...' : 'Send Reset Link'}
-        </button>
+        </Button>
 
         <div className="text-center text-sm text-gray-600 dark:text-gray-400">
           Remember your password?{' '}
-          <Link href="/login" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+          <Link href="/login" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">
             Sign in
           </Link>
         </div>

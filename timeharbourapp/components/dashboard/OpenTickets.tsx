@@ -1,59 +1,56 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Search, Ticket, Play, Square, ChevronRight } from 'lucide-react';
-import PulseButton from '@/components/dashboard/PulseButton';
+import { Plus, Play, Square, ChevronRight, Clock, Video, Users, RefreshCw, Share2, Check, Paperclip, X, FileText, Link2 } from 'lucide-react';
 import Link from 'next/link';
+import { Button, Input, Textarea, Badge, Card, CardContent, Text, SmallMuted } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
 import { Modal } from '@/components/ui/Modal';
-import { useTeam } from './TeamContext';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
 import { useRefresh } from '../../contexts/RefreshContext';
 import { db } from '@/TimeharborAPI/db';
-import { fetchGitHubTitle } from '@/lib/utils';
+import { collectAttachments } from '@/TimeharborAPI/time/attachmentUtils';
+import { formatDuration } from '@timeharbor/time-engine';
 
-const getUserInitials = (name?: string, email?: string) => {
-  if (name && name.trim()) {
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return parts[0].substring(0, 2).toUpperCase();
-  }
-  if (email) {
-    return email.substring(0, 2).toUpperCase();
-  }
-  return 'U';
+const getStatusDisplay = (status: string) =>
+  status === 'Closed' ? 'Done' : status;
+
+const formatRelativeTime = (dateStr: string) => {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + ' days ago';
 };
 
 export default function OpenTickets() {
-  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, ticketDuration, getFormattedTotalTime, toggleSession } = useClockIn();
-  const { currentTeam } = useTeam();
+  const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, getFormattedTotalTime, toggleSession, ticketDuration, ticketDurations } = useClockIn();
   const { addActivity } = useActivityLog();
   const { register, lastRefreshed } = useRefresh();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
   const [comment, setComment] = useState('');
-  const [link, setLink] = useState('');
+  const [links, setLinks] = useState<string[]>([]);
+  const [linkInput, setLinkInput] = useState('');
+  const [pastedImages, setPastedImages] = useState<string[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingTicket, setPendingTicket] = useState<{id: string, title: string} | null>(null);
-  const [newTicket, setNewTicket] = useState({ title: '', description: '', status: 'Open', reference: '' });
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showClockInWarning, setShowClockInWarning] = useState(false);
 
   const isMountedRef = useRef(true);
 
+  const PERSONAL_TEAM_ID = '__personal__';
+
   const fetchTickets = useCallback(async () => {
-    if (!currentTeam?.id) {
-      setTickets([]);
-      return;
-    }
     try {
-      const fetchedTickets = await ticketsApi.getTickets(currentTeam.id, { sort: 'recent', status: 'open' });
+      const fetchedTickets = await ticketsApi.getPersonalTickets({ sort: 'recent', status: 'open' });
       if (isMountedRef.current) {
         setTickets(fetchedTickets);
         db.tickets.bulkPut(fetchedTickets as any).catch(() => {});
@@ -63,28 +60,25 @@ export default function OpenTickets() {
     } finally {
       if (isMountedRef.current) setIsLoading(false);
     }
-  }, [currentTeam?.id]);
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
 
-    // Read Dexie cache immediately — tickets appear instantly on repeat visits
-    if (currentTeam?.id) {
-      db.tickets
-        .where('teamId').equals(currentTeam.id)
-        .filter(t => t.status === 'Open' || t.status === 'In Progress')
-        .toArray()
-        .then(cached => {
-          if (cached.length > 0 && isMountedRef.current) {
-            setTickets(cached as TicketType[]);
-          } else {
-            setIsLoading(true);
-          }
-        })
-        .catch(() => setIsLoading(true));
-    } else {
-      setTickets([]);
-    }
+    // Read Dexie cache immediately
+    const cacheTeamId = PERSONAL_TEAM_ID;
+    db.tickets
+      .where('teamId').equals(cacheTeamId)
+      .filter(t => !t._deleted && (t.status === 'Open' || t.status === 'In Progress'))
+      .toArray()
+      .then(cached => {
+        if (cached.length > 0 && isMountedRef.current) {
+          setTickets(cached as TicketType[]);
+        } else {
+          setIsLoading(true);
+        }
+      })
+      .catch(() => setIsLoading(true));
 
     fetchTickets();
 
@@ -92,22 +86,25 @@ export default function OpenTickets() {
     const handleRefresh = () => fetchTickets();
     window.addEventListener('pull-to-refresh', handleRefresh);
 
+    // Re-read Dexie after SyncEngine pulls new tickets from the server
+    const handleSyncComplete = () => fetchTickets();
+    window.addEventListener('sync-complete', handleSyncComplete);
+
     return () => {
       isMountedRef.current = false;
       unregister();
       window.removeEventListener('pull-to-refresh', handleRefresh);
+      window.removeEventListener('sync-complete', handleSyncComplete);
     };
-  }, [currentTeam?.id, register, lastRefreshed, fetchTickets]);
+  }, [register, lastRefreshed, fetchTickets]);
 
   const handleTicketClick = (e: React.MouseEvent, ticketId: string, ticketTitle: string) => {
     e.stopPropagation();
     
-    if (!isSessionActive) {
-      setShowClockInWarning(true);
+    if (!isSessionActive || isOnBreak) {
+      if (!isSessionActive) setShowClockInWarning(true);
       return;
     }
-
-    if (isOnBreak) return;
 
     // If stopping the current ticket
     if (activeTicketId === ticketId) {
@@ -125,68 +122,38 @@ export default function OpenTickets() {
         setIsModalOpen(true);
       } else {
         // Just starting a new ticket
-        toggleTicketTimer(ticketId, ticketTitle, currentTeam?.id);
+        toggleTicketTimer(ticketId, ticketTitle);
       }
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!pendingTicket) return;
 
+    const atts = await collectAttachments(pastedImages, attachedFiles);
+
     if (modalType === 'stop') {
-      // Stop the ticket (comment optional)
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, link || undefined);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, links.length > 0 ? links : undefined, atts.length > 0 ? atts : undefined);
     } else {
-      // Switch to a new ticket
-      toggleTicketTimer(pendingTicket.id, pendingTicket.title, currentTeam?.id, comment || undefined, link || undefined);
+      toggleTicketTimer(pendingTicket.id, pendingTicket.title, undefined, comment || undefined, links.length > 0 ? links : undefined, atts.length > 0 ? atts : undefined);
     }
 
     setIsModalOpen(false);
     setPendingTicket(null);
     setComment('');
-    setLink('');
+    setLinks([]);
+    setLinkInput('');
+    pastedImages.forEach(url => URL.revokeObjectURL(url));
+    setPastedImages([]);
+    setAttachedFiles([]);
   };
 
-  const handleReferenceBlur = async (url: string) => {
-    if (!url || newTicket.title.trim()) return;
-    const title = await fetchGitHubTitle(url);
-    if (title) setNewTicket(prev => ({ ...prev, title }));
-  };
-
-  const handleTitleBlur = async (value: string) => {
-    const title = await fetchGitHubTitle(value);
-    if (!title) return;
-    setNewTicket(prev => ({
-      ...prev,
-      title,
-      reference: prev.reference.trim() || value
-    }));
-  };
-
-  const handleAddTicket = async () => {
-    if (!currentTeam) return;
-    
+  const handleShareToTimehuddle = async (ticketId: string) => {
     try {
-      await ticketsApi.createTicket(currentTeam.id, {
-        title: newTicket.title,
-        description: newTicket.description,
-        status: newTicket.status as any,
-        link: newTicket.reference
-      });
-      
-      addActivity({
-        type: 'SESSION',
-        title: 'Created Ticket',
-        subtitle: newTicket.title,
-        status: 'Completed',
-        duration: 'Now'
-      });
-
-      setIsAddTicketModalOpen(false);
-      setNewTicket({ title: '', description: '', status: 'Open', reference: '' });
+      await ticketsApi.shareToTimehuddle(ticketId);
       fetchTickets();
-    } catch (error) {
-      console.error('Failed to create ticket:', error);
+    } catch (error: any) {
+      console.error('Failed to share:', error);
     }
   };
 
@@ -198,42 +165,42 @@ export default function OpenTickets() {
       title="Clock In Required"
     >
       <div className="space-y-4">
-        <p className="text-gray-600 dark:text-gray-300">
+        <SmallMuted className="text-sm">
           You must be clocked in to start a ticket timer. Would you like to clock in now?
-        </p>
+        </SmallMuted>
         <div className="flex justify-end gap-3 mt-6">
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setShowClockInWarning(false)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => {
-              toggleSession(currentTeam?.id);
+              toggleSession();
               setShowClockInWarning(false);
             }}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             Clock In
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 md:p-6 relative">
+    <Card className="p-4 md:p-6 relative">
       <div className="flex items-center justify-between mb-4 md:mb-6">
-        <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">Open Tickets</h2>
+        <Text className="text-lg md:text-xl font-bold">My Tickets</Text>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
-            <button 
-              onClick={() => setIsAddTicketModalOpen(true)}
-              disabled={!currentTeam}
-              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
+            <Link href="/dashboard/tickets/create">
+              <Button
+                size="icon"
+                aria-label="Create new ticket"
+              >
+                <Plus className="w-5 h-5" />
+              </Button>
+            </Link>
           </div>
-          <Link href="/dashboard/tickets" className="hidden md:flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline ml-2">
+          <Link href="/dashboard/tickets" className="hidden md:flex items-center text-sm text-primary-700 dark:text-primary-400 hover:underline ml-2">
             See All <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
@@ -241,237 +208,340 @@ export default function OpenTickets() {
 
       <div className="space-y-3">
         {isLoading ? (
-          <div className="text-center py-4 text-gray-500">Loading tickets...</div>
+          <SmallMuted className="text-center py-4 block">Loading tickets...</SmallMuted>
         ) : tickets.length === 0 ? (
-          <div className="text-center py-4 text-gray-500">No tickets found. Create one to get started!</div>
+          <SmallMuted className="text-center py-4 block">No tickets found. Create one to get started!</SmallMuted>
         ) : (
-          tickets.slice(0, 5).map((ticket) => (
-            <div 
-              key={ticket.id}
-            className="flex items-center justify-between p-3 md:p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 transition-colors cursor-pointer group"
-          >
-            <div className="flex items-center gap-3 md:gap-4 overflow-hidden flex-1">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg shrink-0">
-                <Ticket className="w-4 h-4 md:w-5 md:h-5" />
-              </div>
-              <div className="min-w-0">
-                {(() => {
-                  const githubUrl = ticket.link
-                    || ticket.description?.match(/https?:\/\/github\.com\/[^\s]+\/(pull|issues)\/\d+/)?.[0];
-                  return (
-                    <h3 className="font-medium text-gray-900 dark:text-white truncate text-sm md:text-base">
-                      {githubUrl ? (
-                        <a
-                          href={githubUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="hover:underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                        >
-                          {ticket.title}
-                        </a>
-                      ) : ticket.title}
-                    </h3>
-                  );
-                })()}
-                <div className="flex items-center gap-2 mt-1">
-                  {ticket.creator && (
-                    <>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Created by</span>
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-white dark:ring-gray-700 shrink-0 transform hover:scale-105 transition-transform cursor-help" title={ticket.creator.full_name}>
-                          {getUserInitials(ticket.creator.full_name, ticket.creator.email)}
-                        </div>
+          tickets
+            .slice()
+            .sort((a, b) => {
+              if (a.id === activeTicketId) return -1;
+              if (b.id === activeTicketId) return 1;
+              return 0;
+            })
+            .slice(0, 5).map((ticket) => {
+            const isTimehuddle = ticket.source === 'timehuddle';
+            const isPersonal = !isTimehuddle;
+            const assignerName = ticket.creator?.full_name?.split(' ')[0] || 'Someone';
+
+            return (
+              <Card key={ticket.id} className={`border transition-all duration-300 ${activeTicketId === ticket.id ? 'ring-2 ring-primary-500 border-primary-500 bg-primary-50 dark:bg-primary-950/20' : ''}`}>
+                <CardContent className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <Text className="text-base font-bold leading-tight">
+                      {ticket.title}
+                    </Text>
+                    <Badge
+                      variant={
+                        ticket.status === 'Open'
+                          ? 'secondary'
+                          : ticket.status === 'In Progress'
+                            ? 'warning'
+                            : 'success'
+                      }
+                      size="sm"
+                    >
+                      {getStatusDisplay(ticket.status)}
+                    </Badge>
+                  </div>
+
+                  <SmallMuted className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {isTimehuddle ? (
+                      <>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5" />
+                          {ticket.teamName}
+                        </span>
+                        <span>&middot;</span>
+                        <span>Assigned by {assignerName}</span>
+                        <span>&middot;</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex items-center gap-1">
+                          &#128100; Personal ticket
+                        </span>
+                        <span>&middot;</span>
+                      </>
+                    )}
+                    <span>{(ticketDurations[ticket.id] ? formatDuration(ticketDurations[ticket.id]) : ticket.trackedTime) || '0m'} tracked</span>
+                    {isTimehuddle && ticket.syncedWithTimehuddle && (
+                      <Badge variant="default" size="sm" icon={<RefreshCw className="w-3 h-3" />}>
+                        synced
+                      </Badge>
+                    )}
+                  </SmallMuted>
+
+                  {ticket.pulseVideo ? (
+                    <div className="flex items-center gap-3 bg-muted rounded-xl px-4 py-3">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-600">
+                        <Play className="w-5 h-5 text-white fill-white" />
                       </div>
-                      <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
-                    </>
-                  )}
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                    {getFormattedTotalTime(ticket.id)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 shrink-0 ml-2">
-              <span className="hidden md:inline-block text-xs font-medium px-2 py-1 bg-white dark:bg-gray-600 rounded-md border border-gray-200 dark:border-gray-500 text-gray-600 dark:text-gray-300">
-                {ticket.status}
-              </span>
-              {currentTeam && (
-                <PulseButton teamId={currentTeam.id} ticketId={ticket.id} />
-              )}
-              <div className="flex flex-col items-center gap-1 min-w-[60px]">
-                <button 
-                  onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
-                  disabled={isOnBreak}
-                  title={isOnBreak ? 'Resume from break to track tickets' : undefined}
-                  className={`p-2 rounded-full transition-colors ${
-                    !isSessionActive || isOnBreak
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      : activeTicketId === ticket.id
-                        ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40'
-                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40'
-                  }`}
-                >
-                  {activeTicketId === ticket.id ? (
-                    <Square className="w-4 h-4 fill-current" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 text-primary-600 dark:text-primary-400">
+                          <Video className="w-4 h-4" />
+                          <Text className="text-sm font-semibold text-primary-600 dark:text-primary-400">
+                            Pulse Video
+                          </Text>
+                        </div>
+                        <SmallMuted>
+                          Recorded {formatRelativeTime(ticket.pulseVideo.recordedAt)}{' '}
+                          &middot; {ticket.pulseVideo.duration}
+                        </SmallMuted>
+                      </div>
+                      <a
+                        href={ticket.pulseVideo.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-muted-foreground underline decoration-dashed underline-offset-2 hover:text-foreground shrink-0"
+                      >
+                        Open Vault &#8599;
+                      </a>
+                    </div>
                   ) : (
-                    <Play className="w-4 h-4 fill-current" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full border-dashed border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 bg-transparent hover:bg-red-50 dark:hover:bg-red-950"
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                      Record Pulse
+                    </Button>
                   )}
-                </button>
-                {activeTicketId === ticket.id && (
-                  <span className="text-[10px] font-mono font-bold text-red-600 dark:text-red-400 animate-pulse">
-                    {ticketDuration}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          ))
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="flex flex-col items-start gap-1">
+                      <Button
+                        variant={activeTicketId === ticket.id ? 'danger' : 'secondary'}
+                        size="sm"
+                        onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
+                        className="rounded-full px-3 py-1 text-xs font-medium"
+                      >
+                        {activeTicketId === ticket.id ? (
+                          <>
+                            <Square className="w-3 h-3 mr-1 fill-current" /> Stop
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3 h-3 mr-1 fill-current" /> Start
+                          </>
+                        )}
+                      </Button>
+
+                      {activeTicketId === ticket.id && (
+                        <SmallMuted className="flex items-center gap-1 font-mono text-primary-600 dark:text-primary-400">
+                          <Clock className="w-3 h-3" />
+                          {getFormattedTotalTime(ticket.id)}
+                        </SmallMuted>
+                      )}
+                    </div>
+
+                    {isPersonal && !ticket.sharedToTimehuddle && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleShareToTimehuddle(ticket.id)}
+                        className="rounded-full ml-auto whitespace-nowrap"
+                      >
+                        <Share2 className="w-3 h-3 mr-1" /> Share to Timehuddle
+                      </Button>
+                    )}
+
+                    {isPersonal && ticket.sharedToTimehuddle && (
+                      <Badge
+                        variant="success"
+                        size="sm"
+                        icon={<Check className="w-3 h-3" />}
+                        className="ml-auto"
+                      >
+                        Shared
+                      </Badge>
+                    )}
+
+                    {isTimehuddle && (
+                      <Badge
+                        variant="warning"
+                        size="sm"
+                        icon={<Users className="w-3 h-3" />}
+                        className="ml-auto"
+                      >
+                        Timehuddle
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
       
       <div className="mt-4 md:hidden text-center">
-        <Link href="/dashboard/tickets" className="text-sm text-blue-600 dark:text-blue-400 font-medium">
-          See All Tickets
+        <Link href="/dashboard/tickets">
+          <Button variant="link" size="sm">See All Tickets</Button>
         </Link>
       </div>
-    </div>
+    </Card>
 
     <Modal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setLink(''); }}
+        onClose={() => { setIsModalOpen(false); setLinks([]); setLinkInput(''); pastedImages.forEach(u => URL.revokeObjectURL(u)); setPastedImages([]); setAttachedFiles([]); }}
         title={modalType === 'stop' ? 'Stop Timer?' : 'Switching Tasks'}
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
+          <SmallMuted>
             {modalType === 'stop' 
               ? 'Enter a comment for this session:' 
               : 'Enter a comment for the current task before switching:'}
-          </p>
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="What did you work on?"
-            className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            autoFocus
-          />
+          </SmallMuted>
+          <div
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const files = Array.from(e.dataTransfer.files);
+              for (const file of files) {
+                if (file.type.startsWith('image/')) {
+                  setPastedImages(prev => [...prev, URL.createObjectURL(file)]);
+                } else {
+                  setAttachedFiles(prev => [...prev, file]);
+                }
+              }
+            }}
+          >
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                for (const item of Array.from(items)) {
+                  if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) setPastedImages(prev => [...prev, URL.createObjectURL(file)]);
+                  }
+                }
+              }}
+              placeholder="What did you work on?"
+              className="w-full h-32"
+              autoFocus
+            />
+          </div>
+          {/* Attachments preview */}
+          {(pastedImages.length > 0 || attachedFiles.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {pastedImages.map((url, i) => (
+                <div key={`img-${i}`} className="relative group">
+                  <img src={url} alt={`Image ${i + 1}`} className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                  <button
+                    type="button"
+                    onClick={() => { URL.revokeObjectURL(url); setPastedImages(prev => prev.filter((_, idx) => idx !== i)); }}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove image"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              {attachedFiles.map((file, i) => (
+                <div key={`file-${i}`} className="relative group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                  <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-xs truncate max-w-[120px]">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}
+                    className="w-4 h-4 rounded-full text-red-500 flex items-center justify-center shrink-0"
+                    aria-label="Remove file"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Attach button */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Paperclip className="w-3.5 h-3.5" /> Attach image or document
+            </button>
             <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.txt,.md"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                for (const file of files) {
+                  if (file.type.startsWith('image/')) {
+                    setPastedImages(prev => [...prev, URL.createObjectURL(file)]);
+                  } else {
+                    setAttachedFiles(prev => [...prev, file]);
+                  }
+                }
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            />
+          </div>
+          <div>
+            <SmallMuted className="block text-xs font-medium mb-1">Links (optional)</SmallMuted>
+            {links.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {links.map((l, i) => (
+                  <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
+                    <Link2 className="w-3 h-3 text-muted-foreground shrink-0" />
+                    <span className="truncate max-w-[200px]">{l}</span>
+                    <button type="button" onClick={() => setLinks(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 shrink-0" aria-label="Remove link">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Input
               type="url"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              placeholder="Paste a YouTube or Pulse link..."
-              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              value={linkInput}
+              onChange={(e) => setLinkInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && linkInput.trim()) {
+                  e.preventDefault();
+                  setLinks(prev => [...prev, linkInput.trim()]);
+                  setLinkInput('');
+                }
+              }}
+              onPaste={(e) => {
+                const text = e.clipboardData?.getData('text');
+                if (text?.trim()) {
+                  e.preventDefault();
+                  setLinks(prev => [...prev, text.trim()]);
+                }
+              }}
+              placeholder="Paste a link and press Enter..."
             />
           </div>
           <div className="flex justify-end gap-3">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleConfirm}
-              className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                modalType === 'stop'
-                  ? 'bg-red-600 hover:bg-red-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
+              variant={modalType === 'stop' ? 'danger' : 'primary'}
             >
               {modalType === 'stop' ? 'Stop Timer' : 'Switch Task'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
 
-      {/* Add Ticket Modal */}
-      <Modal
-        isOpen={isAddTicketModalOpen}
-        onClose={() => setIsAddTicketModalOpen(false)}
-        title="Add Ticket"
-      >
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 -mt-2 mb-4 text-gray-500 dark:text-gray-400">
-            <Ticket className="w-5 h-5 text-green-500" />
-            <p className="text-sm">Create a new ticket to track your work.</p>
-          </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Title
-              </label>
-              <input
-                type="text"
-                value={newTicket.title}
-                onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
-                onBlur={(e) => handleTitleBlur(e.target.value)}
-                placeholder="Enter ticket title"
-                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Description (optional)
-              </label>
-              <textarea
-                value={newTicket.description}
-                onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
-                placeholder="Add more details..."
-                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500 min-h-[100px]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Reference Link (optional)
-              </label>
-              <input
-                type="url"
-                value={newTicket.reference}
-                onChange={(e) => setNewTicket({ ...newTicket, reference: e.target.value })}
-                onBlur={(e) => handleReferenceBlur(e.target.value)}
-                placeholder="https://..."
-                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white placeholder-gray-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Status
-              </label>
-              <select
-                value={newTicket.status}
-                onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
-                className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-white"
-              >
-                <option value="Open">Open</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Closed">Closed</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 mt-6">
-            <button
-              onClick={handleAddTicket}
-              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
-            >
-              Create Ticket
-            </button>
-            <button
-              onClick={() => setIsAddTicketModalOpen(false)}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </Modal>
     </>
   );
 }

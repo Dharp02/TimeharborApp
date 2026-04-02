@@ -162,8 +162,6 @@ export function usePushNotifications() {
         
         const data = notification.notification.data;
         console.log('🔍 [NOTIFICATION TAP] Type:', data?.type);
-        console.log('🔍 [NOTIFICATION TAP] Member ID:', data?.memberId);
-        console.log('🔍 [NOTIFICATION TAP] Team ID:', data?.teamId);
         
         let targetUrl = '/dashboard'; // default
         
@@ -171,15 +169,6 @@ export function usePushNotifications() {
         if (data?.type === 'ticket_assigned' && data?.ticketId) {
           targetUrl = `/dashboard/tickets/${data.ticketId}`;
           console.log('🎯 [NOTIFICATION TAP] Navigating to ticket:', targetUrl);
-        } else if (data?.type === 'team_invitation' && data?.teamId) {
-          targetUrl = `/dashboard/teams/${data.teamId}`;
-          console.log('🎯 [NOTIFICATION TAP] Navigating to team:', targetUrl);
-        } else if (data?.type === 'new_team_member' && data?.teamId) {
-          targetUrl = `/dashboard/teams/${data.teamId}`;
-          console.log('🎯 [NOTIFICATION TAP] Navigating to team (new member):', targetUrl);
-        } else if ((data?.type === 'clock_in' || data?.type === 'clock_out') && data?.memberId && data?.teamId) {
-          targetUrl = `/dashboard/member?id=${data.memberId}&teamId=${data.teamId}`;
-          console.log('🎯 [NOTIFICATION TAP] Navigating to member page:', targetUrl);
         } else {
           console.log('⚠️  [NOTIFICATION TAP] No specific route, using default dashboard');
         }

@@ -1,22 +1,33 @@
-import { authenticatedFetch, getStoredUser } from '../auth';
 import { db } from '../db';
 import { v4 as uuidv4 } from 'uuid';
-import { getApiUrl } from '../apiUrl';
-
-const API_URL = getApiUrl();
+import { getStoredUser } from '../auth';
+import { operationsLog } from '../OperationsLog';
 
 export interface Ticket {
   id: string;
   title: string;
   description?: string;
-  status: 'Open' | 'In Progress' | 'Closed';
+  status: 'Open' | 'In Progress' | 'Closed' | 'Done';
   priority: 'Low' | 'Medium' | 'High';
   link?: string;
   teamId: string;
+  teamName?: string;
   createdBy: string;
   assignedTo?: string;
   createdAt: string;
   updatedAt: string;
+  source?: 'personal' | 'timehuddle';
+  syncedWithTimehuddle?: boolean;
+  sharedToTimehuddle?: boolean;
+  pulseVideo?: {
+    url: string;
+    recordedAt: string;
+    duration: string;
+  };
+  trackedTime?: string;
+  trackedMs?: number;
+  projectId?: string;
+  projectName?: string;
   creator?: {
     id: string;
     full_name: string;
@@ -32,7 +43,7 @@ export interface Ticket {
 export interface CreateTicketData {
   title: string;
   description?: string;
-  status?: 'Open' | 'In Progress' | 'Closed';
+  status?: 'Open' | 'In Progress' | 'Closed' | 'Done';
   priority?: 'Low' | 'Medium' | 'High';
   link?: string;
   assignedTo?: string;
@@ -41,222 +52,148 @@ export interface CreateTicketData {
 export interface UpdateTicketData {
   title?: string;
   description?: string;
-  status?: 'Open' | 'In Progress' | 'Closed';
+  status?: 'Open' | 'In Progress' | 'Closed' | 'Done';
   priority?: 'Low' | 'Medium' | 'High';
   link?: string;
   assignedTo?: string;
+  sharedToTimehuddle?: boolean;
 }
 
+// Mock seeding disabled — real data only
+let seeded = false;
+async function ensureSeeded() {
+  if (seeded) return;
+  seeded = true;
+  // Mock data seeding removed for real testing
+}
+
+/** Reset module-level state after database wipe (e.g. on sign-out). */
+export function resetTicketState() {
+  seeded = false;
+}
+
+const PERSONAL_TEAM_ID = '__personal__';
+
 export const createTicket = async (teamId: string, data: CreateTicketData): Promise<Ticket> => {
-  // Generate ID client-side for offline-first consistency
-  const id = uuidv4();
-
+  await ensureSeeded();
+  const user = await getStoredUser();
+  const now = new Date().toISOString();
+  const ticket: any = {
+    id: uuidv4(),
+    title: data.title,
+    description: data.description,
+    status: data.status || 'Open',
+    priority: data.priority || 'Medium',
+    link: data.link,
+    teamId,
+    createdBy: user?.id || 'admin-1',
+    assignedTo: data.assignedTo,
+    createdAt: now,
+    updatedAt: now,
+    _dirty: 1,
+    _rev: 1,
+    fieldTimestamps: { title: now, status: now, priority: now },
+  };
   try {
-    const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/tickets`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ...data, id }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to create ticket');
-    }
-
-    const ticket = await response.json();
     await db.tickets.put(ticket);
+    await operationsLog.log({ category: 'TICKET', action: 'CREATE', result: 'success', target: 'Ticket', targetId: ticket.id, details: { title: data.title, teamId } });
     return ticket;
-  } catch (error) {
-    console.error('Create ticket failed, storing offline:', error);
-    
-    const user = await getStoredUser();
-
-    // Create temporary ticket for offline use
-    let assignee;
-    if (data.assignedTo) {
-      const teams = await db.teams.toArray();
-      for (const team of teams) {
-        const member = team.members.find(m => m.id === data.assignedTo);
-        if (member) {
-          assignee = {
-            id: member.id,
-            full_name: member.name,
-            email: member.email || ''
-          };
-          break;
-        }
-      }
-    }
-
-    const tempTicket: Ticket = {
-      id, // Use the pre-generated ID
-      title: data.title,
-      description: data.description,
-      status: data.status || 'Open',
-      priority: data.priority || 'Medium',
-      link: data.link,
-      teamId,
-      createdBy: user?.id || 'offline-user',
-      assignedTo: data.assignedTo,
-      assignee,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await db.tickets.put(tempTicket);
-    
-    await db.offlineMutations.add({
-      url: `${API_URL}/teams/${teamId}/tickets`,
-      method: 'POST',
-      body: { ...data, id }, // Include ID in the mutation body
-      timestamp: Date.now(),
-      retryCount: 0,
-      tempId: id
-    });
-
-    return tempTicket;
+  } catch (err: any) {
+    await operationsLog.log({ category: 'TICKET', action: 'CREATE', result: 'failure', target: 'Ticket', errorMessage: err?.message, details: { title: data.title, teamId } });
+    throw err;
   }
 };
 
 export const getTickets = async (teamId: string, options?: { sort?: string; status?: string }): Promise<Ticket[]> => {
-  const loadFromCache = async () => {
-    const allTickets = await db.tickets.where('teamId').equals(teamId).toArray();
-    if (options?.status === 'open') {
-      return allTickets.filter(t => t.status !== 'Closed');
-    }
-    if (options?.status) {
-      return allTickets.filter(t => t.status.toLowerCase() === options.status!.toLowerCase());
-    }
-    return allTickets;
+  await ensureSeeded();
+  const allTickets = (await db.tickets.where('teamId').equals(teamId).toArray())
+    .filter((t: any) => !t._deleted);
+  if (options?.status === 'open') return allTickets.filter(t => t.status !== 'Closed');
+  if (options?.status) return allTickets.filter(t => t.status.toLowerCase() === options.status!.toLowerCase());
+  return allTickets;
+};
+
+export const updateTicket = async (_teamId: string, ticketId: string, data: UpdateTicketData): Promise<Ticket> => {
+  const existing = await db.tickets.get(ticketId) as any;
+  if (!existing) throw new Error('Ticket not found');
+  const now = new Date().toISOString();
+  const prevTs = existing.fieldTimestamps ?? {};
+  const newTs = { ...prevTs };
+  for (const key of Object.keys(data)) {
+    newTs[key] = now;
+  }
+  const updated = {
+    ...existing,
+    ...data,
+    updatedAt: now,
+    _dirty: 1,
+    _rev: (existing._rev ?? 0) + 1,
+    fieldTimestamps: newTs,
   };
-
-  // Skip network entirely when offline
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return loadFromCache();
-  }
-
   try {
-    const queryParams = new URLSearchParams();
-    if (options?.sort) queryParams.append('sort', options.sort);
-    if (options?.status) queryParams.append('status', options.status);
-
-    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
-
-    const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/tickets${queryString}`, {
-      method: 'GET',
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.json();
-      const err: any = new Error(errorBody.message || 'Failed to fetch tickets');
-      err.status = response.status;
-      throw err;
-    }
-
-    const tickets = await response.json();
-    await db.tickets.bulkPut(tickets);
-    return tickets;
-  } catch (error: any) {
-    // 403 = genuine access denied (user not a member of this team).
-    // Do NOT serve stale cache data — return empty to avoid showing another user's tickets.
-    if (error?.status === 403) {
-      console.warn(`Tickets fetch denied (403) for team ${teamId} — user may no longer be a member.`);
-      return [];
-    }
-    console.warn('Fetching tickets failed, loading from offline cache:', error);
-    return loadFromCache();
+    await db.tickets.put(updated);
+    await operationsLog.log({ category: 'TICKET', action: 'UPDATE', result: 'success', target: 'Ticket', targetId: ticketId, details: { fields: Object.keys(data) } });
+    return updated;
+  } catch (err: any) {
+    await operationsLog.log({ category: 'TICKET', action: 'UPDATE', result: 'failure', target: 'Ticket', targetId: ticketId, errorMessage: err?.message });
+    throw err;
   }
 };
 
-export const updateTicket = async (teamId: string, ticketId: string, data: UpdateTicketData): Promise<Ticket> => {
+export const deleteTicket = async (_teamId: string, ticketId: string): Promise<void> => {
+  const existing = await db.tickets.get(ticketId) as any;
   try {
-    const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/tickets/${ticketId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to update ticket');
+    if (existing?._serverId) {
+      await db.tickets.update(ticketId, {
+        _deleted: true,
+        _dirty: 1,
+        _rev: (existing._rev ?? 0) + 1,
+        updatedAt: new Date().toISOString(),
+      } as any);
+    } else {
+      await db.tickets.delete(ticketId);
     }
-
-    const ticket = await response.json();
-    await db.tickets.put(ticket);
-    return ticket;
-  } catch (error) {
-    console.error('Update ticket failed, storing offline:', error);
-
-    // Update local cache
-    const existingTicket = await db.tickets.get(ticketId);
-    if (existingTicket) {
-      let assignee = existingTicket.assignee;
-      
-      // If assignedTo is changing, try to find the new assignee details
-      if (data.assignedTo && data.assignedTo !== existingTicket.assignedTo) {
-        const teams = await db.teams.toArray();
-        for (const team of teams) {
-          const member = team.members.find(m => m.id === data.assignedTo);
-          if (member) {
-            assignee = {
-              id: member.id,
-              full_name: member.name,
-              email: member.email || ''
-            };
-            break;
-          }
-        }
-      }
-
-      const updatedTicket = { 
-        ...existingTicket, 
-        ...data, 
-        assignee,
-        updatedAt: new Date().toISOString() 
-      };
-      await db.tickets.put(updatedTicket);
-      
-      await db.offlineMutations.add({
-        url: `${API_URL}/teams/${teamId}/tickets/${ticketId}`,
-        method: 'PUT',
-        body: data,
-        timestamp: Date.now(),
-        retryCount: 0
-      });
-      
-      return updatedTicket;
-    }
-    throw error;
+    await operationsLog.log({ category: 'TICKET', action: 'DELETE', result: 'success', target: 'Ticket', targetId: ticketId });
+  } catch (err: any) {
+    await operationsLog.log({ category: 'TICKET', action: 'DELETE', result: 'failure', target: 'Ticket', targetId: ticketId, errorMessage: err?.message });
+    throw err;
   }
 };
 
-export const deleteTicket = async (teamId: string, ticketId: string): Promise<void> => {
-  try {
-    const response = await authenticatedFetch(`${API_URL}/teams/${teamId}/tickets/${ticketId}`, {
-      method: 'DELETE',
-    });
+// Personal Tickets
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to delete ticket');
-    }
-    
-    await db.tickets.delete(ticketId);
-  } catch (error) {
-    console.error('Delete ticket failed, storing offline:', error);
-    
-    await db.tickets.delete(ticketId);
-    
-    await db.offlineMutations.add({
-      url: `${API_URL}/teams/${teamId}/tickets/${ticketId}`,
-      method: 'DELETE',
-      body: {},
-      timestamp: Date.now(),
-      retryCount: 0
-    });
-  }
+export const createPersonalTicket = async (data: CreateTicketData): Promise<Ticket> => {
+  return createTicket(PERSONAL_TEAM_ID, data);
+};
+
+export const getPersonalTickets = async (options?: { sort?: string; status?: string }): Promise<Ticket[]> => {
+  return getTickets(PERSONAL_TEAM_ID, options);
+};
+
+export const getAllTickets = async (): Promise<Ticket[]> => {
+  await ensureSeeded();
+  return (await db.tickets.toArray()).filter((t: any) => !t._deleted);
+};
+
+export const getTimehuddleTickets = async (): Promise<Ticket[]> => {
+  await ensureSeeded();
+  const all = await db.tickets.toArray();
+  return all.filter(t => t.source === 'timehuddle');
+};
+
+export const shareToTimehuddle = async (ticketId: string): Promise<Ticket> => {
+  const existing = await db.tickets.get(ticketId);
+  if (!existing) throw new Error('Ticket not found');
+  const updated = { ...existing, sharedToTimehuddle: true, updatedAt: new Date().toISOString() };
+  await db.tickets.put(updated);
+  await operationsLog.log({ category: 'TICKET', action: 'SHARE', result: 'success', target: 'Ticket', targetId: ticketId });
+  return updated;
+};
+
+export const updatePersonalTicket = async (ticketId: string, data: UpdateTicketData): Promise<Ticket> => {
+  return updateTicket(PERSONAL_TEAM_ID, ticketId, data);
+};
+
+export const deletePersonalTicket = async (ticketId: string): Promise<void> => {
+  return deleteTicket(PERSONAL_TEAM_ID, ticketId);
 };

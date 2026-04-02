@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { useRefresh } from '../../contexts/RefreshContext';
+import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { Loader2 } from 'lucide-react';
 
 interface PullToRefreshProps {
@@ -10,7 +10,6 @@ interface PullToRefreshProps {
 }
 
 export default function PullToRefresh({ children }: PullToRefreshProps) {
-  const router = useRouter();
   const { refreshAll } = useRefresh();
   const [isRefreshing, setIsRefreshing] = useState(false);
   
@@ -55,9 +54,14 @@ export default function PullToRefresh({ children }: PullToRefreshProps) {
     // 1. Minimum duration for UX consistency (so spinner doesn't flash)
     const minDelay = new Promise(resolve => setTimeout(resolve, 800));
     
-    // 2. The actual data refresh using GLOBAL refresh context
-    // This ensures all pages/tabs update their state
-    const refreshData = refreshAll();
+    // 2. Sync with the server first — pull fresh data into Dexie.
+    //    SyncEngine dispatches 'sync-complete' when done, which components
+    //    like ActivityLogContext and OpenTickets listen to.
+    const serverSync = syncManager.syncNow?.().catch(() => {});
+
+    // 3. Then call registered RefreshContext callbacks so every component
+    //    re-reads its data (stats, tickets, activity, etc.)
+    const refreshData = serverSync.then(() => refreshAll());
 
     await Promise.all([refreshData, minDelay]);
     
@@ -181,7 +185,7 @@ export default function PullToRefresh({ children }: PullToRefreshProps) {
                 w-8 h-8 rounded-full 
                 bg-white dark:bg-gray-800 
                 shadow-sm border border-gray-100 dark:border-gray-700
-                text-blue-600 dark:text-blue-400
+                text-primary-600 dark:text-primary-400
                 transition-none
              `}
              style={{ 

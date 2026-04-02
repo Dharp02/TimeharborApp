@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { resetPassword, clearStoredSession } from '@/TimeharborAPI/auth';
+import { Input, Button, Alert, AlertDescription } from '@mieweb/ui';
 
 export default function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -66,7 +67,7 @@ export default function ResetPasswordForm() {
         </p>
         <Link
           href="/login"
-          className="inline-block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
+          className="inline-block w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
         >
           Go to Sign In
         </Link>
@@ -78,24 +79,21 @@ export default function ResetPasswordForm() {
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
       <form onSubmit={handleSubmit} className="space-y-6" aria-label="Reset password form">
         {error && (
-          <div role="alert" className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded-lg px-4 py-3">
-            {error}
-          </div>
+          <Alert variant="danger">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            New Password
-          </label>
-          <input
+          <Input
             id="password"
+            label="New Password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
             aria-describedby="password-hint"
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
             placeholder="At least 8 characters"
           />
           <p id="password-hint" className="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -103,31 +101,26 @@ export default function ResetPasswordForm() {
           </p>
         </div>
 
-        <div>
-          <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Confirm New Password
-          </label>
-          <input
-            id="confirm-password"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-            placeholder="Repeat your new password"
-          />
-        </div>
+        <Input
+          id="confirm-password"
+          label="Confirm New Password"
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          placeholder="Repeat your new password"
+        />
 
-        <button
+        <Button
           type="submit"
           disabled={isLoading || !token}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
+          className="w-full"
         >
           {isLoading ? 'Updating password…' : 'Set New Password'}
-        </button>
+        </Button>
 
         <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-          <Link href="/forgot-password" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+          <Link href="/forgot-password" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">
             Request a new reset link
           </Link>
         </div>

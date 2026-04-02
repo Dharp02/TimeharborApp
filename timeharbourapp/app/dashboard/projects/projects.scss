@@ -1,0 +1,116 @@
+/* ── Projects Page Theme ─────────────────────────────────── */
+
+.projects-page {
+
+  /* ── project color bands ───────────────────────────── */
+  .project-color-band {
+    height: 4px;
+    border-radius: 0.75rem 0.75rem 0 0;
+  }
+
+  .project-color-band--blue    { background: var(--mieweb-primary-500); }
+  .project-color-band--green   { background: var(--mieweb-success); }
+  .project-color-band--purple  { background: #8b5cf6; }
+  .project-color-band--orange  { background: #f97316; }
+  .project-color-band--red     { background: var(--mieweb-destructive); }
+  .project-color-band--teal    { background: #14b8a6; }
+  .project-color-band--pink    { background: #ec4899; }
+  .project-color-band--yellow  { background: #eab308; }
+  .project-color-band--indigo  { background: #6366f1; }
+  .project-color-band--gray    { background: #6b7280; }
+
+  /* ── prefix dot ────────────────────────────────────── */
+  .project-prefix {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    background: var(--mieweb-muted);
+    color: var(--mieweb-muted-foreground);
+  }
+
+  /* ── stat pill ─────────────────────────────────────── */
+  .project-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--mieweb-muted-foreground);
+  }
+
+  /* ── ticket row inside expanded project ────────────── */
+  .ticket-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.15s;
+    cursor: default;
+
+    &:hover {
+      background: var(--mieweb-muted);
+    }
+  }
+
+  /* ── color swatch picker ───────────────────────────── */
+  .color-swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.15s;
+
+    &:hover {
+      transform: scale(1.15);
+    }
+
+    &.active {
+      border-color: var(--mieweb-foreground);
+      box-shadow: 0 0 0 2px var(--mieweb-background), 0 0 0 4px var(--mieweb-foreground);
+    }
+  }
+
+  .swatch--blue    { background: var(--mieweb-primary-500); }
+  .swatch--green   { background: #22c55e; }
+  .swatch--purple  { background: #8b5cf6; }
+  .swatch--orange  { background: #f97316; }
+  .swatch--red     { background: #ef4444; }
+  .swatch--teal    { background: #14b8a6; }
+  .swatch--pink    { background: #ec4899; }
+  .swatch--yellow  { background: #eab308; }
+  .swatch--indigo  { background: #6366f1; }
+  .swatch--gray    { background: #6b7280; }
+
+  /* ── progress bar ──────────────────────────────────── */
+  .progress-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--mieweb-muted);
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.4s ease;
+  }
+
+  /* ── responsive grid ───────────────────────────────── */
+  .projects-grid {
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 1rem;
+
+    @media (min-width: 640px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+}

@@ -1,108 +1,262 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { auth } from '@/TimeharborAPI';
-import { db } from '@/TimeharborAPI/db';
+import { syncManager } from '@/TimeharborAPI/SyncManager';
+import { clearDatabase } from '@/TimeharborAPI/db';
+import { resetTicketState } from '@/TimeharborAPI/tickets';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import { SocialLogin } from '@capgo/capacitor-social-login';
 
 type AuthContextType = {
   user: any | null;
   loading: boolean;
+  initialSyncing: boolean;
 };
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ user: null, loading: true, initialSyncing: false });
 
 export const useAuth = () => useContext(AuthContext);
 
+const CACHED_USER_KEY = 'th_cached_user';
+
+/** Persist user to localStorage so cold start is instant. */
+function cacheUser(u: any | null) {
+  try {
+    if (u) {
+      localStorage.setItem(CACHED_USER_KEY, JSON.stringify(u));
+    } else {
+      localStorage.removeItem(CACHED_USER_KEY);
+    }
+  } catch { /* quota / SSR */ }
+}
+
+/** Read cached user from localStorage (returns null if none). */
+function getCachedUser(): any | null {
+  try {
+    const raw = localStorage.getItem(CACHED_USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const isMounted = useRef(false);
+  // Hydrate immediately from cache — no loading screen if we have a cached user.
+  const cached = typeof window !== 'undefined' ? getCachedUser() : null;
+  const [user, setUser] = useState<any | null>(cached);
+  const [loading, setLoading] = useState(cached === null);
+  const [initialSyncing, setInitialSyncing] = useState(false);
+  const initRef = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => {
-    if (!isMounted.current) {
-      const checkSession = async () => {
-        // Item 11: Skip network call when offline — avoids "Failed to fetch" crashes
-        if (typeof navigator !== 'undefined' && !navigator.onLine) {
-          try {
-            const cached = await db.profile.get('user');
-            if (cached?.data) setUser(cached.data);
-          } catch (_) {}
-          setLoading(false);
-          return;
-        }
+  // Capacitor listener handles for synchronous cleanup.
+  const urlOpenHandle = useRef<Awaited<ReturnType<typeof App.addListener>> | null>(null);
+  const stateChangeHandle = useRef<Awaited<ReturnType<typeof App.addListener>> | null>(null);
 
-        // Item 10: Seed from Dexie before network resolves — UI unblocks in ~1ms
-        try {
-          const cached = await db.profile.get('user');
-          if (cached?.data) {
-            setUser(cached.data);
-            setLoading(false);
-          }
-        } catch (_) {}
+  // ── Wrapper: set user + persist to cache ─────────────────────────────
+  const setUserAndCache = useCallback((u: any | null) => {
+    setUser(u);
+    cacheUser(u);
+  }, []);
 
-        try {
-          const { user, error } = await auth.getUser();
-          if (error) throw error;
-          setUser(user);
-        } catch (error: any) {
-          if (error?.message !== 'Session expired') {
-            console.error('Error checking session:', error);
-          }
-        } finally {
-          setLoading(false);
-        }
-      };
-      checkSession();
-      isMounted.current = true;
+  // ── Fetch session and update state ───────────────────────────────────
+  const refreshSession = useCallback(async () => {
+    const { user: u, error } = await auth.getUser();
+
+    // If the session check returned an error (network timeout, backend
+    // temporarily unreachable, etc.) keep the existing cached user so
+    // transient failures don't sign the user out.
+    if (error && !u) {
+      console.log('[AuthProvider] refreshSession: backend error, keeping cached user');
+      setLoading(false);
+      return user;
     }
 
+    setUserAndCache(u ?? null);
+    setLoading(false);
+    return u ?? null;
+  }, [setUserAndCache, user]);
+
+  // ── On mount: init plugins, verify session in background ─────────────
+  useEffect(() => {
+    if (!initRef.current) {
+      initRef.current = true;
+      if (Capacitor.isNativePlatform()) {
+        SocialLogin.initialize({
+          google: {
+            iOSClientId: process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID || '',
+            iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+          },
+        }).catch(() => {});
+      }
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const hasCached = getCachedUser() !== null;
+      console.log('[AuthProvider] cold start', { hasCachedUser: hasCached });
+
+      // Defence-in-depth: on native cold start with no cached user, proactively
+      // clear cookies BEFORE the session check. This covers the edge case where
+      // signOut cleared localStorage but the app was killed before native cookies
+      // were fully purged (e.g. recording was active and clearDatabase blocked).
+      if (!hasCached && Capacitor.isNativePlatform()) {
+        try {
+          const { CapacitorCookies } = await import('@capacitor/core');
+          await CapacitorCookies.clearAllCookies();
+          console.log('[AuthProvider] no cached user on native — cleared cookies');
+        } catch { /* best-effort */ }
+      }
+
+      // If we have a cached user, we're already showing the dashboard.
+      // Set loading=false immediately so the app is usable right away.
+      if (hasCached) {
+        setLoading(false);
+      }
+
+      // Timeout: if auth.getUser() hangs, force loading=false after 5s.
+      // Keep the cached user — if the session is truly expired, the next
+      // successful backend check will clear it.
+      const timeout = setTimeout(() => {
+        if (!cancelled) {
+          console.log('[AuthProvider] session check timed out, keeping cached user');
+          setLoading(false);
+        }
+      }, 5000);
+
+      // Verify with backend (may hang on cold start — that's OK if we have cache).
+      const { user: u, error } = await auth.getUser();
+      clearTimeout(timeout);
+      if (cancelled) return;
+
+      if (error) {
+        // Backend returned an error (network failure, 500, timeout, etc.)
+        // Keep the cached user — transient errors shouldn't sign the user out.
+        // If the session is truly expired, `data` will be null with NO error
+        // on the next successful check, which is handled below.
+        console.log('[AuthProvider] session check error, keeping cached user', { error });
+        setLoading(false);
+        return;
+      }
+
+      if (u) {
+        console.log('[AuthProvider] session verified', { id: u.id });
+        setUserAndCache(u);
+        auth.fetchProfile().catch(() => {});
+      } else if (!hasCached) {
+        // Only clear if there was no cached user to begin with.
+        // If the user had a cached session, keep them signed in —
+        // they should only be signed out when they press "Sign Out"
+        // (like Instagram/Facebook). The session cookie may have
+        // expired but the local data is still valid for offline use.
+        console.log('[AuthProvider] no session and no cache, staying on login');
+        setUserAndCache(null);
+      } else {
+        console.log('[AuthProvider] backend says no session but cached user exists, keeping cache');
+      }
+      setLoading(false);
+    })();
+
     const subscription = auth.onAuthStateChange((event, session) => {
-      console.log('Auth state change:', event, session);
-      
       if (event === 'SIGNED_IN') {
-        setUser(session?.user ?? null);
-        router.refresh();
+        setUserAndCache(session?.user ?? null);
+        // Clear stale Dexie data, then sync fresh data from backend.
+        // Show a loading gate until the initial sync completes.
+        setInitialSyncing(true);
+        (async () => {
+          try {
+            await clearDatabase();
+            resetTicketState();
+            syncManager.resume?.();
+            await syncManager.syncNow?.();
+          } catch (err) {
+            console.warn('[AuthProvider] initial sync after sign-in failed', err);
+          } finally {
+            setInitialSyncing(false);
+          }
+        })();
+      } else if (event === 'USER_UPDATED') {
+        // Profile/avatar change — update user state without clearing the database
+        setUserAndCache(session?.user ?? null);
       } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        router.refresh();
+        setUserAndCache(null);
       }
     });
 
-    // Item 12: Auto-recover session when network returns after being offline
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Deep-link callback from OAuth on native ──────────────────────────
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    urlOpenHandle.current?.remove();
+
+    App.addListener('appUrlOpen', async ({ url }) => {
+      if (url.startsWith('timeharbor://auth/callback')) {
+        await Browser.close().catch(() => {});
+        const u = await refreshSession();
+        if (u) {
+          setLoading(false);
+          router.replace('/dashboard');
+        }
+      }
+    }).then((h) => { urlOpenHandle.current = h; });
+
+    return () => { urlOpenHandle.current?.remove(); urlOpenHandle.current = null; };
+  }, [router, refreshSession]);
+
+  // ── Re-validate session when app resumes from background ─────────────
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    stateChangeHandle.current?.remove();
+
+    App.addListener('appStateChange', async ({ isActive }) => {
+      if (!isActive) return;
+      console.log('[AuthProvider] app resumed, refreshing session');
+      await refreshSession();
+    }).then((h) => { stateChangeHandle.current = h; });
+
+    return () => { stateChangeHandle.current?.remove(); stateChangeHandle.current = null; };
+  }, [refreshSession]);
+
+  // ── Re-validate session when network reconnects (offline → online) ───
+  useEffect(() => {
     const handleOnline = () => {
-      auth.getUser().then(({ user, error }) => {
-        if (!error && user) setUser(user);
-      });
+      console.log('[AuthProvider] network reconnected, refreshing session');
+      refreshSession();
     };
     window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [refreshSession]);
 
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener('online', handleOnline);
-    };
-  }, [router]);
-
+  // ── Redirect: only after loading is done ─────────────────────────────
   useEffect(() => {
     if (loading) return;
 
-    // Normalize pathname by removing trailing slash if present (except for root)
-    const normalizedPath = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
-    
-    const isAuthPage = ['/login', '/signup', '/forgot-password', '/'].includes(normalizedPath);
-    const isDashboardPage = normalizedPath.startsWith('/dashboard');
+    const p = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
+    const isAuthPage = ['/login', '/signup', '/forgot-password', '/'].includes(p);
+    const isDashboard = p.startsWith('/dashboard');
+
+    console.log('[AuthProvider] routing', { user: !!user, path: p });
 
     if (user && isAuthPage) {
       router.replace('/dashboard');
-    } else if (!user && isDashboardPage) {
+    } else if (!user && isDashboard) {
       router.replace('/login');
     }
   }, [user, loading, pathname, router]);
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, initialSyncing }}>
       {children}
     </AuthContext.Provider>
   );

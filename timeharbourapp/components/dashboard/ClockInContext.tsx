@@ -1,601 +1,154 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { localTimeStore } from '@/TimeharborAPI/time/LocalTimeStore';
+import { sessionManager } from '@/TimeharborAPI/time/SessionManager';
+import { collectAttachments } from '@/TimeharborAPI/time/attachmentUtils';
+import type { SessionAttachment } from '@/TimeharborAPI/db';
+import { db } from '@/TimeharborAPI/db';
+import { useSession } from '@/TimeharborAPI/time/useSession';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
-import { TimeService } from '@/TimeharborAPI/time/TimeService';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { useSocket } from '@/contexts/SocketContext';
-import { Network } from '@capacitor/network';
 import { Modal } from '@/components/ui/Modal';
 import { useActivityLog } from './ActivityLogContext';
-import { DateTime, Duration } from 'luxon';
+import { formatDuration, formatDurationClock } from '@timeharbor/time-engine';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
-import { Plus, Play, Ticket, Coffee, PlayCircle } from 'lucide-react';
+import { Plus, Play, Ticket, Coffee, PlayCircle, X, Paperclip, FileText, Link2 } from 'lucide-react';
+import { Button, Input, Textarea } from '@mieweb/ui';
 
 type ClockInContextType = {
   // Global Session
   isSessionActive: boolean;
-  isSessionInitialized: boolean;
   isOnBreak: boolean;
   sessionStartTime: number | null;
   sessionDuration: string;
   sessionFormat: string;
-  
+
   // Ticket Timer
   activeTicketId: string | null;
   activeTicketTitle: string | null;
-  activeTicketTeamId: string | null;
   ticketStartTime: number | null;
   ticketDuration: string;
   ticketFormat: string;
   ticketDurations: Record<string, number>;
 
   // Actions
-  toggleSession: (teamId?: string) => void;
+  toggleSession: () => void;
   resumeFromBreak: () => void;
-  toggleTicketTimer: (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string) => void;
+  toggleTicketTimer: (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, links?: string[], attachments?: SessionAttachment[]) => void;
   getFormattedTotalTime: (ticketId: string) => string;
 };
 
 const ClockInContext = createContext<ClockInContextType | undefined>(undefined);
 
+/** Format ms to mm:ss or hh:mm display */
+function formatTimer(ms: number): { display: string; format: string } {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours === 0) {
+    return {
+      display: `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+      format: 'mm:ss',
+    };
+  }
+  return {
+    display: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`,
+    format: 'hh:mm',
+  };
+}
+
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const { socket } = useSocket();
   const { addActivity, updateActivity, updateActiveSession } = useActivityLog();
   const router = useRouter();
-  const isSwitchingTicketRef = useRef(false); // Prevents activity-sync useEffect from clearing ticket during handoff
-  const isMutatingRef = useRef(false);         // True while a local clock/break/ticket action is in flight
-  const lastAppliedAtRef = useRef<number>(0);  // Timestamp of last applied server state — stale payloads are discarded
-  const serverStateLoadedRef = useRef(false);  // True once first server state has been applied
-  
-  // Session State
-  const [isSessionInitialized, setIsSessionInitialized] = useState(false); // True once server state or fallback has resolved
-  const [isSessionActive, setIsSessionActive] = useState(false);
-  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
-  const [sessionDuration, setSessionDuration] = useState('00:00');
-  const [sessionFormat, setSessionFormat] = useState('mm:ss');
 
-  // Break State
-  const [isOnBreak, setIsOnBreak] = useState(false);
-  const [breakStartTime, setBreakStartTime] = useState<number | null>(null);
-  const [totalBreakMs, setTotalBreakMs] = useState(0);
-  const [breakActivityId, setBreakActivityId] = useState<string | null>(null);
-  // Tracks the activity log ID of the current "Started Ticket / Active" entry so it
-  // can be marked Completed when the ticket is stopped (prevents stale green badge).
-  const [ticketActivityId, setTicketActivityId] = useState<string | null>(null);
+  // Live session from Dexie via useSession hook (reactively updates every 1s)
+  const { currentSession, stats, isOpen, isOnBreak, activeTicketId } = useSession(user?.id);
 
-  // Session Options Modal State (Take a Break / Clock Out)
+  // Modals
   const [isSessionOptionsOpen, setIsSessionOptionsOpen] = useState(false);
-
-  // Ticket Stop Modal State
   const [isStopTicketModalOpen, setIsStopTicketModalOpen] = useState(false);
   const [stopTicketComment, setStopTicketComment] = useState('');
-  const [stopTicketLink, setStopTicketLink] = useState('');
-  const [pendingSessionStopTeamId, setPendingSessionStopTeamId] = useState<string | undefined>(undefined);
-
-  // Clock-In Ticket Prompt State
+  const [stopTicketLinks, setStopTicketLinks] = useState<string[]>([]);
+  const [stopTicketLinkInput, setStopTicketLinkInput] = useState('');
+  const [stopTicketImages, setStopTicketImages] = useState<string[]>([]);
+  const [stopTicketFiles, setStopTicketFiles] = useState<File[]>([]);
+  const stopTicketFileRef = useRef<HTMLInputElement>(null);
   const [isClockInPromptOpen, setIsClockInPromptOpen] = useState(false);
-  const [clockInPromptTeamId, setClockInPromptTeamId] = useState<string | undefined>(undefined);
   const [clockInTickets, setClockInTickets] = useState<TicketType[]>([]);
   const [clockInTicketsLoading, setClockInTicketsLoading] = useState(false);
 
-  // Ticket State
-  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
-  const [activeTicketTitle, setActiveTicketTitle] = useState<string | null>(null);
-  const [activeTicketTeamId, setActiveTicketTeamId] = useState<string | null>(null);
-  const [ticketStartTime, setTicketStartTime] = useState<number | null>(null);
-  const [ticketBreakMs, setTicketBreakMs] = useState(0); // Break time accumulated while this ticket was active
-  const [ticketDuration, setTicketDuration] = useState('00:00');
-  const [ticketFormat, setTicketFormat] = useState('mm:ss');
-  const [ticketDurations, setTicketDurations] = useState<Record<string, number>>({});
+  // Pre-break ticket tracking (not in Dexie — ephemeral UI state)
+  const preBreakTicketRef = useRef<{ id: string; title: string } | null>(null);
 
-  /**
-   * Apply authoritative session state received from the backend.
-   * Called on socket connect, REST fetch on login, and dashboard refresh.
-   * Server state always wins over localStorage so cross-device sessions
-   * are correctly restored on Device B.
-   */
-  const applySessionState = useCallback((state: {
-    isSessionActive: boolean;
-    sessionStartTime: string | null;
-    isOnBreak: boolean;
-    breakStartTime: string | null;
-    totalBreakMs: number;
-    ticketBreakMs?: number;
-    activeTicketId: string | null;
-    activeTicketTitle: string | null;
-    activeTicketTeamId: string | null;
-    ticketStartTime: string | null;
-    computedAt?: number;
-  }) => {
-    // Discard stale payloads (e.g. REST response arriving after a newer socket event)
-    const computedAt = state.computedAt ?? Date.now();
-    if (computedAt < lastAppliedAtRef.current) return;
-    lastAppliedAtRef.current = computedAt;
-
-    // Don't clobber optimistic UI while a local action is still in flight
-    if (isMutatingRef.current) return;
-
-    // Don't apply state during a ticket switch handoff
-    if (isSwitchingTicketRef.current) return;
-
-    serverStateLoadedRef.current = true;
-    setIsSessionInitialized(true);
-
-    if (state.isSessionActive && state.sessionStartTime) {
-      const ms = new Date(state.sessionStartTime).getTime();
-      setIsSessionActive(true);
-      setSessionStartTime(ms);
-      setTotalBreakMs(state.totalBreakMs);
-      localStorage.setItem('sessionStartTime', ms.toString());
-      localStorage.setItem('totalBreakMs', state.totalBreakMs.toString());
-    } else {
-      setIsSessionActive(false);
-      setSessionStartTime(null);
-      setTotalBreakMs(0);
-      localStorage.removeItem('sessionStartTime');
-      localStorage.removeItem('totalBreakMs');
+  // Recover pre-break ticket from session data on mount/session change.
+  // If the user was on break and the app was killed, the ref would be lost.
+  // Look at the last closed ticket segment before the open break to recover it.
+  if (isOnBreak && !preBreakTicketRef.current && currentSession) {
+    const lastBreak = currentSession.breaks.at(-1);
+    if (lastBreak && lastBreak.end === null) {
+      // Find the ticket segment that was closed when the break started
+      const closedBeforeBreak = currentSession.ticketSegments
+        .filter(s => s.end !== null && s.end <= lastBreak.start + 1000) // 1s tolerance
+        .sort((a, b) => (b.end ?? 0) - (a.end ?? 0));
+      if (closedBeforeBreak.length > 0) {
+        preBreakTicketRef.current = {
+          id: closedBeforeBreak[0].ticketId,
+          title: closedBeforeBreak[0].ticketTitle,
+        };
+      }
     }
+  }
 
-    if (state.isOnBreak && state.breakStartTime) {
-      const ms = new Date(state.breakStartTime).getTime();
-      setIsOnBreak(true);
-      setBreakStartTime(ms);
-      localStorage.setItem('breakStartTime', ms.toString());
-    } else {
-      setIsOnBreak(false);
-      setBreakStartTime(null);
-      localStorage.removeItem('breakStartTime');
-    }
+  // ── Derived values from useSession stats ──
 
-    if (state.activeTicketId && state.ticketStartTime) {
-      const ms = new Date(state.ticketStartTime).getTime();
-      setActiveTicketId(state.activeTicketId);
-      setActiveTicketTitle(state.activeTicketTitle);
-      setActiveTicketTeamId(state.activeTicketTeamId);
-      setTicketStartTime(ms);
-      setTicketBreakMs(state.ticketBreakMs ?? 0);
-      localStorage.setItem('activeTicketId', state.activeTicketId);
-      if (state.activeTicketTitle) localStorage.setItem('activeTicketTitle', state.activeTicketTitle);
-      if (state.activeTicketTeamId) localStorage.setItem('activeTicketTeamId', state.activeTicketTeamId);
-      localStorage.setItem('ticketStartTime', ms.toString());
-      localStorage.setItem('ticketBreakMs', String(state.ticketBreakMs ?? 0));
-    } else {
-      setActiveTicketId(null);
-      setActiveTicketTitle(null);
-      setActiveTicketTeamId(null);
-      setTicketStartTime(null);
-      localStorage.removeItem('activeTicketId');
-      localStorage.removeItem('activeTicketTitle');
-      localStorage.removeItem('activeTicketTeamId');
-      localStorage.removeItem('ticketStartTime');
-      localStorage.removeItem('ticketBreakMs');
-    }
-  }, []);
+  const isSessionActive = isOpen;
+  const sessionStartTime = currentSession?.clockIn ?? null;
 
-  useEffect(() => {
-    // Load state from local storage on mount — only if server hasn't responded yet.
-    // This avoids a flash of stale local state when server state is available.
-    const applyLocal = () => {
-      if (serverStateLoadedRef.current) return; // server already won
+  const sessionTimer = stats
+    ? formatTimer(stats.netWorkMs)
+    : { display: '00:00', format: 'mm:ss' };
+  const sessionDuration = sessionTimer.display;
+  const sessionFormat = sessionTimer.format;
 
-      const storedSessionStart = localStorage.getItem('sessionStartTime');
-      const storedTicketStart = localStorage.getItem('ticketStartTime');
-      const storedTicketId = localStorage.getItem('activeTicketId');
-      const storedTicketTitle = localStorage.getItem('activeTicketTitle');
-      const storedTicketTeamId = localStorage.getItem('activeTicketTeamId');
-      const storedDurations = localStorage.getItem('ticketDurations');
+  // Active ticket info from session segments
+  const activeSegment = currentSession?.ticketSegments.find(s => s.end === null) ?? null;
+  const activeTicketTitle = activeSegment?.ticketTitle ?? null;
+  const ticketStartTime = activeSegment?.start ?? null;
 
-      if (storedSessionStart) {
-        setSessionStartTime(parseInt(storedSessionStart, 10));
-        setIsSessionActive(true);
-      }
-
-      const storedBreakStart = localStorage.getItem('breakStartTime');
-      const storedTotalBreakMs = localStorage.getItem('totalBreakMs');
-      if (storedBreakStart) {
-        setIsOnBreak(true);
-        setBreakStartTime(parseInt(storedBreakStart, 10));
-      }
-      if (storedTotalBreakMs) {
-        setTotalBreakMs(parseInt(storedTotalBreakMs, 10));
-      }
-
-      if (storedTicketStart && storedTicketId) {
-        setTicketStartTime(parseInt(storedTicketStart, 10));
-        setActiveTicketId(storedTicketId);
-        if (storedTicketTitle) setActiveTicketTitle(storedTicketTitle);
-        if (storedTicketTeamId) setActiveTicketTeamId(storedTicketTeamId);
-      }
-
-      if (storedDurations) {
-        try { setTicketDurations(JSON.parse(storedDurations)); } catch (e) {}
-      }
-
-      const storedTicketBreakMs = localStorage.getItem('ticketBreakMs');
-      if (storedTicketBreakMs) {
-        setTicketBreakMs(parseInt(storedTicketBreakMs, 10));
-      }
+  // Ticket timer display — compute active ticket's total ms from stats
+  const activeTicketMs = stats?.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+  const ticketTimerDisplay = (() => {
+    const totalSeconds = Math.max(0, Math.floor(activeTicketMs / 1000));
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return {
+      display: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`,
+      format: 'hh:mm:ss',
     };
+  })();
+  const ticketDuration = ticketTimerDisplay.display;
+  const ticketFormat = ticketTimerDisplay.format;
 
-    applyLocal();
-    // If server hasn't responded within 800ms, apply local as fallback and mark as initialized
-    const fallback = setTimeout(() => { applyLocal(); setIsSessionInitialized(true); }, 800);
-    return () => clearTimeout(fallback);
-  }, []);
-
-  // Fetch authoritative session state from the backend on login.
-  // This is the primary mechanism for Device B to restore a session
-  // that Device A already started.
-  useEffect(() => {
-    if (!user?.id) return;
-    TimeService.getSessionState().then(state => {
-      if (state) applySessionState(state);
-    }).catch(() => { /* silently fall back to localStorage values */ });
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Real-time session restore via WebSocket.
-  // The backend emits session_state_restore:
-  //  - immediately on socket connect (so Device B gets state without waiting)
-  //  - after every sync commit (so all devices see the latest clock/break/ticket state)
-  // This is the primary cross-device clock-out propagation path.
-  useEffect(() => {
-    if (!socket || !user?.id) return;
-    const handleRestore = (state: any) => applySessionState(state);
-    socket.on('session_state_restore', handleRestore);
-    return () => { socket.off('session_state_restore', handleRestore); };
-  }, [socket, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Fallback: if the socket connect event fires before this listener is registered
-  // (can happen because SocketContext mounts before ClockInContext listeners run),
-  // re-request session state once the socket is available.
-  useEffect(() => {
-    if (!socket || !user?.id) return;
-    // Ask for an immediate state push by re-using the REST endpoint — this
-    // covers the case where session_state_restore was emitted before we listened.
-    TimeService.getSessionState().then(state => {
-      if (state) applySessionState(state);
-    }).catch(() => {});
-  }, [socket?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Sync state with activity logs
-  const { activities } = useActivityLog();
-  
-  useEffect(() => {
-    if (!user?.id || activities.length === 0) return;
-
-    // Once the server has provided authoritative state via session_state_restore or REST,
-    // do NOT let the activity log override it. The activity log on Device B can be stale
-    // (e.g. it still shows "Work Session Started / Active" after Device A clocked out),
-    // and letting it run would undo the clock-out that session_state_restore already applied.
-    if (serverStateLoadedRef.current) return;
-
-    // Find the most recent session activity
-    const recentSession = activities.find(a => a.type === 'SESSION' && (a.title === 'Work Session Started' || a.title === 'Session Ended'));
-    
-    if (recentSession) {
-      if (recentSession.status === 'Active' && recentSession.title === 'Work Session Started') {
-        // Session is active on backend
-        const startTime = new Date(recentSession.startTime).getTime();
-        if (!isSessionActive || sessionStartTime !== startTime) {
-          setIsSessionActive(true);
-          setSessionStartTime(startTime);
-          localStorage.setItem('sessionStartTime', startTime.toString());
-        }
-      } else if (recentSession.status === 'Completed' && recentSession.title === 'Session Ended') {
-        // Session is ended on backend
-        if (isSessionActive) {
-          setIsSessionActive(false);
-          setSessionStartTime(null);
-          localStorage.removeItem('sessionStartTime');
-        }
-      }
+  // Build ticketDurations map from stats breakdown
+  const ticketDurations: Record<string, number> = {};
+  if (stats) {
+    for (const t of stats.ticketBreakdown) {
+      ticketDurations[t.ticketId] = t.totalMs;
     }
+  }
 
-    // Find the most recent ticket activity
-    const recentTicket = activities.find(a => a.type === 'SESSION' && (a.title === 'Started Ticket' || a.title === 'Stopped Ticket'));
-    
-    if (recentTicket) {
-      if (recentTicket.status === 'Active' && recentTicket.title === 'Started Ticket') {
-        // Ticket is active on backend — only apply if it matches what we're currently tracking
-        const startTime = new Date(recentTicket.startTime).getTime();
-        const serverTicketTitle = recentTicket.subtitle;
+  // ── Actions ──
 
-        if (!activeTicketId && serverTicketTitle) {
-          // No local ticket — try to restore from localStorage if titles match
-          const storedTicketId = localStorage.getItem('activeTicketId');
-          const storedTicketTitle = localStorage.getItem('activeTicketTitle');
-
-          if (storedTicketId && storedTicketTitle === serverTicketTitle) {
-            setActiveTicketId(storedTicketId);
-            setActiveTicketTitle(storedTicketTitle);
-            setTicketStartTime(startTime);
-            localStorage.setItem('ticketStartTime', startTime.toString());
-          }
-        } else if (activeTicketId && activeTicketTitle === serverTicketTitle && ticketStartTime !== startTime) {
-          // Only update startTime if the server entry matches the ticket we're currently on.
-          // Stale "Started Ticket" entries for old tickets (still Active on server) must not
-          // overwrite the startTime of the new ticket after a switch.
-          setTicketStartTime(startTime);
-          localStorage.setItem('ticketStartTime', startTime.toString());
-        }
-      } else if (recentTicket.status === 'Completed' && recentTicket.title === 'Stopped Ticket') {
-        // Only clear local ticket state if the stopped ticket is the one we're currently tracking.
-        // If subtitle doesn't match activeTicketTitle, we already switched to a new ticket — leave it.
-        const stoppedTitle = recentTicket.subtitle;
-        const isCurrentTicketStopped = !activeTicketTitle || stoppedTitle === activeTicketTitle;
-        if (activeTicketId && isCurrentTicketStopped && !isSwitchingTicketRef.current) {
-          setActiveTicketId(null);
-          setActiveTicketTitle(null);
-          setActiveTicketTeamId(null);
-          setTicketStartTime(null);
-          localStorage.removeItem('activeTicketId');
-          localStorage.removeItem('activeTicketTitle');
-          localStorage.removeItem('activeTicketTeamId');
-          localStorage.removeItem('ticketStartTime');
-        }
-      }
-    }
-  }, [activities, user?.id, isSessionActive, sessionStartTime, activeTicketId, ticketStartTime]);
-
-
-
-  // Session Timer Effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (isSessionActive && !isOnBreak && sessionStartTime) {
-      interval = setInterval(() => {
-        const elapsedMs = DateTime.now().toMillis() - sessionStartTime - totalBreakMs;
-        const totalDuration = Duration.fromMillis(Math.max(0, elapsedMs))
-          .shiftTo('hours', 'minutes', 'seconds')
-          .normalize();
-
-        const hours = Math.floor(totalDuration.hours);
-        const minutes = Math.floor(totalDuration.minutes);
-        const seconds = Math.floor(totalDuration.seconds);
-
-        if (hours === 0) {
-          setSessionDuration(
-            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-          );
-          setSessionFormat('mm:ss');
-        } else {
-          setSessionDuration(
-            `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
-          );
-          setSessionFormat('hh:mm');
-        }
-      }, 1000);
-    } else if (!isSessionActive) {
-      setSessionDuration('00:00');
-      setSessionFormat('mm:ss');
-    }
-    // When isOnBreak, leave duration frozen as-is
-
-    return () => clearInterval(interval);
-  }, [isSessionActive, isOnBreak, sessionStartTime, totalBreakMs]);
-
-  // Ticket Timer Effect — pauses during break and subtracts break time from elapsed
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (activeTicketId && ticketStartTime && !isOnBreak) {
-      interval = setInterval(() => {
-        const start = DateTime.fromMillis(ticketStartTime);
-        const now = DateTime.now();
-        const rawMs = now.toMillis() - start.toMillis();
-        const workingMs = Math.max(0, rawMs - ticketBreakMs);
-        const totalDuration = Duration.fromMillis(workingMs).shiftTo('hours', 'minutes', 'seconds').normalize();
-        
-        const hours = Math.floor(totalDuration.hours);
-        const minutes = Math.floor(totalDuration.minutes);
-        const seconds = Math.floor(totalDuration.seconds);
-
-        setTicketDuration(
-          `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-        );
-        setTicketFormat('hh:mm:ss');
-      }, 1000);
-    } else if (!activeTicketId) {
-      setTicketDuration('00:00:00');
-      setTicketFormat('hh:mm:ss');
-    }
-    // When isOnBreak, leave ticket duration frozen as-is
-
-    return () => clearInterval(interval);
-  }, [activeTicketId, ticketStartTime, isOnBreak, ticketBreakMs]);
-
-  const takeBreak = async () => {
-    isMutatingRef.current = true;
-    try {
-    const now = DateTime.now().toMillis();
-    setIsOnBreak(true);
-    setBreakStartTime(now);
-    setIsSessionOptionsOpen(false);
-    localStorage.setItem('breakStartTime', now.toString());
-    const breakId = addActivity({
-      type: 'SESSION',
-      title: 'On Break',
-      subtitle: 'Session paused',
-      status: 'Active',
-      duration: '0m',
-    });
-    setBreakActivityId(breakId);
-    if (user?.id) {
-      // Use the team from the active ticket or the pending stop team
-      const teamId = activeTicketTeamId || pendingSessionStopTeamId || null;
-      await localTimeStore.breakStart(user.id, teamId);
-      // Flush the BREAK_START work-log to the backend immediately so the server
-      // can emit session_state_restore to all other connected devices.
-      await syncManager.syncNow();
-    }
-    } finally {
-      isMutatingRef.current = false;
-    }
-  };
-
-  const resumeFromBreak = async () => {
-    if (!breakStartTime) return;
-    isMutatingRef.current = true;
-    try {
-    const breakEndMs = DateTime.now().toMillis();
-    const breakDuration = breakEndMs - breakStartTime;
-    const newTotal = totalBreakMs + breakDuration;
-    setTotalBreakMs(newTotal);
-
-    // Only count break time that overlaps with the current ticket's active window
-    if (ticketStartTime !== null) {
-      const clampedBreakMs = Math.max(0, breakEndMs - Math.max(breakStartTime, ticketStartTime));
-      const newTicketBreakMs = ticketBreakMs + clampedBreakMs;
-      setTicketBreakMs(newTicketBreakMs);
-      localStorage.setItem('ticketBreakMs', newTicketBreakMs.toString());
-    }
-
-    setIsOnBreak(false);
-    setBreakStartTime(null);
-    localStorage.setItem('totalBreakMs', newTotal.toString());
-    localStorage.removeItem('breakStartTime');
-
-    // Close out the "On Break" entry with the correct end time (now, not session-end)
-    if (breakActivityId) {
-      updateActivity(breakActivityId, {
-        endTime: new Date(breakEndMs).toISOString(),
-        status: 'Completed',
-      });
-      setBreakActivityId(null);
-    }
-
-    addActivity({
-      type: 'SESSION',
-      title: 'Resumed',
-      subtitle: 'Back from break',
-      status: 'Active',
-      duration: '0m',
-    });
-    if (user?.id) {
-      const teamId = activeTicketTeamId || pendingSessionStopTeamId || null;
-      await localTimeStore.breakEnd(user.id, teamId);
-      // Flush the BREAK_END work-log to the backend immediately so the server
-      // can emit session_state_restore to all other connected devices.
-      await syncManager.syncNow();
-    }
-    } finally {
-      isMutatingRef.current = false;
-    }
-  };
-
-  const proceedToClockOut = async () => {
-    if (!user?.id) return;
-    const teamId = pendingSessionStopTeamId;
-    setIsSessionOptionsOpen(false);
-
-    // If on break, end it first so break time is counted and BREAK_END is logged
-    let finalBreakMs = totalBreakMs;
-    if (isOnBreak && breakStartTime) {
-      finalBreakMs = totalBreakMs + (DateTime.now().toMillis() - breakStartTime);
-      setIsOnBreak(false);
-      setBreakStartTime(null);
-      setTotalBreakMs(finalBreakMs);
-      localStorage.setItem('totalBreakMs', finalBreakMs.toString());
-      localStorage.removeItem('breakStartTime');
-      // Write the BREAK_END event so the backend records it in the session timeline
-      await localTimeStore.breakEnd(user.id, teamId || null);
-    }
-
-    // Check if ticket is running
-    if (activeTicketId) {
-      setPendingSessionStopTeamId(teamId);
-      setIsStopTicketModalOpen(true);
-      return;
-    }
-
-    // Clock Out Session
-    const now = DateTime.now();
-    setIsSessionActive(false);
-    setSessionStartTime(null);
-    setTotalBreakMs(0);
-    localStorage.removeItem('sessionStartTime');
-    localStorage.removeItem('totalBreakMs');
-
-    const actualWorkMs = Math.max(0, now.toMillis() - (sessionStartTime || now.toMillis()) - finalBreakMs);
-    const duration = Duration.fromMillis(actualWorkMs).shiftTo('hours', 'minutes', 'seconds').normalize();
-    const hours = Math.floor(duration.hours);
-    const minutes = Math.floor(duration.minutes);
-    const seconds = Math.floor(duration.seconds);
-    const durationStr = `${hours}h ${minutes}m ${seconds}s`;
-
-    updateActiveSession(now.toISO() || new Date().toISOString(), durationStr);
-    addActivity({
-      type: 'SESSION',
-      title: 'Session Ended',
-      subtitle: `Duration: ${durationStr}`,
-      status: 'Completed',
-      duration: durationStr
-    });
-
-    await localTimeStore.clockOut(user.id, null, teamId || null);
-    await syncManager.syncNow();
-    isMutatingRef.current = false;
-    window.dispatchEvent(new Event('pull-to-refresh'));
-    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
-  };
-
-  const toggleSession = async (teamId?: string) => {
-    if (!user?.id) {
-      console.error('Cannot toggle session: User not logged in');
-      return;
-    }
-
-    if (isSessionActive) {
-      // Open the Take a Break / Clock Out options modal
-      setPendingSessionStopTeamId(teamId);
-      setIsSessionOptionsOpen(true);
-      return;
-    } else {
-      // Clock In Session
-      const now = DateTime.now();
-      isMutatingRef.current = true;
-      setIsSessionActive(true);
-      setSessionStartTime(now.toMillis());
-      localStorage.setItem('sessionStartTime', now.toMillis().toString());
-
-      addActivity({
-        type: 'SESSION',
-        title: 'Work Session Started',
-        subtitle: 'Clocked In',
-        status: 'Active',
-        duration: '0h 0m',
-        startTime: now.toISO() || new Date().toISOString()
-      });
-
-      await localTimeStore.clockIn(user.id, teamId || null);
-
-      // Attempt to sync immediately
-      await syncManager.syncNow();
-      isMutatingRef.current = false;
-      
-      // Force reload activities to ensure sync
-      window.dispatchEvent(new Event('pull-to-refresh'));
-
-      // Prompt user to start or create a ticket
-      setClockInPromptTeamId(teamId);
-      setIsClockInPromptOpen(true);
-      if (teamId) {
-        fetchClockInTickets(teamId);
-      }
-    }
-  };
-
-
-  const fetchClockInTickets = async (teamId: string) => {
+  const fetchClockInTickets = async () => {
     setClockInTicketsLoading(true);
     try {
-      const fetched = await ticketsApi.getTickets(teamId, { sort: 'recent', status: 'open' });
+      const fetched = await ticketsApi.getPersonalTickets({ sort: 'recent', status: 'open' });
       setClockInTickets(fetched);
     } catch {
       setClockInTickets([]);
@@ -604,301 +157,317 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const toggleSession = useCallback(async () => {
+    if (!user?.id) return;
+
+    if (isSessionActive && currentSession) {
+      // Open the Take a Break / Clock Out options modal
+      setIsSessionOptionsOpen(true);
+      return;
+    }
+
+    // Clock In
+    await sessionManager.clockIn(user.id);
+
+    addActivity({
+      type: 'SESSION',
+      title: 'Work Session Started',
+      subtitle: 'Clocked In',
+      status: 'Active',
+      duration: '0h 0m',
+      startTime: new Date().toISOString(),
+    });
+
+    await syncManager.syncNow();
+    window.dispatchEvent(new Event('pull-to-refresh'));
+    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
+
+    // Prompt to pick a ticket
+    setIsClockInPromptOpen(true);
+    fetchClockInTickets();
+  }, [user?.id, isSessionActive, currentSession, addActivity]);
+
+  const takeBreak = useCallback(async () => {
+    if (!currentSession) return;
+    setIsSessionOptionsOpen(false);
+
+    // Remember pre-break ticket
+    if (activeTicketId && activeTicketTitle) {
+      preBreakTicketRef.current = { id: activeTicketId, title: activeTicketTitle };
+    } else {
+      preBreakTicketRef.current = null;
+    }
+
+    await sessionManager.startBreak(currentSession.id);
+
+    addActivity({
+      type: 'SESSION',
+      title: 'On Break',
+      subtitle: 'Session paused',
+      status: 'Active',
+      duration: '0m',
+    });
+  }, [currentSession, activeTicketId, activeTicketTitle, addActivity]);
+
+  const resumeFromBreak = useCallback(async () => {
+    if (!currentSession) return;
+
+    const pre = preBreakTicketRef.current;
+    await sessionManager.endBreak(
+      currentSession.id,
+      pre?.id ?? null,
+      pre?.title ?? null
+    );
+    preBreakTicketRef.current = null;
+
+    addActivity({
+      type: 'SESSION',
+      title: 'Resumed',
+      subtitle: 'Back from break',
+      status: 'Active',
+      duration: '0m',
+    });
+  }, [currentSession, addActivity]);
+
+  const proceedToClockOut = useCallback(async () => {
+    if (!currentSession) return;
+    setIsSessionOptionsOpen(false);
+
+    // If on break, end it first
+    if (isOnBreak) {
+      await sessionManager.endBreak(currentSession.id, null, null);
+    }
+
+    // If ticket running, prompt to stop it
+    if (activeTicketId) {
+      setIsStopTicketModalOpen(true);
+      return;
+    }
+
+    // Clock out
+    await sessionManager.clockOut(currentSession.id);
+
+    const durationStr = stats ? formatDuration(stats.netWorkMs) : '0m';
+    updateActiveSession(new Date().toISOString(), durationStr);
+    addActivity({
+      type: 'SESSION',
+      title: 'Session Ended',
+      subtitle: `Duration: ${durationStr}`,
+      status: 'Completed',
+      duration: durationStr,
+    });
+
+    await syncManager.syncNow();
+    window.dispatchEvent(new Event('pull-to-refresh'));
+    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
+  }, [currentSession, isOnBreak, activeTicketId, stats, updateActiveSession, addActivity]);
+
+  const confirmStopTicketAndSession = useCallback(async () => {
+    if (!currentSession) return;
+
+    // Convert images and files to persistable attachments
+    const atts = await collectAttachments(stopTicketImages, stopTicketFiles);
+
+    // Stop the active ticket
+    if (activeTicketId) {
+      const stoppedSession = await sessionManager.stopTicket(currentSession.id);
+
+      const ticketMs = stoppedSession.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+
+      // Update ticket's tracked time in Dexie
+      try {
+        await db.tickets.update(activeTicketId, {
+          trackedMs: ticketMs,
+          trackedTime: formatDuration(ticketMs),
+        });
+      } catch (_) { /* ticket may not exist locally */ }
+
+      addActivity({
+        type: 'SESSION',
+        title: 'Stopped Ticket',
+        subtitle: activeTicketTitle || 'Ticket',
+        description: stopTicketComment,
+        link: stopTicketLinks[0] || undefined,
+        status: 'Completed',
+        duration: formatDuration(ticketMs),
+      });
+    }
+
+    // Clock out with all data
+    await sessionManager.clockOut(currentSession.id, {
+      comment: stopTicketComment || undefined,
+      links: stopTicketLinks.length > 0 ? stopTicketLinks : undefined,
+      attachments: atts.length > 0 ? atts : undefined,
+    });
+
+    const durationStr = stats ? formatDuration(stats.netWorkMs) : '0m';
+    updateActiveSession(new Date().toISOString(), durationStr);
+    addActivity({
+      type: 'SESSION',
+      title: 'Session Ended',
+      subtitle: `Duration: ${durationStr}`,
+      status: 'Completed',
+      duration: durationStr,
+    });
+
+    await syncManager.syncNow();
+    window.dispatchEvent(new Event('pull-to-refresh'));
+    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
+
+    setIsStopTicketModalOpen(false);
+    setStopTicketComment('');
+    setStopTicketLinks([]);
+    setStopTicketLinkInput('');
+  }, [currentSession, activeTicketId, activeTicketTitle, stats, stopTicketComment, stopTicketLinks, stopTicketImages, stopTicketFiles, updateActiveSession, addActivity]);
+
+  const cancelStopTicketAndSession = () => {
+    setIsStopTicketModalOpen(false);
+    setStopTicketComment('');
+    setStopTicketLinks([]);
+    setStopTicketLinkInput('');
+    stopTicketImages.forEach(url => URL.revokeObjectURL(url));
+    setStopTicketImages([]);
+    setStopTicketFiles([]);
+  };
+
   const handleClockInTicketSelect = (ticketId: string, ticketTitle: string) => {
     setIsClockInPromptOpen(false);
-    toggleTicketTimer(ticketId, ticketTitle, clockInPromptTeamId);
+    toggleTicketTimer(ticketId, ticketTitle);
   };
 
   const dismissClockInPrompt = () => {
     setIsClockInPromptOpen(false);
   };
 
-  const confirmStopTicketAndSession = async () => {
-    if (!user?.id) return;
-    isMutatingRef.current = true;
+  const toggleTicketTimer = useCallback(async (
+    ticketId: string,
+    ticketTitle: string,
+    _teamId?: string,
+    comment?: string,
+    links?: string[],
+    attachments?: SessionAttachment[]
+  ) => {
+    if (!isSessionActive || !currentSession) return;
 
-    // First stop the ticket
-    if (activeTicketId && ticketStartTime) {
-      const now = DateTime.now();
-      const start = DateTime.fromMillis(ticketStartTime);
-      const sessionDuration = now.diff(start).as('milliseconds'); // Keep as ms for ticketDurations arithmetic
-      
-      const currentTotal = ticketDurations[activeTicketId] || 0;
-      const newTotal = currentTotal + sessionDuration;
-      
-      const updatedDurations = { ...ticketDurations, [activeTicketId]: newTotal };
-      setTicketDurations(updatedDurations);
-      localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
+    if (activeTicketId === ticketId) {
+      // Stop current ticket, saving data to session
+      const updatedSession = await sessionManager.stopTicket(currentSession.id, {
+        comment: comment || undefined,
+        links: links?.length ? links : undefined,
+        attachments: attachments?.length ? attachments : undefined,
+      });
 
-      // NEW: Add activity log for the stopped ticket
-       const durationObj = DateTime.now().diff(DateTime.fromMillis(ticketStartTime), ['hours', 'minutes', 'seconds']).normalize();
-       const hours = Math.floor(durationObj.hours);
-       const minutes = Math.floor(durationObj.minutes);
-       const seconds = Math.floor(durationObj.seconds);
-       const durationStr = `${hours}h ${minutes}m ${seconds}s`;
+      const ticketMs = updatedSession.ticketBreakdown.find(t => t.ticketId === ticketId)?.totalMs ?? 0;
 
-      // Mark the "Started Ticket / Active" log entry as completed before adding the stop entry
-      if (ticketActivityId) {
-        updateActivity(ticketActivityId, { status: 'Completed', endTime: now.toISO() || new Date().toISOString() });
-        setTicketActivityId(null);
-      }
+      // Update ticket's tracked time in Dexie
+      try {
+        await db.tickets.update(ticketId, {
+          trackedMs: ticketMs,
+          trackedTime: formatDuration(ticketMs),
+        });
+      } catch (_) { /* ticket may not exist locally */ }
+
       addActivity({
         type: 'SESSION',
         title: 'Stopped Ticket',
         subtitle: activeTicketTitle || 'Ticket',
-        description: stopTicketComment,
-        link: stopTicketLink || undefined,
+        description: comment,
+        link: links?.[0] || undefined,
         status: 'Completed',
-        duration: durationStr
+        duration: formatDuration(ticketMs),
+      });
+    } else if (activeTicketId) {
+      // Switch: stop previous, start new
+      const switchedSession = await sessionManager.switchTicket(currentSession.id, ticketId, ticketTitle);
+      const prevMs = switchedSession.ticketBreakdown.find(t => t.ticketId === activeTicketId)?.totalMs ?? 0;
+
+      // Update previous ticket's tracked time in Dexie
+      try {
+        await db.tickets.update(activeTicketId, {
+          trackedMs: prevMs,
+          trackedTime: formatDuration(prevMs),
+        });
+      } catch (_) { /* ticket may not exist locally */ }
+
+      addActivity({
+        type: 'SESSION',
+        title: 'Stopped Ticket',
+        subtitle: activeTicketTitle || 'Ticket',
+        description: comment || 'Switched task',
+        link: links?.[0] || undefined,
+        status: 'Completed',
+        duration: formatDuration(prevMs),
       });
 
-      // Stop the ticket
-      await localTimeStore.stopTicket(user.id, activeTicketId, stopTicketComment, activeTicketTeamId, stopTicketLink || null);
-
-      setActiveTicketId(null);
-      setActiveTicketTitle(null);
-      setActiveTicketTeamId(null);
-      setTicketStartTime(null);
-      setTicketBreakMs(0);
-      localStorage.removeItem('activeTicketId');
-      localStorage.removeItem('activeTicketTitle');
-      localStorage.removeItem('activeTicketTeamId');
-      localStorage.removeItem('ticketStartTime');
-      localStorage.removeItem('ticketBreakMs');
-    }
-
-    // Then clock out session
-    const now = DateTime.now();
-    const actualWorkMs = Math.max(0, now.toMillis() - (sessionStartTime || now.toMillis()) - totalBreakMs);
-    const duration = Duration.fromMillis(actualWorkMs).shiftTo('hours', 'minutes', 'seconds').normalize();
-    const hours = Math.floor(duration.hours);
-    const minutes = Math.floor(duration.minutes);
-    const seconds = Math.floor(duration.seconds);
-    const durationStr = `${hours}h ${minutes}m ${seconds}s`;
-
-    setIsSessionActive(false);
-    setSessionStartTime(null);
-    setIsOnBreak(false);
-    setBreakStartTime(null);
-    setTotalBreakMs(0);
-    localStorage.removeItem('sessionStartTime');
-    localStorage.removeItem('breakStartTime');
-    localStorage.removeItem('totalBreakMs');
-
-    updateActiveSession(now.toISO() || new Date().toISOString(), durationStr);
-
-    addActivity({
-        type: 'SESSION',
-        title: 'Session Ended',
-        subtitle: `Duration: ${durationStr}`,
-        status: 'Completed',
-        duration: durationStr
-    });
-
-    await localTimeStore.clockOut(user.id, null, pendingSessionStopTeamId || null);
-
-    // Attempt to sync immediately
-    await syncManager.syncNow();
-    isMutatingRef.current = false;
-    
-    // Force reload activities to ensure sync
-    window.dispatchEvent(new Event('pull-to-refresh'));
-    
-    // Reset Modal
-    setIsStopTicketModalOpen(false);
-    setStopTicketComment('');
-    setStopTicketLink('');
-    setPendingSessionStopTeamId(undefined);
-
-    // 🔄 FORCE REFRESH DASHBOARD STATS
-    // This event listener should be picked up by DashboardSummary to refetch API
-    window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
-  };
-
-  const cancelStopTicketAndSession = () => {
-    setIsStopTicketModalOpen(false);
-    setStopTicketComment('');
-    setStopTicketLink('');
-    setPendingSessionStopTeamId(undefined);
-  };
-
-
-
-  const toggleTicketTimer = async (ticketId: string, ticketTitle: string, teamId?: string, comment?: string, link?: string) => {
-    if (!isSessionActive) return;
-    if (!user?.id) {
-      console.error('Cannot toggle ticket: Missing user');
-      return;
-    }
-    isMutatingRef.current = true;
-
-    if (activeTicketId === ticketId) {
-      // Stop current ticket (activeTicketId === ticketId)
-      
-      const now = DateTime.now();
-
-      // Save duration logic
-      if (ticketStartTime) {
-        const start = DateTime.fromMillis(ticketStartTime);
-        const duration = now.diff(start, ['hours', 'minutes', 'seconds']).normalize();
-        
-        const currentTotal = ticketDurations[ticketId] || 0;
-        const newTotal = currentTotal + duration.as('milliseconds'); // Use milliseconds for state storage
-        
-        const updatedDurations = { ...ticketDurations, [ticketId]: newTotal };
-        setTicketDurations(updatedDurations);
-        localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
-        
-        const hours = Math.floor(duration.hours);
-        const minutes = Math.floor(duration.minutes);
-        const seconds = Math.floor(duration.seconds);
-        const durationStr = `${hours}h ${minutes}m ${seconds}s`;
-        
-        // Mark the "Started Ticket / Active" entry as completed
-        if (ticketActivityId) {
-          updateActivity(ticketActivityId, { status: 'Completed', endTime: new Date().toISOString() });
-          setTicketActivityId(null);
-        }
-        addActivity({
-            type: 'SESSION',
-            title: 'Stopped Ticket',
-            subtitle: activeTicketTitle || 'Ticket',
-            description: comment, // Description visible
-            link: link || undefined,
-            status: 'Completed',
-            duration: durationStr
-        });
-      }
-
-      await localTimeStore.stopTicket(user.id, ticketId, comment, activeTicketTeamId, link || null);
-
-      // Clear active ticket state
-      setActiveTicketId(null);
-      setActiveTicketTitle(null);
-      setActiveTicketTeamId(null);
-      setTicketStartTime(null);
-      setTicketBreakMs(0);
-      localStorage.removeItem('activeTicketId');
-      localStorage.removeItem('activeTicketTitle');
-      localStorage.removeItem('activeTicketTeamId');
-      localStorage.removeItem('ticketStartTime');
-      localStorage.removeItem('ticketBreakMs');
-    } else {
-      // Starting Ticket (activeTicketId !== ticketId)
-      isSwitchingTicketRef.current = true; // Guard: suppress useEffect clearing during handoff
-      const now = DateTime.now();
-      
-      // Stop the previous ticket
-      if (activeTicketId && ticketStartTime) {
-        const start = DateTime.fromMillis(ticketStartTime);
-        const sessionDuration = now.diff(start, ['hours', 'minutes', 'seconds']).normalize();
-        
-        const currentTotal = ticketDurations[activeTicketId] || 0;
-        const newTotal = currentTotal + sessionDuration.as('milliseconds');
-        
-        const updatedDurations = { ...ticketDurations, [activeTicketId]: newTotal };
-        setTicketDurations(updatedDurations);
-        localStorage.setItem('ticketDurations', JSON.stringify(updatedDurations));
-        
-        const hours = Math.floor(sessionDuration.hours);
-        const minutes = Math.floor(sessionDuration.minutes);
-        const seconds = Math.floor(sessionDuration.seconds);
-        const durationStr = `${hours}h ${minutes}m ${seconds}s`;
-
-        // Mark the previous "Started Ticket / Active" entry as completed
-        if (ticketActivityId) {
-          updateActivity(ticketActivityId, { status: 'Completed', endTime: new Date().toISOString() });
-          setTicketActivityId(null);
-        }
-        addActivity({
-            type: 'SESSION',
-            title: 'Stopped Ticket',
-            subtitle: activeTicketTitle || 'Ticket',
-            description: comment || 'Switched task',
-            link: link || undefined,
-            status: 'Completed',
-            duration: durationStr
-        });
-
-        // Stop the previous ticket
-        await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId, link || null);
-      } else if (activeTicketId) {
-        await localTimeStore.stopTicket(user.id, activeTicketId, comment, activeTicketTeamId, link || null);
-      }
-
-      await localTimeStore.startTicket(user.id, ticketId, ticketTitle, teamId || null);
-
-      const newTicketActId = addActivity({
+      addActivity({
         type: 'SESSION',
         title: 'Started Ticket',
         subtitle: ticketTitle,
         status: 'Active',
         duration: '0m',
-        startTime: now.toISO() || new Date().toISOString()
+        startTime: new Date().toISOString(),
       });
-      setTicketActivityId(newTicketActId);
-
-      // Start new ticket state (reset break accumulator for the new ticket)
-      setActiveTicketId(ticketId);
-      setActiveTicketTitle(ticketTitle);
-      setActiveTicketTeamId(teamId || null);
-      setTicketStartTime(now.toMillis());
-      setTicketBreakMs(0);
-      localStorage.setItem('activeTicketId', ticketId);
-      localStorage.setItem('activeTicketTitle', ticketTitle);
-      if (teamId) localStorage.setItem('activeTicketTeamId', teamId);
-      localStorage.setItem('ticketStartTime', now.toMillis().toString());
-      localStorage.removeItem('ticketBreakMs');
-      isSwitchingTicketRef.current = false; // Handoff complete, allow useEffect again
-    }
-
-    // Attempt to sync immediately
-    await syncManager.syncNow();
-    isMutatingRef.current = false;
-    // Force reload activities to ensure sync
-    window.dispatchEvent(new Event('pull-to-refresh'));  };
-
-  const getFormattedTotalTime = (ticketId: string) => {
-    const totalMs = ticketDurations[ticketId] || 0;
-    const duration = Duration.fromMillis(totalMs).shiftTo('hours', 'minutes', 'seconds');
-    
-    // Normalize to handle overflows like 61 seconds -> 1 minute 1 second
-    const normalized = duration.normalize();
-
-    const hours = Math.floor(normalized.hours);
-    const minutes = Math.floor(normalized.minutes);
-    const seconds = Math.floor(normalized.seconds);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds}s`;
     } else {
-      return `${seconds}s`;
+      // Start ticket (no previous running)
+      await sessionManager.startTicket(currentSession.id, ticketId, ticketTitle);
+
+      addActivity({
+        type: 'SESSION',
+        title: 'Started Ticket',
+        subtitle: ticketTitle,
+        status: 'Active',
+        duration: '0m',
+        startTime: new Date().toISOString(),
+      });
     }
-  };
+
+    await syncManager.syncNow();
+    window.dispatchEvent(new Event('pull-to-refresh'));
+  }, [isSessionActive, currentSession, activeTicketId, activeTicketTitle, stats, addActivity]);
+
+  const getFormattedTotalTime = useCallback((ticketId: string) => {
+    const totalMs = ticketDurations[ticketId] || 0;
+    return formatDurationClock(totalMs);
+  }, [ticketDurations]);
+
+  const contextValue = useMemo(() => ({
+    isSessionActive,
+    isOnBreak,
+    sessionStartTime,
+    sessionDuration,
+    sessionFormat,
+    activeTicketId,
+    activeTicketTitle,
+    ticketStartTime,
+    ticketDuration,
+    ticketFormat,
+    ticketDurations,
+    toggleSession,
+    resumeFromBreak,
+    toggleTicketTimer,
+    getFormattedTotalTime,
+  }), [
+    isSessionActive,
+    isOnBreak,
+    sessionStartTime,
+    sessionDuration,
+    sessionFormat,
+    activeTicketId,
+    activeTicketTitle,
+    ticketStartTime,
+    ticketDuration,
+    ticketFormat,
+    ticketDurations,
+    toggleSession,
+    resumeFromBreak,
+    toggleTicketTimer,
+    getFormattedTotalTime,
+  ]);
 
   return (
-    <ClockInContext.Provider value={{ 
-      isSessionActive,
-      isSessionInitialized,
-      isOnBreak,
-      sessionStartTime, 
-      sessionDuration, 
-      sessionFormat,
-      activeTicketId, 
-      activeTicketTitle,
-      activeTicketTeamId,
-      ticketStartTime,
-      ticketDuration,
-      ticketFormat,
-      ticketDurations,
-      toggleSession,
-      resumeFromBreak,
-      toggleTicketTimer,
-      getFormattedTotalTime
-    }}>
+    <ClockInContext.Provider value={contextValue}>
       {children}
+
       {/* Session Options Modal: Take a Break or Clock Out */}
       <Modal
         isOpen={isSessionOptionsOpen}
@@ -908,7 +477,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
         <div className="space-y-3">
           <button
             onClick={takeBreak}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 hover:border-amber-400 dark:hover:border-amber-500 transition-colors text-left"
+            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 hover:border-amber-400 dark:hover:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-none text-left transition-colors"
             aria-label="Take a break"
           >
             <div className="shrink-0 p-2 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 rounded-lg">
@@ -922,7 +491,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={proceedToClockOut}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:border-red-400 dark:hover:border-red-600 transition-colors text-left"
+            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:border-red-400 dark:hover:border-red-600 focus:ring-2 focus:ring-red-400 focus:outline-none text-left transition-colors"
             aria-label="Clock out"
           >
             <div className="shrink-0 p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg">
@@ -934,12 +503,9 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             </div>
           </button>
 
-          <button
-            onClick={() => setIsSessionOptionsOpen(false)}
-            className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-          >
+          <Button variant="ghost" onClick={() => setIsSessionOptionsOpen(false)}>
             Cancel
-          </button>
+          </Button>
         </div>
       </Modal>
 
@@ -958,45 +524,41 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
             <div className="text-center py-6 text-sm text-gray-400">Loading tickets…</div>
           ) : clockInTickets.length === 0 ? (
             <div className="text-center py-4 text-sm text-gray-400">
-              {clockInPromptTeamId ? 'No open tickets found.' : 'Select a team to see tickets.'}
+              No open tickets found.
             </div>
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {clockInTickets.map((t) => (
-                <button
+                <Button
+                  variant="outline"
                   key={t.id}
                   onClick={() => handleClockInTicketSelect(t.id, t.title)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 p-3 h-auto justify-start text-left group"
                   aria-label={`Start timer for ${t.title}`}
                 >
-                  <div className="shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md">
+                  <div className="shrink-0 p-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-md">
                     <Ticket className="w-4 h-4" />
                   </div>
                   <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{t.title}</span>
-                  <Play className="w-4 h-4 shrink-0 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
+                  <Play className="w-4 h-4 shrink-0 text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Button>
               ))}
             </div>
           )}
 
           <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700">
-            <button
-              onClick={dismissClockInPrompt}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-            >
+            <Button variant="ghost" onClick={dismissClockInPrompt}>
               Skip for now
-            </button>
-            <button
-              onClick={() => { dismissClockInPrompt(); router.push('/dashboard/tickets/create'); }}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-            >
+            </Button>
+            <Button onClick={() => { dismissClockInPrompt(); router.push('/dashboard/tickets/create'); }}>
               <Plus className="w-4 h-4" />
               New Ticket
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
 
+      {/* Stop Ticket + Clock Out Modal */}
       <Modal
         isOpen={isStopTicketModalOpen}
         onClose={cancelStopTicketAndSession}
@@ -1006,36 +568,142 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
           <p className="text-sm text-gray-600 dark:text-gray-300">
             You are clocking out but the ticket timer is still running. Please add a comment to stop the ticket and clock out.
           </p>
-          <textarea
-            value={stopTicketComment}
-            onChange={(e) => setStopTicketComment(e.target.value)}
-            placeholder="What did you work on?"
-            className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            autoFocus
-          />
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Link (optional)</label>
-            <input
-              type="url"
-              value={stopTicketLink}
-              onChange={(e) => setStopTicketLink(e.target.value)}
-              placeholder="Paste a YouTube or Pulse link..."
-              className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          <div
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const files = Array.from(e.dataTransfer.files);
+              for (const file of files) {
+                if (file.type.startsWith('image/')) {
+                  setStopTicketImages(prev => [...prev, URL.createObjectURL(file)]);
+                } else {
+                  setStopTicketFiles(prev => [...prev, file]);
+                }
+              }
+            }}
+          >
+            <Textarea
+              value={stopTicketComment}
+              onChange={(e) => setStopTicketComment(e.target.value)}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                for (const item of Array.from(items)) {
+                  if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) setStopTicketImages(prev => [...prev, URL.createObjectURL(file)]);
+                  }
+                }
+              }}
+              placeholder="What did you work on?"
+              autoFocus
             />
           </div>
+          {(stopTicketImages.length > 0 || stopTicketFiles.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {stopTicketImages.map((url, i) => (
+                <div key={`img-${i}`} className="relative group">
+                  <img src={url} alt={`Image ${i + 1}`} className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                  <button
+                    type="button"
+                    onClick={() => { URL.revokeObjectURL(url); setStopTicketImages(prev => prev.filter((_, idx) => idx !== i)); }}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove image"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              {stopTicketFiles.map((file, i) => (
+                <div key={`file-${i}`} className="relative group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                  <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-xs truncate max-w-[120px]">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setStopTicketFiles(prev => prev.filter((_, idx) => idx !== i))}
+                    className="w-4 h-4 rounded-full text-red-500 flex items-center justify-center shrink-0"
+                    aria-label="Remove file"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div>
+            <button
+              type="button"
+              onClick={() => stopTicketFileRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Paperclip className="w-3.5 h-3.5" /> Attach image or document
+            </button>
+            <input
+              ref={stopTicketFileRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.txt,.md"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                for (const file of files) {
+                  if (file.type.startsWith('image/')) {
+                    setStopTicketImages(prev => [...prev, URL.createObjectURL(file)]);
+                  } else {
+                    setStopTicketFiles(prev => [...prev, file]);
+                  }
+                }
+                if (stopTicketFileRef.current) stopTicketFileRef.current.value = '';
+              }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Links (optional)</label>
+            {stopTicketLinks.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {stopTicketLinks.map((l, i) => (
+                  <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
+                    <Link2 className="w-3 h-3 text-muted-foreground shrink-0" />
+                    <span className="truncate max-w-[200px]">{l}</span>
+                    <button type="button" onClick={() => setStopTicketLinks(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 shrink-0" aria-label="Remove link">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Input
+                type="url"
+                value={stopTicketLinkInput}
+                onChange={(e) => setStopTicketLinkInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && stopTicketLinkInput.trim()) {
+                    e.preventDefault();
+                    setStopTicketLinks(prev => [...prev, stopTicketLinkInput.trim()]);
+                    setStopTicketLinkInput('');
+                  }
+                }}
+                onPaste={(e) => {
+                  const text = e.clipboardData?.getData('text');
+                  if (text?.trim()) {
+                    e.preventDefault();
+                    setStopTicketLinks(prev => [...prev, text.trim()]);
+                  }
+                }}
+                placeholder="Paste a link and press Enter..."
+              />
+            </div>
+          </div>
           <div className="flex justify-end gap-3">
-            <button
-              onClick={cancelStopTicketAndSession}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
+            <Button variant="ghost" onClick={cancelStopTicketAndSession}>
               Cancel
-            </button>
-            <button
-              onClick={confirmStopTicketAndSession}
-              className="px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors bg-blue-600 hover:bg-blue-700"
-            >
+            </Button>
+            <Button onClick={confirmStopTicketAndSession}>
               Stop & Clock Out
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

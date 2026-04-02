@@ -1,13 +1,10 @@
-import { db, TimeEvent } from '../db';
-import { getStoredUser } from '../auth';
-import { getApiUrl } from '../apiUrl';
-
-const API_URL = getApiUrl();
+import { db } from '../db';
+import { computeSession } from '@timeharbor/time-engine';
+import { formatDurationMs } from '../../lib/formatDuration';
 
 export interface DashboardStats {
   totalHoursToday: string;
   totalHoursWeek: string;
-  /** Raw milliseconds — use formatDurationMs() from lib/formatDuration to display */
   totalMsToday?: number;
   totalMsWeek?: number;
   openTickets: number;
@@ -16,8 +13,8 @@ export interface DashboardStats {
 
 export interface Activity {
   id: string;
-  teamId?: string; // For Dexie indexing
-  userId?: string; // Identify the user
+  teamId?: string;
+  userId?: string;
   type: string;
   title: string;
   subtitle?: string;
@@ -27,201 +24,54 @@ export interface Activity {
   endTime?: string;
   status?: 'Active' | 'Completed' | 'Pending' | 'Failed';
   duration?: string;
-  /** Raw milliseconds computed by backend — use formatDurationMs() to display */
   durationMs?: number;
   metadata?: Record<string, any>;
 }
 
-export const getStats = async (teamId?: string): Promise<DashboardStats> => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  const cacheKey = teamId || 'global';
-  let user: { id: string } | null = null;
-  
-  try {
-     user = await getStoredUser();
-  } catch (e) { console.warn('Failed to load user for cache validation', e); }
+function getWeekStartDate(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  const monday = new Date(now);
+  monday.setDate(diff);
+  return monday.toISOString().slice(0, 10);
+}
 
-  try {
-    if (!token) throw new Error('No access token found');
+export const getStats = async (_teamId?: string): Promise<DashboardStats> => {
+  const now = Date.now();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const weekStartStr = getWeekStartDate();
 
-    const queryParams = teamId ? `?teamId=${teamId}` : '';
-    const response = await fetch(`${API_URL}/dashboard/stats${queryParams}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
+  const allSessions = await db.workSessions.toArray();
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch dashboard stats');
-    }
+  let todayMs = 0;
+  let weekMs = 0;
 
-    const stats: DashboardStats = await response.json();
-    
-    // Cache the stats
-    await db.dashboardStats.put({
-      teamId: cacheKey,
-      data: stats,
-      updatedAt: Date.now(),
-      // @ts-ignore
-      userId: user?.id
-    } as any);
+  for (const s of allSessions) {
+    // For open sessions, recompute with current time
+    const netMs = s.clockOut === null
+      ? computeSession({ clockIn: s.clockIn, clockOut: null, ticketSegments: s.ticketSegments, breaks: s.breaks }, now).netWorkMs
+      : s.netWorkMs;
 
-    return stats;
-  } catch (error) {
-    console.warn('Fetching stats failed, loading from offline cache:', error);
-
-    // Try to get from cache
-    const cached: any = await db.dashboardStats.get(cacheKey);
-    
-    if (cached) {
-      // Validate cache ownership to prevent cross-user data leak
-      if (user && cached.userId && cached.userId !== user.id) {
-         console.warn('Cached stats belong to different user, discarding.');
-      } else if (user && !cached.userId) {
-         // Discard legacy cache without userId to fix existing bad data
-         console.warn('Legacy cache found without userId, discarding.');
-      } else {
-         return cached.data as DashboardStats;
-      }
-    }
-
-    // If no valid cache, try to calculate what we can from local DB
-    let openTickets = 0;
-    let teamMembers = 0;
-
-    if (teamId) {
-      openTickets = await db.tickets
-        .where('teamId').equals(teamId)
-        .filter(t => t.status !== 'Closed')
-        .count();
-      
-      const team = await db.teams.get(teamId);
-      if (team) {
-        teamMembers = team.members.length;
-      }
-    } else {
-      openTickets = await db.tickets
-        .filter(t => t.status !== 'Closed')
-        .count();
-      
-      // Sum members of all teams (approximate, as users might be in multiple teams)
-      const teams = await db.teams.toArray();
-      const uniqueMembers = new Set<string>();
-      teams.forEach(t => t.members.forEach(m => uniqueMembers.add(m.id)));
-      teamMembers = uniqueMembers.size;
-    }
-
-    return {
-      totalHoursToday: '00:00', // Hard to calculate offline without full logs
-      totalHoursWeek: '00:00',
-      openTickets,
-      teamMembers
-    };
+    if (s.date === todayStr) todayMs += netMs;
+    if (s.date >= weekStartStr) weekMs += netMs;
   }
+
+  const openTickets = await db.tickets.filter(t => t.status !== 'Closed' && t.status !== 'Done').count();
+
+  return {
+    totalHoursToday: formatDurationMs(todayMs),
+    totalHoursWeek: formatDurationMs(weekMs),
+    totalMsToday: todayMs,
+    totalMsWeek: weekMs,
+    openTickets,
+    teamMembers: 0,
+  };
 };
 
-export const getActivity = async (teamId?: string, limit?: number | 'all'): Promise<Activity[]> => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  const cacheKey = teamId || 'global';
-
-  try {
-    if (!token) throw new Error('No access token found');
-
-    const params = new URLSearchParams();
-    if (teamId) params.append('teamId', teamId);
-    if (limit) params.append('limit', limit.toString());
-
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    const response = await fetch(`${API_URL}/dashboard/activity${queryString}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch recent activity');
-    }
-
-    const activities: Activity[] = await response.json();
-
-    // Cache activities
-    // First clear old cache for this scope
-    await db.dashboardActivity.where('teamId').equals(cacheKey).delete();
-    
-    // Add new ones
-    await db.dashboardActivity.bulkPut(activities.map(a => ({
-      id: a.id,
-      teamId: cacheKey,
-      data: a,
-      updatedAt: Date.now()
-    })));
-
-    return activities;
-  } catch (error) {
-    console.warn('Fetching activity failed, loading from offline cache:', error);
-
-    const cached = await db.dashboardActivity
-      .where('teamId').equals(cacheKey)
-      .toArray();
-    
-    let activities: Activity[] = [];
-    if (cached.length > 0) {
-      activities = cached.map(c => c.data as Activity);
-    }
-
-    // Merge with offline completed sessions
-    // We look for pairs of CLOCK_IN and CLOCK_OUT in pending events
-    const pendingEvents = await db.events
-      .where('synced').equals(0)
-      .filter(e => e.type === 'CLOCK_IN' || e.type === 'CLOCK_OUT')
-      .toArray();
-
-    if (pendingEvents.length > 0) {
-      // Sort by timestamp
-      pendingEvents.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-      const offlineActivities: Activity[] = [];
-      let lastClockIn: TimeEvent | null = null;
-
-      for (const event of pendingEvents) {
-        if (event.type === 'CLOCK_IN') {
-          lastClockIn = event;
-        } else if (event.type === 'CLOCK_OUT' && lastClockIn) {
-          // Found a pair, create a completed activity
-          const durationMs = new Date(event.timestamp).getTime() - new Date(lastClockIn.timestamp).getTime();
-          
-          // Format duration
-          const hours = Math.floor(durationMs / 3600000);
-          const minutes = Math.floor((durationMs % 3600000) / 60000);
-          const seconds = Math.floor((durationMs % 60000) / 1000);
-          const durationStr = hours > 0 
-            ? `${hours}h ${minutes}m` 
-            : `${minutes}m ${seconds}s`;
-
-          offlineActivities.push({
-            id: event.id, // Use the clock-out event ID
-            type: 'SESSION',
-            title: 'Work Session',
-            subtitle: 'Clocked Out (Offline)',
-            description: event.comment || undefined,
-            startTime: lastClockIn.timestamp,
-            endTime: event.timestamp,
-            status: 'Completed',
-            duration: durationStr
-          });
-          
-          lastClockIn = null; // Reset
-        }
-      }
-
-      // Prepend offline activities (newest first)
-      activities = [...offlineActivities.reverse(), ...activities];
-    }
-
-    return activities;
-  }
+export const getActivity = async (_teamId?: string, _limit?: number | 'all'): Promise<Activity[]> => {
+  const logs = await db.activityLogs.toArray();
+  return logs;
 };
 
 export interface MemberProfile {
@@ -230,8 +80,9 @@ export interface MemberProfile {
   email: string;
   role: string;
   status: string;
-  github?: string;
-  linkedin?: string;
+  github_url?: string;
+  linkedin_url?: string;
+  redmine_url?: string;
 }
 
 export interface ClockEvent {
@@ -245,7 +96,6 @@ export interface MemberActivityData {
   timeTracking: {
     today: {
       duration: string;
-      /** Raw ms, break-excluded, computed by backend */
       totalMs: number;
       clockEvents: ClockEvent[];
     };
@@ -268,7 +118,6 @@ export interface MemberActivityData {
     startTime: string;
     endTime?: string | null;
     status: 'active' | 'completed' | 'adhoc';
-    /** Raw ms, break-excluded, computed by backend */
     durationMs: number;
     events: Array<{
       id: string;
@@ -281,35 +130,8 @@ export interface MemberActivityData {
   }>;
 }
 
-export const getMemberActivity = async (memberId: string, teamId?: string, cursor?: string, limit: number = 5): Promise<MemberActivityData> => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-
-  if (!token) throw new Error('No access token found');
-
-  try {
-    const params = new URLSearchParams();
-    if (teamId) params.append('teamId', teamId);
-    if (cursor) params.append('cursor', cursor);
-    if (limit) params.append('limit', limit.toString());
-
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-
-    const response = await fetch(`${API_URL}/dashboard/member/${memberId}${queryString}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch member activity');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching member activity:', error);
-    throw error;
-  }
+export const getMemberActivity = async (_memberId: string, _teamId?: string, _cursor?: string, _limit: number = 5): Promise<MemberActivityData> => {
+  return { member: {} as any, timeTracking: { today: { duration: '0h 0m', totalMs: 0, clockEvents: [] }, week: { duration: '0h 0m', totalMs: 0 }, month: { duration: '0h 0m', totalMs: 0 } }, recentTickets: [] };
 };
 
 export interface WorkLogReply {
@@ -324,86 +146,98 @@ export interface WorkLogReply {
   createdAt: string;
 }
 
-export const addWorkLogReply = async (workLogId: string, message: string): Promise<WorkLogReply> => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-
-  if (!token) throw new Error('No access token found');
-
-  try {
-    const response = await fetch(`${API_URL}/dashboard/activity/reply`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ workLogId, message }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to send reply');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error sending reply:', error);
-    throw error;
-  }
+export const addWorkLogReply = async (_workLogId: string, message: string): Promise<WorkLogReply> => {
+  return {
+    id: `reply-${Date.now()}`,
+    content: message,
+    userId: 'admin-1',
+    user: { id: 'admin-1', full_name: 'Admin User', email: 'admin@timeharbor.app' },
+    createdAt: new Date().toISOString(),
+  };
 };
 
-// ---------------------------------------------------------------------------
-// Timesheet totals — backend returns raw ms per day; frontend formats with Luxon
-// ---------------------------------------------------------------------------
-
 export interface TimesheetDayTotal {
-  date: string;     // "YYYY-MM-DD"
-  totalMs: number;  // Break-excluded work milliseconds, computed by backend
+  date: string;
+  totalMs: number;
 }
 
-/**
- * Fetches work events for the timesheet visual timeline from the source-of-truth
- * work_logs table (via GET /dashboard/activity?from=&to=&teamId=).
- * This replaces the former activity_logs-based path which was unreliable (frontend-written,
- * offline-sync gaps could cause mismatches with the actual hour totals).
- */
 export const fetchActivitiesByDateRange = async (
-  teamId: string,
+  _teamId: string,
   from: string,
   to: string,
 ): Promise<Activity[]> => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  if (!token) throw new Error('No access token found');
+  // Only return workSessions — activityLogs are for the dashboard Recent Activity feed
+  // Extract local date directly from the ISO string to avoid UTC shift
+  // (e.g. "2026-03-24T23:59:59-07:00" → "2026-03-24", not "2026-03-25" via UTC)
+  const fromDate = from.slice(0, 10);
+  const toDate = to.slice(0, 10);
+  const sessions = await db.workSessions
+    .where('date')
+    .between(fromDate, toDate, true, true)
+    .toArray();
 
-  const params = new URLSearchParams({ from, to, teamId });
-  const response = await fetch(`${API_URL}/dashboard/activity?${params}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const activities: Activity[] = [];
 
-  if (!response.ok) throw new Error('Failed to fetch activities by date range');
-  const data = await response.json();
-  return Array.isArray(data) ? data : [];
+  for (const s of sessions) {
+    const tickets = s.ticketBreakdown?.map(t => t.ticketTitle).filter(Boolean).join(', ') || undefined;
+    const clockInISO = new Date(s.clockIn).toISOString();
+    const clockOutISO = s.clockOut ? new Date(s.clockOut).toISOString() : undefined;
+
+    // Clock-in entry — event time is clockIn
+    activities.push({
+      id: `${s.id}-in`,
+      type: 'SESSION',
+      title: 'Work Session Started',
+      subtitle: tickets,
+      startTime: clockInISO,
+      endTime: clockOutISO,
+      status: s.clockOut ? 'Completed' as const : 'Active' as const,
+      duration: formatDurationMs(s.netWorkMs),
+      durationMs: s.netWorkMs,
+      metadata: { eventTime: s.clockIn },
+    });
+
+    // Clock-out entry — event time is clockOut
+    if (s.clockOut) {
+      activities.push({
+        id: `${s.id}-out`,
+        type: 'SESSION',
+        title: 'Session Ended',
+        subtitle: tickets,
+        startTime: clockInISO,
+        endTime: clockOutISO,
+        status: 'Completed',
+        duration: formatDurationMs(s.netWorkMs),
+        durationMs: s.netWorkMs,
+        metadata: { eventTime: s.clockOut },
+      });
+    }
+  }
+
+  // Sort by event time descending (newest first)
+  return activities.sort((a, b) => (b.metadata?.eventTime ?? 0) - (a.metadata?.eventTime ?? 0));
 };
 
 export const getTimesheetTotals = async (
-  from: string,
-  to: string,
-  teamId?: string,
+  _from: string,
+  _to: string,
+  _teamId?: string,
+  _memberId?: string,
 ): Promise<TimesheetDayTotal[]> => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  if (!token) throw new Error('No access token found');
+  const now = Date.now();
+  const sessions = await db.workSessions
+    .where('date')
+    .between(_from, _to, true, true)
+    .toArray();
 
-  const params = new URLSearchParams({ from, to });
-  if (teamId) params.append('teamId', teamId);
+  // Group by date and sum netWorkMs
+  const byDate = new Map<string, number>();
+  for (const s of sessions) {
+    const netMs = s.clockOut === null
+      ? computeSession({ clockIn: s.clockIn, clockOut: null, ticketSegments: s.ticketSegments, breaks: s.breaks }, now).netWorkMs
+      : s.netWorkMs;
+    byDate.set(s.date, (byDate.get(s.date) || 0) + netMs);
+  }
 
-  const response = await fetch(`${API_URL}/dashboard/timesheet?${params}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) throw new Error('Failed to fetch timesheet totals');
-  return response.json();
+  return Array.from(byDate.entries()).map(([date, totalMs]) => ({ date, totalMs }));
 };

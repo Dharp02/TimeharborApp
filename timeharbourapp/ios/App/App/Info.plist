@@ -50,6 +50,26 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>os.mieweb.timeharbor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>timeharbor</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Google Sign-In</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+			<!-- Reversed iOS client ID from Google Cloud Console -->
+				<string>com.googleusercontent.apps.568006671174-98thv3kdv5gkeutvfkcf49pf6he8s3e0</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

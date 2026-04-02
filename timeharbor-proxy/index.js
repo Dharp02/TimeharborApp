@@ -4,7 +4,7 @@ const httpProxy = require('http-proxy');
 const proxy = httpProxy.createProxyServer({});
 
 const FRONTEND_URL = 'http://localhost:3000';
-const BACKEND_URL = 'http://localhost:3001';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
 // Add CORS headers so browser-based clients can read error responses
 // even when the backend itself is down and the proxy returns a 5xx.
@@ -34,13 +34,18 @@ const server = http.createServer((req, res) => {
   //   3. Request carries an Authorization header — it's an API fetch, not a page
   //      load. This catches stale browser-cached JS that omits the /api prefix.
   const hasAuthHeader = !!req.headers['authorization'];
-  if (req.url.startsWith('/api') || req.url.startsWith('/socket.io') || hasAuthHeader) {
-    // Strip /api prefix only if it starts with /api
-    if (req.url.startsWith('/api')) {
-      req.url = req.url.replace(/^\/api/, '');
-      if (req.url === '') req.url = '/';
-    }
-    
+  if (req.url.startsWith('/api') || req.url.startsWith('/uploads') || req.url.startsWith('/socket.io') || hasAuthHeader) {
+    // Keep /api prefix — backend expects full paths like /api/auth/*, /api/timeharbor/*
+    // No stripping needed; the backend routes are registered under /api/*
+
+    // Forward the real origin so the backend can build correct OAuth redirect URIs.
+    // Without this, the backend only sees "localhost:3001" and the OAuth state cookie
+    // gets set on the wrong domain, causing state_mismatch errors.
+    const host = req.headers['host'] || '';
+    const proto = req.headers['x-forwarded-proto'] || 'http';
+    req.headers['x-forwarded-host'] = host;
+    req.headers['x-forwarded-proto'] = proto;
+
     // Proxy to backend
     proxy.web(req, res, { target: BACKEND_URL }, (err) => {
       console.error('Backend proxy error:', err);

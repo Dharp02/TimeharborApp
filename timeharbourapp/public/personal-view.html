@@ -1,0 +1,2212 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>TimeHarbor — Personal View</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Design Tokens (mirrors globals.css) ─── */
+    :root {
+      --primary-50: #e6f7fc;
+      --primary-100: #b3e6f6;
+      --primary-200: #80d5f0;
+      --primary-300: #4dc4ea;
+      --primary-400: #27aae1;
+      --primary-500: #27aae1;
+      --primary-600: #1f98ca;
+      --primary-700: #1786b3;
+      --primary-800: #0f749c;
+      --primary-900: #086285;
+      --primary-950: #00506e;
+      --primary-fg: #fff;
+
+      --secondary-500: #6366f1;
+      --secondary-600: #4f46e5;
+
+      --success-50: #f0fdf4;
+      --success-100: #dcfce7;
+      --success-500: #22c55e;
+      --success-600: #16a34a;
+
+      --warning-50: #fffbeb;
+      --warning-100: #fef3c7;
+      --warning-500: #f59e0b;
+      --warning-600: #d97706;
+
+      --destructive-50: #fef2f2;
+      --destructive-100: #fee2e2;
+      --destructive-500: #ef4444;
+      --destructive-600: #dc2626;
+
+      --info-50: #f0f9ff;
+      --info-500: #0ea5e9;
+
+      --neutral-50: #fafafa;
+      --neutral-100: #f5f5f5;
+      --neutral-200: #e5e5e5;
+      --neutral-300: #d4d4d4;
+      --neutral-400: #a3a3a3;
+      --neutral-500: #737373;
+      --neutral-600: #525252;
+      --neutral-700: #404040;
+      --neutral-800: #262626;
+      --neutral-900: #171717;
+      --neutral-950: #0a0a0a;
+
+      --bg: #fff;
+      --fg: #171717;
+      --card: #fff;
+      --card-fg: #171717;
+      --muted: #f5f5f5;
+      --muted-fg: #737373;
+      --border: #e5e7eb;
+      --input: #e5e7eb;
+      --ring: #27aae1;
+
+      --radius-sm: .25rem;
+      --radius-md: .5rem;
+      --radius-lg: .75rem;
+      --radius-xl: 1rem;
+      --radius-2xl: 1.5rem;
+      --radius-full: 9999px;
+
+      --shadow-card: 0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1);
+      --shadow-dropdown: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+      --shadow-modal: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -4px rgba(0,0,0,.1);
+      --shadow-lg: 0 10px 25px -5px rgba(0,0,0,.08), 0 8px 10px -6px rgba(0,0,0,.04);
+
+      --chart-1: #27aae1;
+      --chart-2: #22c55e;
+      --chart-3: #f59e0b;
+      --chart-4: #ef4444;
+      --chart-5: #6366f1;
+
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #111827;
+      --fg: #f3f4f6;
+      --card: #1f2937;
+      --card-fg: #f3f4f6;
+      --muted: #374151;
+      --muted-fg: #9ca3af;
+      --border: #374151;
+      --input: #374151;
+    }
+
+    /* ─── Reset & Base ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Nunito", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    /* ─── App Shell ─── */
+    .app-shell {
+      display: flex;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    /* ─── Sidebar ─── */
+    .sidebar {
+      width: 260px;
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 40;
+      transition: transform .25s cubic-bezier(.4,0,.2,1);
+    }
+
+    .sidebar-header {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .sidebar-brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+    }
+
+    .sidebar-brand-text {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--fg);
+      letter-spacing: -.025em;
+    }
+
+    .sidebar-brand-text span { color: var(--primary-500); }
+
+    .sidebar-user {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-full);
+      background: linear-gradient(135deg, var(--primary-400), var(--primary-600));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-user-info { display: flex; flex-direction: column; }
+    .sidebar-user-name { font-weight: 700; font-size: 14px; color: var(--fg); }
+    .sidebar-user-role { font-size: 12px; color: var(--muted-fg); }
+
+    .sidebar-nav { flex: 1; padding: 8px 12px; overflow-y: auto; }
+
+    .sidebar-section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted-fg);
+      padding: 16px 8px 6px;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-lg);
+      color: var(--neutral-600);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all .15s;
+      cursor: pointer;
+    }
+
+    [data-theme="dark"] .sidebar-link { color: var(--neutral-400); }
+
+    .sidebar-link:hover {
+      background: var(--primary-50);
+      color: var(--primary-600);
+    }
+
+    [data-theme="dark"] .sidebar-link:hover {
+      background: rgba(39,170,225,.1);
+      color: var(--primary-400);
+    }
+
+    .sidebar-link.active {
+      background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(39,170,225,.3);
+    }
+
+    .sidebar-link svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-badge {
+      margin-left: auto;
+      background: var(--destructive-500);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: var(--radius-full);
+      min-width: 20px;
+      text-align: center;
+    }
+
+    .sidebar-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sidebar-version {
+      font-size: 11px;
+      color: var(--muted-fg);
+    }
+
+    /* ─── Main Content ─── */
+    .main-content {
+      flex: 1;
+      margin-left: 260px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    /* ─── Top Bar ─── */
+    .topbar {
+      height: 64px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .topbar-title {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+
+    .topbar-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--muted);
+      padding: 3px;
+      border-radius: var(--radius-lg);
+    }
+
+    .topbar-tab {
+      padding: 6px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      background: transparent;
+      color: var(--muted-fg);
+      transition: all .15s;
+    }
+
+    .topbar-tab.active {
+      background: var(--card);
+      color: var(--fg);
+      box-shadow: var(--shadow-card);
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .topbar-icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: var(--card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted-fg);
+      transition: all .15s;
+      position: relative;
+    }
+
+    .topbar-icon-btn:hover {
+      background: var(--muted);
+      color: var(--fg);
+    }
+
+    .topbar-icon-btn svg { width: 18px; height: 18px; }
+
+    .notification-dot {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 8px;
+      height: 8px;
+      background: var(--destructive-500);
+      border-radius: 50%;
+      border: 2px solid var(--card);
+    }
+
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--muted);
+      padding: 3px;
+      border-radius: var(--radius-lg);
+    }
+
+    .theme-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius-md);
+      border: none;
+      background: transparent;
+      color: var(--muted-fg);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .15s;
+    }
+
+    .theme-btn.active {
+      background: var(--card);
+      color: var(--fg);
+      box-shadow: var(--shadow-card);
+    }
+
+    .theme-btn svg { width: 16px; height: 16px; }
+
+    /* ─── Page Content ─── */
+    .page-content {
+      flex: 1;
+      padding: 24px;
+      max-width: 1280px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ─── Pulse / Stories Bar ─── */
+    .pulse-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .pulse-bar::-webkit-scrollbar { display: none; }
+
+    .pulse-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .pulse-avatar-ring {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      padding: 3px;
+      background: linear-gradient(135deg, var(--primary-400), var(--secondary-500), var(--warning-500));
+    }
+
+    .pulse-avatar-ring.no-story { background: var(--neutral-300); }
+
+    [data-theme="dark"] .pulse-avatar-ring.no-story { background: var(--neutral-600); }
+
+    .pulse-avatar-ring.add-new {
+      background: transparent;
+      border: 2px dashed var(--primary-400);
+      padding: 2px;
+    }
+
+    .pulse-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: var(--neutral-200);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--neutral-600);
+      border: 2px solid var(--card);
+    }
+
+    [data-theme="dark"] .pulse-avatar {
+      background: var(--neutral-700);
+      color: var(--neutral-300);
+    }
+
+    .pulse-avatar.add-icon {
+      background: var(--primary-50);
+      color: var(--primary-500);
+      font-size: 24px;
+      border: none;
+    }
+
+    [data-theme="dark"] .pulse-avatar.add-icon {
+      background: rgba(39,170,225,.15);
+    }
+
+    .pulse-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted-fg);
+      max-width: 60px;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ─── Timer Card ─── */
+    .timer-section {
+      background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
+      border-radius: var(--radius-2xl);
+      padding: 24px;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .timer-section::before {
+      content: '';
+      position: absolute;
+      top: -30%;
+      right: -10%;
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.08);
+    }
+
+    .timer-section::after {
+      content: '';
+      position: absolute;
+      bottom: -40%;
+      left: -5%;
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.05);
+    }
+
+    .timer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .timer-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      opacity: .9;
+    }
+
+    .timer-label svg { width: 18px; height: 18px; }
+
+    .timer-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(255,255,255,.2);
+      backdrop-filter: blur(4px);
+    }
+
+    .timer-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .6; transform: scale(1.3); }
+    }
+
+    .timer-display {
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .timer-time {
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .timer-time .timer-seconds {
+      font-size: 32px;
+      opacity: .7;
+      font-weight: 600;
+    }
+
+    .timer-project {
+      margin-top: 8px;
+      font-size: 14px;
+      opacity: .8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .timer-project-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #fbbf24;
+    }
+
+    .timer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .timer-btn {
+      height: 44px;
+      padding: 0 24px;
+      border-radius: var(--radius-full);
+      border: none;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all .15s;
+      font-family: inherit;
+    }
+
+    .timer-btn svg { width: 18px; height: 18px; }
+
+    .timer-btn-stop {
+      background: rgba(255,255,255,.2);
+      color: #fff;
+      backdrop-filter: blur(4px);
+    }
+
+    .timer-btn-stop:hover { background: rgba(255,255,255,.3); }
+
+    .timer-btn-break {
+      background: #fbbf24;
+      color: var(--neutral-900);
+    }
+
+    .timer-btn-break:hover { background: #f59e0b; }
+
+    .timer-input-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .timer-input {
+      flex: 1;
+      height: 44px;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.12);
+      color: #fff;
+      padding: 0 16px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      backdrop-filter: blur(4px);
+    }
+
+    .timer-input::placeholder { color: rgba(255,255,255,.6); }
+    .timer-input:focus { border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.18); }
+
+    .timer-chips {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      position: relative;
+      z-index: 1;
+      flex-wrap: wrap;
+    }
+
+    .timer-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(255,255,255,.15);
+      color: rgba(255,255,255,.9);
+      border: 1px solid rgba(255,255,255,.2);
+      cursor: pointer;
+      transition: all .15s;
+      backdrop-filter: blur(4px);
+    }
+
+    .timer-chip:hover { background: rgba(255,255,255,.25); }
+    .timer-chip svg { width: 14px; height: 14px; }
+
+    /* ─── Stats Grid ─── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all .2s;
+    }
+
+    .stat-card:hover {
+      box-shadow: var(--shadow-dropdown);
+      transform: translateY(-1px);
+    }
+
+    .stat-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stat-card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .stat-card-icon svg { width: 20px; height: 20px; }
+
+    .stat-card-icon.primary { background: var(--primary-50); color: var(--primary-500); }
+    .stat-card-icon.success { background: var(--success-50); color: var(--success-500); }
+    .stat-card-icon.warning { background: var(--warning-50); color: var(--warning-500); }
+    .stat-card-icon.secondary { background: #eef2ff; color: var(--secondary-500); }
+
+    [data-theme="dark"] .stat-card-icon.primary { background: rgba(39,170,225,.15); }
+    [data-theme="dark"] .stat-card-icon.success { background: rgba(34,197,94,.15); }
+    [data-theme="dark"] .stat-card-icon.warning { background: rgba(245,158,11,.15); }
+    [data-theme="dark"] .stat-card-icon.secondary { background: rgba(99,102,241,.15); }
+
+    .stat-card-trend {
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .stat-card-trend.up { color: var(--success-500); }
+    .stat-card-trend.down { color: var(--destructive-500); }
+
+    .stat-card-value {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      line-height: 1.1;
+    }
+
+    .stat-card-label {
+      font-size: 13px;
+      color: var(--muted-fg);
+      font-weight: 600;
+    }
+
+    /* ─── Content Panels ─── */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title svg { width: 18px; height: 18px; color: var(--primary-500); }
+
+    .panel-action {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary-500);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-family: inherit;
+    }
+
+    .panel-action:hover { color: var(--primary-600); }
+    .panel-action svg { width: 16px; height: 16px; }
+
+    .panel-body { padding: 0; }
+    .panel-body-padded { padding: 16px 20px; }
+
+    /* ─── Time Entries List ─── */
+    .time-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      background: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted-fg);
+    }
+
+    .time-group-total { color: var(--fg); }
+
+    .time-entry {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .12s;
+    }
+
+    .time-entry:last-child { border-bottom: none; }
+    .time-entry:hover { background: var(--muted); }
+
+    .time-entry-color {
+      width: 4px;
+      height: 36px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .time-entry-info { flex: 1; min-width: 0; }
+
+    .time-entry-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .time-entry-meta {
+      font-size: 12px;
+      color: var(--muted-fg);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .time-entry-project-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .time-entry-right {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .time-entry-duration {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .time-entry-range {
+      font-size: 12px;
+      color: var(--muted-fg);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Tickets / Tasks ─── */
+    .ticket-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .12s;
+    }
+
+    .ticket-item:last-child { border-bottom: none; }
+    .ticket-item:hover { background: var(--muted); }
+
+    .ticket-priority {
+      width: 4px;
+      height: 40px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .ticket-priority.high { background: var(--destructive-500); }
+    .ticket-priority.medium { background: var(--warning-500); }
+    .ticket-priority.low { background: var(--success-500); }
+
+    .ticket-info { flex: 1; min-width: 0; }
+
+    .ticket-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .ticket-sub {
+      font-size: 12px;
+      color: var(--muted-fg);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 3px;
+    }
+
+    .ticket-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .ticket-tag.open { background: var(--primary-50); color: var(--primary-600); }
+    .ticket-tag.progress { background: var(--warning-50); color: var(--warning-600); }
+    .ticket-tag.done { background: var(--success-50); color: var(--success-600); }
+
+    [data-theme="dark"] .ticket-tag.open { background: rgba(39,170,225,.15); }
+    [data-theme="dark"] .ticket-tag.progress { background: rgba(245,158,11,.15); }
+    [data-theme="dark"] .ticket-tag.done { background: rgba(34,197,94,.15); }
+
+    .ticket-play {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: var(--primary-50);
+      color: var(--primary-500);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+
+    [data-theme="dark"] .ticket-play { background: rgba(39,170,225,.15); }
+
+    .ticket-play:hover {
+      background: var(--primary-500);
+      color: #fff;
+    }
+
+    .ticket-play svg { width: 16px; height: 16px; }
+
+    /* ─── Projects ─── */
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      padding: 16px 20px;
+    }
+
+    .project-card {
+      background: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .project-card:hover {
+      box-shadow: var(--shadow-card);
+      border-color: var(--primary-300);
+    }
+
+    .project-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .project-card-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+    }
+
+    .project-card-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+
+    .project-card-stats {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted-fg);
+    }
+
+    .project-card-hours {
+      font-weight: 700;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── Reports Mini Chart ─── */
+    .report-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 100px;
+      padding: 16px 20px;
+    }
+
+    .report-bar-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .report-bar {
+      width: 100%;
+      max-width: 32px;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      transition: all .3s;
+      min-height: 4px;
+    }
+
+    .report-bar:hover { opacity: .85; }
+
+    .report-bar-label {
+      font-size: 11px;
+      color: var(--muted-fg);
+      font-weight: 600;
+    }
+
+    .report-summary {
+      display: flex;
+      gap: 20px;
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .report-summary-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .report-summary-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: var(--radius-sm);
+    }
+
+    .report-summary-text {
+      font-size: 12px;
+      color: var(--muted-fg);
+    }
+
+    .report-summary-value {
+      font-weight: 700;
+      color: var(--fg);
+    }
+
+    /* ─── Activity Feed ─── */
+    .activity-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .activity-item:last-child { border-bottom: none; }
+
+    .activity-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .activity-icon svg { width: 16px; height: 16px; }
+    .activity-icon.clock { background: var(--primary-50); color: var(--primary-500); }
+    .activity-icon.ticket { background: var(--success-50); color: var(--success-500); }
+    .activity-icon.break { background: var(--warning-50); color: var(--warning-500); }
+    .activity-icon.project { background: #eef2ff; color: var(--secondary-500); }
+
+    [data-theme="dark"] .activity-icon.clock { background: rgba(39,170,225,.15); }
+    [data-theme="dark"] .activity-icon.ticket { background: rgba(34,197,94,.15); }
+    [data-theme="dark"] .activity-icon.break { background: rgba(245,158,11,.15); }
+    [data-theme="dark"] .activity-icon.project { background: rgba(99,102,241,.15); }
+
+    .activity-content { flex: 1; min-width: 0; }
+
+    .activity-text {
+      font-size: 13px;
+      color: var(--fg);
+    }
+
+    .activity-text strong { font-weight: 700; }
+
+    .activity-time {
+      font-size: 12px;
+      color: var(--muted-fg);
+      margin-top: 2px;
+    }
+
+    /* ─── Full-width bottom panel ─── */
+    .full-width-section { margin-bottom: 24px; }
+
+    /* ─── Settings Preview ─── */
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding: 16px 20px;
+    }
+
+    .settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--muted);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .settings-item:hover { background: var(--primary-50); }
+    [data-theme="dark"] .settings-item:hover { background: rgba(39,170,225,.1); }
+
+    .settings-item-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .settings-item-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .settings-item-icon svg { width: 16px; height: 16px; }
+
+    .settings-item-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .settings-item-chevron {
+      color: var(--muted-fg);
+    }
+
+    .settings-item-chevron svg { width: 16px; height: 16px; }
+
+    /* ─── Toggle Switch ─── */
+    .toggle {
+      width: 40px;
+      height: 22px;
+      background: var(--neutral-300);
+      border-radius: var(--radius-full);
+      position: relative;
+      cursor: pointer;
+      transition: background .2s;
+      flex-shrink: 0;
+    }
+
+    .toggle.on { background: var(--primary-500); }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform .2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    }
+
+    .toggle.on::after { transform: translateX(18px); }
+
+    /* ─── Bottom Nav (mobile) ─── */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      padding: 6px 8px calc(6px + var(--safe-bottom));
+      z-index: 50;
+    }
+
+    .bottom-nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .bottom-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 4px 8px;
+      border-radius: var(--radius-lg);
+      color: var(--muted-fg);
+      font-size: 10px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all .15s;
+      border: none;
+      background: none;
+      font-family: inherit;
+    }
+
+    .bottom-nav-item.active {
+      color: var(--primary-500);
+    }
+
+    .bottom-nav-item svg { width: 22px; height: 22px; }
+
+    .bottom-nav-clock {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--primary-500);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      cursor: pointer;
+      margin-top: -20px;
+      box-shadow: 0 4px 12px rgba(39,170,225,.35);
+      transition: all .15s;
+    }
+
+    .bottom-nav-clock:hover { transform: scale(1.05); }
+    .bottom-nav-clock.active {
+      background: var(--destructive-500);
+      box-shadow: 0 4px 12px rgba(239,68,68,.35);
+      animation: clock-pulse 2s infinite;
+    }
+
+    .bottom-nav-clock svg { width: 24px; height: 24px; }
+
+    @keyframes clock-pulse {
+      0%, 100% { box-shadow: 0 4px 12px rgba(239,68,68,.35); }
+      50% { box-shadow: 0 4px 20px rgba(239,68,68,.55); }
+    }
+
+    /* ─── Mobile Responsive ─── */
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .main-content { margin-left: 0; }
+      .topbar { padding: 0 16px; }
+      .page-content { padding: 16px; padding-bottom: calc(80px + var(--safe-bottom)); }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .content-grid { grid-template-columns: 1fr; }
+      .projects-grid { grid-template-columns: 1fr; }
+      .settings-grid { grid-template-columns: 1fr; }
+      .timer-time { font-size: 42px; }
+      .timer-time .timer-seconds { font-size: 24px; }
+      .bottom-nav { display: block; }
+      .topbar-tabs { display: none; }
+      .mobile-menu-btn { display: flex !important; }
+    }
+
+    .mobile-menu-btn { display: none; }
+
+    /* ─── Scrollbar ─── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--neutral-300); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--neutral-400); }
+    [data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--neutral-600); }
+
+    /* ─── Sidebar overlay (mobile) ─── */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.4);
+      z-index: 35;
+      backdrop-filter: blur(2px);
+    }
+
+    .sidebar-overlay.visible { display: block; }
+
+    /* ─── Utility ─── */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+
+    /* ─── Empty State ─── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+      text-align: center;
+    }
+
+    .empty-state-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-xl);
+      background: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      color: var(--muted-fg);
+    }
+
+    .empty-state-icon svg { width: 24px; height: 24px; }
+
+    .empty-state-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 4px;
+    }
+
+    .empty-state-desc {
+      font-size: 13px;
+      color: var(--muted-fg);
+      max-width: 240px;
+    }
+
+    /* ─── Btn Utility ─── */
+    .btn-primary {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: var(--radius-lg);
+      border: none;
+      background: var(--primary-500);
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s;
+    }
+
+    .btn-primary:hover { background: var(--primary-600); }
+    .btn-primary svg { width: 16px; height: 16px; }
+
+    .btn-outline {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--fg);
+      font-weight: 600;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s;
+    }
+
+    .btn-outline:hover { background: var(--muted); }
+    .btn-outline svg { width: 16px; height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()" role="presentation"></div>
+
+    <!-- ═══ SIDEBAR ═══ -->
+    <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a class="sidebar-brand" href="#" aria-label="TimeHarbor home">
+          <div class="sidebar-brand-icon" aria-hidden="true">T</div>
+          <div class="sidebar-brand-text">Time<span>Harbor</span></div>
+        </a>
+      </div>
+
+      <div class="sidebar-user">
+        <div class="sidebar-avatar" aria-hidden="true">AD</div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">Admin</div>
+          <div class="sidebar-user-role">Personal workspace</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Navigation menu">
+        <div class="sidebar-section-label">Main</div>
+        <a class="sidebar-link active" href="#" aria-current="page">
+          <!-- Clock icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Time Tracker
+        </a>
+        <a class="sidebar-link" href="#">
+          <!-- Calendar icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Calendar
+        </a>
+        <a class="sidebar-link" href="#">
+          <!-- Ticket icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+          Tickets
+          <span class="sidebar-badge" aria-label="3 open tickets">3</span>
+        </a>
+        <a class="sidebar-link" href="#">
+          <!-- Folder icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+          Projects
+        </a>
+
+        <div class="sidebar-section-label">Analytics</div>
+        <a class="sidebar-link" href="#">
+          <!-- BarChart icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+          Reports
+        </a>
+        <a class="sidebar-link" href="#">
+          <!-- Sheet icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+          Timesheet
+        </a>
+
+        <div class="sidebar-section-label">Social</div>
+        <a class="sidebar-link" href="#">
+          <!-- Pulse/Activity icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+          Pulse
+        </a>
+
+        <div class="sidebar-section-label">General</div>
+        <a class="sidebar-link" href="#">
+          <!-- Settings icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          Settings
+        </a>
+        <a class="sidebar-link" href="#">
+          <!-- Help icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+          Help &amp; Support
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span class="sidebar-version">TimeHarbor v1.0.0</span>
+        <button class="topbar-icon-btn" onclick="toggleTheme()" aria-label="Toggle theme">
+          <svg id="themeIconSidebar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <main class="main-content" role="main">
+
+      <!-- ── Top Bar ── -->
+      <header class="topbar" role="banner">
+        <div class="topbar-left">
+          <button class="topbar-icon-btn mobile-menu-btn" onclick="toggleSidebar()" aria-label="Open menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+          </button>
+          <h1 class="topbar-title">Time Tracker</h1>
+          <div class="topbar-tabs" role="tablist" aria-label="View mode">
+            <button class="topbar-tab active" role="tab" aria-selected="true">List</button>
+            <button class="topbar-tab" role="tab" aria-selected="false">Calendar</button>
+            <button class="topbar-tab" role="tab" aria-selected="false">Pomodoro</button>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <div class="theme-toggle" role="radiogroup" aria-label="Theme selection">
+            <button class="theme-btn active" onclick="setTheme('light')" aria-label="Light mode" role="radio" aria-checked="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+            </button>
+            <button class="theme-btn" onclick="setTheme('dark')" aria-label="Dark mode" role="radio" aria-checked="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+            </button>
+          </div>
+          <button class="topbar-icon-btn" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span class="notification-dot" aria-hidden="true"></span>
+          </button>
+          <button class="topbar-icon-btn" aria-label="Add new entry">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- ── Page Content ── -->
+      <div class="page-content">
+
+        <!-- Pulse / Stories Bar -->
+        <section aria-label="Pulse stories">
+          <div class="pulse-bar">
+            <div class="pulse-item">
+              <div class="pulse-avatar-ring add-new">
+                <div class="pulse-avatar add-icon" aria-hidden="true">+</div>
+              </div>
+              <span class="pulse-name">Your pulse</span>
+            </div>
+            <div class="pulse-item">
+              <div class="pulse-avatar-ring">
+                <div class="pulse-avatar">AD</div>
+              </div>
+              <span class="pulse-name">Admin</span>
+            </div>
+            <div class="pulse-item">
+              <div class="pulse-avatar-ring">
+                <div class="pulse-avatar">JD</div>
+              </div>
+              <span class="pulse-name">John</span>
+            </div>
+            <div class="pulse-item">
+              <div class="pulse-avatar-ring no-story">
+                <div class="pulse-avatar">SK</div>
+              </div>
+              <span class="pulse-name">Sarah</span>
+            </div>
+            <div class="pulse-item">
+              <div class="pulse-avatar-ring no-story">
+                <div class="pulse-avatar">MR</div>
+              </div>
+              <span class="pulse-name">Mike</span>
+            </div>
+            <div class="pulse-item">
+              <div class="pulse-avatar-ring no-story">
+                <div class="pulse-avatar">PK</div>
+              </div>
+              <span class="pulse-name">Poonam</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Active Timer ── -->
+        <section class="timer-section" aria-label="Active timer">
+          <div class="timer-header">
+            <div class="timer-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Currently tracking
+            </div>
+            <div class="timer-status" role="status" aria-live="polite">
+              <div class="timer-status-dot" aria-hidden="true"></div>
+              Active
+            </div>
+          </div>
+          <div class="timer-display">
+            <div class="timer-time" aria-label="Timer showing 1 hour 24 minutes 37 seconds">
+              1:24<span class="timer-seconds">:37</span>
+            </div>
+            <div class="timer-project">
+              <span class="timer-project-dot" aria-hidden="true"></span>
+              TimeHarbor &mdash; Frontend
+            </div>
+          </div>
+          <div class="timer-actions">
+            <button class="timer-btn timer-btn-stop" aria-label="Stop timer">
+              <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+              Stop
+            </button>
+            <button class="timer-btn timer-btn-break" aria-label="Take a break">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+              Break
+            </button>
+          </div>
+          <div class="timer-input-row">
+            <input class="timer-input" type="text" placeholder="What are you working on?" aria-label="Task description" />
+          </div>
+          <div class="timer-chips">
+            <button class="timer-chip" aria-label="Add a project">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/></svg>
+              @ Project
+            </button>
+            <button class="timer-chip" aria-label="Add tags">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+              # Tags
+            </button>
+            <button class="timer-chip" aria-label="Make billable">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              $ Billable
+            </button>
+          </div>
+        </section>
+
+        <!-- ── Stats Grid ── -->
+        <section class="stats-grid" aria-label="Summary statistics">
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <div class="stat-card-icon primary" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <span class="stat-card-trend up" aria-label="12% increase">&#9650; 12%</span>
+            </div>
+            <div class="stat-card-value">6h 42m</div>
+            <div class="stat-card-label">Today</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <div class="stat-card-icon success" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+              </div>
+              <span class="stat-card-trend up" aria-label="8% increase">&#9650; 8%</span>
+            </div>
+            <div class="stat-card-value">34h 15m</div>
+            <div class="stat-card-label">This Week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <div class="stat-card-icon warning" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+              </div>
+            </div>
+            <div class="stat-card-value">5</div>
+            <div class="stat-card-label">Open Tickets</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <div class="stat-card-icon secondary" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+              </div>
+            </div>
+            <div class="stat-card-value">4</div>
+            <div class="stat-card-label">Active Projects</div>
+          </div>
+        </section>
+
+        <!-- ── Two-column: Time Entries + Open Tickets ── -->
+        <section class="content-grid" aria-label="Time entries and tickets">
+          <!-- Time Entries -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Time Entries
+              </h2>
+              <button class="panel-action" aria-label="View all time entries">
+                View all
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <div class="panel-body">
+              <div class="time-group-header">
+                <span>Today</span>
+                <span class="time-group-total">06:42:00</span>
+              </div>
+              <div class="time-entry">
+                <div class="time-entry-color" style="background: var(--primary-500);" aria-hidden="true"></div>
+                <div class="time-entry-info">
+                  <div class="time-entry-title">Dashboard redesign prototype</div>
+                  <div class="time-entry-meta">
+                    <span class="time-entry-project-dot" style="background: var(--primary-500);" aria-hidden="true"></span>
+                    TimeHarbor &mdash; Frontend
+                  </div>
+                </div>
+                <div class="time-entry-right">
+                  <div class="time-entry-duration">01:24:37</div>
+                  <div class="time-entry-range">14:38 &ndash; now</div>
+                </div>
+              </div>
+              <div class="time-entry">
+                <div class="time-entry-color" style="background: var(--success-500);" aria-hidden="true"></div>
+                <div class="time-entry-info">
+                  <div class="time-entry-title">API endpoint refactoring</div>
+                  <div class="time-entry-meta">
+                    <span class="time-entry-project-dot" style="background: var(--success-500);" aria-hidden="true"></span>
+                    TimeHarbor &mdash; Backend
+                  </div>
+                </div>
+                <div class="time-entry-right">
+                  <div class="time-entry-duration">02:15:00</div>
+                  <div class="time-entry-range">11:30 &ndash; 13:45</div>
+                </div>
+              </div>
+              <div class="time-entry">
+                <div class="time-entry-color" style="background: var(--chart-3);" aria-hidden="true"></div>
+                <div class="time-entry-info">
+                  <div class="time-entry-title">Code review &amp; PR feedback</div>
+                  <div class="time-entry-meta">
+                    <span class="time-entry-project-dot" style="background: var(--chart-3);" aria-hidden="true"></span>
+                    TimeHarbor &mdash; DevOps
+                  </div>
+                </div>
+                <div class="time-entry-right">
+                  <div class="time-entry-duration">01:30:00</div>
+                  <div class="time-entry-range">09:15 &ndash; 10:45</div>
+                </div>
+              </div>
+              <div class="time-entry">
+                <div class="time-entry-color" style="background: var(--chart-5);" aria-hidden="true"></div>
+                <div class="time-entry-info">
+                  <div class="time-entry-title">Daily standup meeting</div>
+                  <div class="time-entry-meta">
+                    <span class="time-entry-project-dot" style="background: var(--chart-5);" aria-hidden="true"></span>
+                    General
+                  </div>
+                </div>
+                <div class="time-entry-right">
+                  <div class="time-entry-duration">00:32:23</div>
+                  <div class="time-entry-range">09:00 &ndash; 09:32</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tickets -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+                Open Tickets
+              </h2>
+              <button class="btn-primary" aria-label="Create new ticket">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New
+              </button>
+            </div>
+            <div class="panel-body">
+              <div class="ticket-item">
+                <div class="ticket-priority high" aria-label="High priority"></div>
+                <div class="ticket-info">
+                  <div class="ticket-title">Fix auth token refresh flow</div>
+                  <div class="ticket-sub">
+                    <span class="ticket-tag progress">In Progress</span>
+                    <span>TH-142</span>
+                  </div>
+                </div>
+                <button class="ticket-play" aria-label="Start timer for this ticket">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                </button>
+              </div>
+              <div class="ticket-item">
+                <div class="ticket-priority high" aria-label="High priority"></div>
+                <div class="ticket-info">
+                  <div class="ticket-title">Implement personal dashboard view</div>
+                  <div class="ticket-sub">
+                    <span class="ticket-tag progress">In Progress</span>
+                    <span>TH-138</span>
+                  </div>
+                </div>
+                <button class="ticket-play" aria-label="Start timer for this ticket">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                </button>
+              </div>
+              <div class="ticket-item">
+                <div class="ticket-priority medium" aria-label="Medium priority"></div>
+                <div class="ticket-info">
+                  <div class="ticket-title">Add project CRUD endpoints</div>
+                  <div class="ticket-sub">
+                    <span class="ticket-tag open">Open</span>
+                    <span>TH-145</span>
+                  </div>
+                </div>
+                <button class="ticket-play" aria-label="Start timer for this ticket">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                </button>
+              </div>
+              <div class="ticket-item">
+                <div class="ticket-priority medium" aria-label="Medium priority"></div>
+                <div class="ticket-info">
+                  <div class="ticket-title">Calendar integration setup</div>
+                  <div class="ticket-sub">
+                    <span class="ticket-tag open">Open</span>
+                    <span>TH-147</span>
+                  </div>
+                </div>
+                <button class="ticket-play" aria-label="Start timer for this ticket">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                </button>
+              </div>
+              <div class="ticket-item">
+                <div class="ticket-priority low" aria-label="Low priority"></div>
+                <div class="ticket-info">
+                  <div class="ticket-title">Update documentation README</div>
+                  <div class="ticket-sub">
+                    <span class="ticket-tag open">Open</span>
+                    <span>TH-150</span>
+                  </div>
+                </div>
+                <button class="ticket-play" aria-label="Start timer for this ticket">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Two-column: Projects + Reports ── -->
+        <section class="content-grid" aria-label="Projects and reports">
+          <!-- Projects -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+                Projects
+              </h2>
+              <button class="btn-primary" aria-label="Add new project">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Project
+              </button>
+            </div>
+            <div class="projects-grid">
+              <div class="project-card">
+                <div class="project-card-header">
+                  <div class="project-card-dot" style="background: var(--primary-500);" aria-hidden="true"></div>
+                  <div class="project-card-name">Frontend</div>
+                </div>
+                <div class="project-card-stats">
+                  <span>12 entries</span>
+                  <span class="project-card-hours">24h 30m</span>
+                </div>
+              </div>
+              <div class="project-card">
+                <div class="project-card-header">
+                  <div class="project-card-dot" style="background: var(--success-500);" aria-hidden="true"></div>
+                  <div class="project-card-name">Backend</div>
+                </div>
+                <div class="project-card-stats">
+                  <span>8 entries</span>
+                  <span class="project-card-hours">18h 45m</span>
+                </div>
+              </div>
+              <div class="project-card">
+                <div class="project-card-header">
+                  <div class="project-card-dot" style="background: var(--chart-3);" aria-hidden="true"></div>
+                  <div class="project-card-name">DevOps</div>
+                </div>
+                <div class="project-card-stats">
+                  <span>5 entries</span>
+                  <span class="project-card-hours">8h 15m</span>
+                </div>
+              </div>
+              <div class="project-card">
+                <div class="project-card-header">
+                  <div class="project-card-dot" style="background: var(--chart-5);" aria-hidden="true"></div>
+                  <div class="project-card-name">General</div>
+                </div>
+                <div class="project-card-stats">
+                  <span>15 entries</span>
+                  <span class="project-card-hours">6h 10m</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Weekly Report -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+                Weekly Report
+              </h2>
+              <button class="panel-action" aria-label="View full report">
+                Full report
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <div class="panel-body">
+              <div class="report-bars" role="img" aria-label="Weekly hours bar chart showing Monday through Sunday">
+                <div class="report-bar-group">
+                  <div class="report-bar" style="height: 70px; background: var(--primary-500);"></div>
+                  <span class="report-bar-label">Mon</span>
+                </div>
+                <div class="report-bar-group">
+                  <div class="report-bar" style="height: 85px; background: var(--primary-500);"></div>
+                  <span class="report-bar-label">Tue</span>
+                </div>
+                <div class="report-bar-group">
+                  <div class="report-bar" style="height: 60px; background: var(--primary-500);"></div>
+                  <span class="report-bar-label">Wed</span>
+                </div>
+                <div class="report-bar-group">
+                  <div class="report-bar" style="height: 90px; background: var(--primary-500);"></div>
+                  <span class="report-bar-label">Thu</span>
+                </div>
+                <div class="report-bar-group">
+                  <div class="report-bar" style="height: 55px; background: var(--primary-400);"></div>
+                  <span class="report-bar-label">Fri</span>
+                </div>
+                <div class="report-bar-group">
+                  <div class="report-bar" style="height: 20px; background: var(--neutral-300);"></div>
+                  <span class="report-bar-label">Sat</span>
+                </div>
+                <div class="report-bar-group">
+                  <div class="report-bar" style="height: 4px; background: var(--neutral-300);"></div>
+                  <span class="report-bar-label">Sun</span>
+                </div>
+              </div>
+              <div class="report-summary">
+                <div class="report-summary-item">
+                  <div class="report-summary-dot" style="background: var(--primary-500);" aria-hidden="true"></div>
+                  <span class="report-summary-text">Tracked: <span class="report-summary-value">34h 15m</span></span>
+                </div>
+                <div class="report-summary-item">
+                  <div class="report-summary-dot" style="background: var(--success-500);" aria-hidden="true"></div>
+                  <span class="report-summary-text">Billable: <span class="report-summary-value">28h 30m</span></span>
+                </div>
+                <div class="report-summary-item">
+                  <div class="report-summary-dot" style="background: var(--neutral-300);" aria-hidden="true"></div>
+                  <span class="report-summary-text">Target: <span class="report-summary-value">40h 00m</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Activity Feed + Settings ── -->
+        <section class="content-grid" aria-label="Activity and settings">
+          <!-- Recent Activity -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+                Recent Activity
+              </h2>
+              <button class="panel-action" aria-label="View all activity">
+                View all
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <div class="panel-body">
+              <div class="activity-item">
+                <div class="activity-icon clock" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="activity-content">
+                  <div class="activity-text"><strong>Clocked in</strong> &mdash; Dashboard redesign prototype</div>
+                  <div class="activity-time">2 min ago</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-icon ticket" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                </div>
+                <div class="activity-content">
+                  <div class="activity-text"><strong>Completed</strong> ticket TH-140 &mdash; Auth token fix</div>
+                  <div class="activity-time">45 min ago</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-icon break" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/></svg>
+                </div>
+                <div class="activity-content">
+                  <div class="activity-text"><strong>Break ended</strong> &mdash; 15 minutes</div>
+                  <div class="activity-time">1 hour ago</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-icon project" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+                </div>
+                <div class="activity-content">
+                  <div class="activity-text"><strong>Switched project</strong> to TimeHarbor &mdash; Frontend</div>
+                  <div class="activity-time">2 hours ago</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-icon clock" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="activity-content">
+                  <div class="activity-text"><strong>Clocked out</strong> &mdash; API endpoint refactoring (2h 15m)</div>
+                  <div class="activity-time">3 hours ago</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Settings -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                Quick Settings
+              </h2>
+              <button class="panel-action" aria-label="All settings">
+                All settings
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <div class="panel-body-padded" style="display: flex; flex-direction: column; gap: 12px;">
+              <!-- Remind to track -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--muted); border-radius: var(--radius-lg);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div class="settings-item-icon" style="background: var(--primary-50); color: var(--primary-500); width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                  </div>
+                  <span style="font-size: 13px; font-weight: 600;">Remind to track time</span>
+                </div>
+                <div class="toggle on" role="switch" aria-checked="true" aria-label="Remind to track time" tabindex="0" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <!-- Forced offline -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--muted); border-radius: var(--radius-lg);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div style="background: var(--warning-50); color: var(--warning-500); width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </div>
+                  <span style="font-size: 13px; font-weight: 600;">Forced offline mode</span>
+                </div>
+                <div class="toggle" role="switch" aria-checked="false" aria-label="Forced offline mode" tabindex="0" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <!-- Auto close sessions -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--muted); border-radius: var(--radius-lg);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div style="background: var(--destructive-50); color: var(--destructive-500); width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  </div>
+                  <span style="font-size: 13px; font-weight: 600;">Auto-close orphaned sessions</span>
+                </div>
+                <div class="toggle on" role="switch" aria-checked="true" aria-label="Auto-close orphaned sessions" tabindex="0" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <!-- Theme -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--muted); border-radius: var(--radius-lg);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div style="background: #eef2ff; color: var(--secondary-500); width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                  </div>
+                  <span style="font-size: 13px; font-weight: 600;">App theme</span>
+                </div>
+                <span style="font-size: 13px; color: var(--muted-fg); font-weight: 600;">System default</span>
+              </div>
+              <!-- Calendar integration -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--muted); border-radius: var(--radius-lg); cursor: pointer;" onclick="">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div style="background: var(--success-50); color: var(--success-500); width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </div>
+                  <span style="font-size: 13px; font-weight: 600;">Calendar integration</span>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted-fg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+              <!-- About -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--muted); border-radius: var(--radius-lg);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div style="background: var(--info-50); color: var(--info-500); width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                  </div>
+                  <span style="font-size: 13px; font-weight: 600;">About</span>
+                </div>
+                <span style="font-size: 13px; color: var(--muted-fg); font-weight: 600;">v1.0.0</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div><!-- /.page-content -->
+
+      <!-- ═══ BOTTOM NAV (mobile) ═══ -->
+      <nav class="bottom-nav" aria-label="Mobile navigation">
+        <div class="bottom-nav-inner">
+          <button class="bottom-nav-item active" aria-label="Home" aria-current="page">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Home
+          </button>
+          <button class="bottom-nav-item" aria-label="Tickets">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+            Tickets
+          </button>
+          <button class="bottom-nav-clock active" aria-label="Clock In/Out — Currently active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+          </button>
+          <button class="bottom-nav-item" aria-label="Timesheet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+            Timesheet
+          </button>
+          <button class="bottom-nav-item" aria-label="Profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Profile
+          </button>
+        </div>
+      </nav>
+
+    </main>
+  </div>
+
+  <script>
+    // Theme toggling
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      document.querySelectorAll('.theme-btn').forEach(function(btn) {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-checked', 'false');
+      });
+      var btns = document.querySelectorAll('.theme-btn');
+      var idx = theme === 'light' ? 0 : 1;
+      if (btns[idx]) {
+        btns[idx].classList.add('active');
+        btns[idx].setAttribute('aria-checked', 'true');
+      }
+    }
+
+    function toggleTheme() {
+      var current = document.documentElement.getAttribute('data-theme');
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    }
+
+    // Mobile sidebar toggle
+    function toggleSidebar() {
+      var sidebar = document.getElementById('sidebar');
+      var overlay = document.getElementById('sidebarOverlay');
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('visible');
+    }
+
+    // Sidebar nav active state
+    document.querySelectorAll('.sidebar-link').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.querySelectorAll('.sidebar-link').forEach(function(l) {
+          l.classList.remove('active');
+          l.removeAttribute('aria-current');
+        });
+        this.classList.add('active');
+        this.setAttribute('aria-current', 'page');
+      });
+    });
+
+    // Simple timer simulation
+    var seconds = 5077; // 1:24:37
+    function updateTimer() {
+      seconds++;
+      var h = Math.floor(seconds / 3600);
+      var m = Math.floor((seconds % 3600) / 60);
+      var s = seconds % 60;
+      var timerEl = document.querySelector('.timer-time');
+      if (timerEl) {
+        timerEl.innerHTML = h + ':' + String(m).padStart(2, '0') +
+          '<span class="timer-seconds">:' + String(s).padStart(2, '0') + '</span>';
+      }
+    }
+    setInterval(updateTimer, 1000);
+  </script>
+</body>
+</html>
