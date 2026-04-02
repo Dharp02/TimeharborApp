@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { TicketSegment, Break, TicketTime } from '@timeharbor/time-engine';
+import type { OpLogEntry, StoredKeyRecord, FieldHLCMap } from './sync/types';
 
 export interface OfflineMutation {
   id?: number;
@@ -84,8 +85,6 @@ export interface Ticket {
     email: string;
   };
   _deleted?: boolean;
-  _dirty?: number;
-  _rev?: number;
 }
 
 export interface SessionAttachment {
@@ -97,9 +96,6 @@ export interface SessionAttachment {
 export interface DexieWorkSession {
   id: string;
   clientSessionId: string;
-  _serverId?: string;
-  _dirty: 0 | 1;
-  _rev: number;
   userId: string;
   date: string; // YYYY-MM-DD
   clockIn: number; // epoch ms
@@ -126,9 +122,6 @@ export interface SyncMeta {
 
 export interface DexieNote {
   id: string;
-  _serverId?: string;
-  _dirty: 0 | 1;
-  _rev: number;
   userId: string;
   title: string;
   content: string; // JSON string (BlockNote document)
@@ -139,9 +132,6 @@ export interface DexieNote {
 
 export interface DexieActivityLog {
   id: string;          // client-generated ID (also used as clientId for server dedup)
-  _serverId?: string;
-  _dirty: 0 | 1;
-  _rev: number;
   userId?: string;
   teamId?: string;
   type: string;
@@ -164,9 +154,6 @@ export type ProjectColor =
 
 export interface DexieOperationLog {
   id: string;
-  _serverId?: string;
-  _dirty: 0 | 1;
-  _rev: number;
   userId: string;
   category: string;
   action: string;
@@ -180,9 +167,6 @@ export interface DexieOperationLog {
 
 export interface DexieProject {
   id: string;
-  _serverId?: string;
-  _dirty: 0 | 1;
-  _rev: number;
   _deleted: boolean;
   name: string;
   description?: string;
@@ -193,6 +177,14 @@ export interface DexieProject {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Tracks which op-log entry IDs have been applied from remote devices. */
+export interface AppliedOp {
+  /** The op-log entry id that was already applied. */
+  id: string;
+  /** When it was applied locally (ISO). */
+  appliedAt: string;
 }
 
 export class TimeharborDB extends Dexie {
@@ -209,6 +201,10 @@ export class TimeharborDB extends Dexie {
   syncMeta!: Table<SyncMeta>;
   notes!: Table<DexieNote>;
   operationLogs!: Table<DexieOperationLog>;
+  // ── Encrypted sync tables (v15) ──
+  opLog!: Table<OpLogEntry>;
+  deviceKeys!: Table<StoredKeyRecord>;
+  appliedOps!: Table<AppliedOp>;
 
   constructor() {
     super('TimeharborDB');
@@ -277,6 +273,47 @@ export class TimeharborDB extends Dexie {
 
     this.version(14).stores({
       operationLogs: 'id, userId, category, action, result, _dirty, timestamp'
+    });
+
+    // ── Encrypted op-log sync tables ──
+    this.version(15).stores({
+      opLog: 'id, [userId+_synced], [userId+collection+entityId], hlc, timestamp',
+      deviceKeys: 'id',
+      appliedOps: 'id, appliedAt'
+    });
+
+    // ── Phase 5: Drop legacy sync indexes (_dirty, _serverId, _rev) ──
+    this.version(16).stores({
+      workSessions: 'id, clientSessionId, userId, date, clockIn, clockOut, updatedAt',
+      notes: 'id, userId, updatedAt',
+      activityLogs: 'id, teamId, startTime, userId',
+      tickets: 'id, teamId',
+      projects: 'id, createdBy',
+      operationLogs: 'id, userId, category, action, result, timestamp',
+      offlineMutations: null, // Drop legacy offline mutations table
+    }).upgrade(async (tx) => {
+      // Strip legacy sync fields from all existing records
+      const tables = ['workSessions', 'notes', 'activityLogs', 'tickets', 'projects', 'operationLogs'] as const;
+      for (const tableName of tables) {
+        const table = tx.table(tableName);
+        await table.toCollection().modify((record: Record<string, unknown>) => {
+          delete record._dirty;
+          delete record._serverId;
+          delete record._rev;
+        });
+      }
+    });
+
+    // ── v17: Add _syncEnabled flag to opLog for selective sync ──
+    this.version(17).stores({
+      opLog: 'id, [userId+_synced+_syncEnabled], [userId+collection+entityId], hlc, timestamp',
+    }).upgrade(async (tx) => {
+      // Default all existing entries to _syncEnabled = 1
+      await tx.table('opLog').toCollection().modify((entry: Record<string, unknown>) => {
+        if (entry._syncEnabled === undefined) {
+          entry._syncEnabled = 1;
+        }
+      });
     });
   }
 }

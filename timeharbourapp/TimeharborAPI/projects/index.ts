@@ -2,6 +2,7 @@ import { db, type DexieProject, type ProjectStatus, type ProjectColor } from '..
 import { v4 as uuidv4 } from 'uuid';
 import { getStoredUser } from '../auth';
 import { operationsLog } from '../OperationsLog';
+import { opLogWriter } from '../sync/OpLogWriter';
 
 /* ── Re-export types from db ────────────────────────────── */
 export type { ProjectStatus, ProjectColor };
@@ -47,14 +48,13 @@ export const createProject = async (data: CreateProjectData): Promise<Project> =
     prefix: data.prefix || derivePrefix(data.name),
     repoUrl: data.repoUrl,
     createdBy: user?.id || '',
-    _dirty: 1,
-    _rev: 1,
     _deleted: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
   try {
     await db.projects.put(project);
+    await opLogWriter.recordCreate('projects', project.id, project as unknown as Record<string, unknown>);
     await operationsLog.log({ category: 'PROJECT', action: 'CREATE', result: 'success', target: 'Project', targetId: project.id, details: { name: data.name } });
     return project;
   } catch (err: any) {
@@ -78,10 +78,9 @@ export const updateProject = async (id: string, data: UpdateProjectData): Promis
   try {
     await db.projects.update(id, {
       ...data,
-      _dirty: 1,
-      _rev: (existing._rev ?? 0) + 1,
       updatedAt: new Date().toISOString(),
     });
+    await opLogWriter.recordUpdate('projects', id, { ...data, updatedAt: new Date().toISOString() });
     await operationsLog.log({ category: 'PROJECT', action: 'UPDATE', result: 'success', target: 'Project', targetId: id, details: { fields: Object.keys(data) } });
     return db.projects.get(id);
   } catch (err: any) {
@@ -97,19 +96,14 @@ export const deleteProject = async (id: string): Promise<void> => {
     for (const t of tickets) {
       await db.tickets.update(t.id, { projectId: undefined, projectName: undefined } as any);
     }
-    // Soft-delete for sync if synced, otherwise hard-delete
+    // Always soft-delete — op-log sync handles propagation
     const existing = await db.projects.get(id);
     if (existing) {
-      if (existing._serverId) {
-        await db.projects.update(id, {
-          _deleted: true,
-          _dirty: 1,
-          _rev: (existing._rev ?? 0) + 1,
-          updatedAt: new Date().toISOString(),
-        });
-      } else {
-        await db.projects.delete(id);
-      }
+      await db.projects.update(id, {
+        _deleted: true,
+        updatedAt: new Date().toISOString(),
+      });
+      await opLogWriter.recordDelete('projects', id);
     }
     await operationsLog.log({ category: 'PROJECT', action: 'DELETE', result: 'success', target: 'Project', targetId: id });
   } catch (err: any) {
@@ -122,22 +116,24 @@ export const deleteProject = async (id: string): Promise<void> => {
 export const assignTicketToProject = async (ticketId: string, projectId: string): Promise<void> => {
   const project = await db.projects.get(projectId);
   if (!project) throw new Error('Project not found');
-  await db.tickets.update(ticketId, {
+  const updates = {
     projectId,
     projectName: project.name,
-    _dirty: 1,
     updatedAt: new Date().toISOString(),
-  } as any);
+  };
+  await db.tickets.update(ticketId, updates as any);
+  await opLogWriter.recordUpdate('tickets', ticketId, updates);
   await operationsLog.log({ category: 'TICKET', action: 'ASSIGN', result: 'success', target: 'Ticket', targetId: ticketId, details: { projectId, projectName: project.name } });
 };
 
 export const removeTicketFromProject = async (ticketId: string): Promise<void> => {
-  await db.tickets.update(ticketId, {
+  const updates = {
     projectId: undefined,
     projectName: undefined,
-    _dirty: 1,
     updatedAt: new Date().toISOString(),
-  } as any);
+  };
+  await db.tickets.update(ticketId, updates as any);
+  await opLogWriter.recordUpdate('tickets', ticketId, updates);
   await operationsLog.log({ category: 'TICKET', action: 'UNASSIGN', result: 'success', target: 'Ticket', targetId: ticketId });
 };
 

@@ -1,9 +1,13 @@
-import { syncAll } from './SyncEngine';
+import { syncAll as encryptedSyncAll } from './sync/EncryptedSyncEngine';
 
 class SyncManager {
   private static instance: SyncManager;
   private syncing = false;
   private stopped = false;
+  private syncKey: CryptoKey | null = null;
+
+  /** Listeners notified when encryption setup is needed. */
+  private encryptionNeededListeners: Array<() => void> = [];
 
   public static getInstance(): SyncManager {
     if (!SyncManager.instance) {
@@ -14,15 +18,32 @@ class SyncManager {
 
   public init() {
     this.stopped = false;
-    // Sync on network reconnect
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => this.syncNow());
     }
   }
 
+  /** Set the AES-256-GCM sync key to enable sync. */
+  public setSyncKey(key: CryptoKey) {
+    this.syncKey = key;
+  }
+
+  /** Register a callback that fires when encryption setup is needed. */
+  public onEncryptionNeeded(listener: () => void) {
+    this.encryptionNeededListeners.push(listener);
+  }
+
+  /** Remove an encryption-needed listener. */
+  public offEncryptionNeeded(listener: () => void) {
+    this.encryptionNeededListeners = this.encryptionNeededListeners.filter(
+      (l) => l !== listener,
+    );
+  }
+
   /** Block all future syncs and wait for any in-flight sync to finish. */
   public async stop() {
     this.stopped = true;
+    this.syncKey = null;
     // Wait for an in-flight sync to drain (poll for up to 3 s).
     const deadline = Date.now() + 3000;
     while (this.syncing && Date.now() < deadline) {
@@ -35,18 +56,25 @@ class SyncManager {
     this.stopped = false;
   }
 
+  /**
+   * Execute an encrypted sync cycle.
+   *
+   * If a syncKey is set → encrypted op-log sync.
+   * Otherwise → prompt user for encryption passphrase.
+   */
   public async syncNow() {
     if (this.syncing || this.stopped) return;
     this.syncing = true;
     try {
-      await syncAll();
+      if (this.syncKey) {
+        await encryptedSyncAll(this.syncKey);
+      } else {
+        // No key — prompt user for passphrase
+        this.encryptionNeededListeners.forEach((l) => l());
+      }
     } finally {
       this.syncing = false;
     }
-  }
-
-  public async addMutation(_url: string, _method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', _body: any, _tempId?: string) {
-    // Legacy — mutations now go through SessionManager/Dexie + SyncEngine
   }
 }
 

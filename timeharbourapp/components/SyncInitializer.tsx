@@ -1,19 +1,32 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import NetworkDetector from '@/TimeharborAPI/NetworkDetector';
 import { useToast } from '@mieweb/ui';
 import { Capacitor } from '@capacitor/core';
+import {
+  isEncryptionSetUp,
+  setupEncryption,
+  unlockEncryption,
+} from '@/TimeharborAPI/sync/KeyManager';
+import {
+  isMigrated,
+  runMigration,
+} from '@/TimeharborAPI/sync/MigrationService';
+import EncryptionSetupModal from './EncryptionSetupModal';
 
 export default function SyncInitializer() {
   const toast = useToast();
-  // Use refs so the effect closures always call the latest toast functions
   const toastRef = useRef(toast);
   toastRef.current = toast;
 
   const wasOfflineRef = useRef(false);
   const initialSyncDoneRef = useRef(false);
+
+  // ── Encryption setup state ──
+  const [showPassphraseModal, setShowPassphraseModal] = useState(false);
+  const [passphraseMode, setPassphraseMode] = useState<'setup' | 'unlock'>('setup');
 
   const showSyncedToast = useCallback(() => {
     toastRef.current.success('Data synced successfully');
@@ -27,23 +40,58 @@ export default function SyncInitializer() {
     toastRef.current.info('Back online — syncing…');
   }, []);
 
+  // ── Handle passphrase submission (setup or unlock) ──
+  const handlePassphraseSubmit = useCallback(async (passphrase: string) => {
+    const alreadySetUp = await isEncryptionSetUp();
+
+    let syncKey: CryptoKey;
+    if (alreadySetUp) {
+      syncKey = await unlockEncryption(passphrase);
+    } else {
+      syncKey = await setupEncryption(passphrase);
+    }
+
+    // Hand the key to the SyncManager
+    syncManager.setSyncKey(syncKey);
+    setShowPassphraseModal(false);
+
+    // If migration hasn't run yet, run it now
+    const migrated = await isMigrated();
+    if (!migrated) {
+      toastRef.current.info('Migrating data to encrypted sync…');
+      await runMigration((step, total, desc) => {
+        console.log(`Migration ${step}/${total}: ${desc}`);
+      });
+      toastRef.current.success('Migration complete');
+    }
+
+    // Trigger an immediate sync now that we have the key
+    syncManager.syncNow();
+  }, []);
+
   useEffect(() => {
     const detector = NetworkDetector.getInstance();
     detector.init();
 
     detector.setSyncHandler(async () => {
       await syncManager.syncNow();
-      // Show toast when reconnecting (offline → online)
       if (wasOfflineRef.current) {
         wasOfflineRef.current = false;
         showSyncedToast();
       } else if (!initialSyncDoneRef.current) {
-        // Show a subtle confirmation on the very first sync
         initialSyncDoneRef.current = true;
       }
     });
 
     syncManager.init();
+
+    // Listen for the SyncManager telling us it needs encryption setup
+    const handleEncryptionNeeded = async () => {
+      const alreadySetUp = await isEncryptionSetUp();
+      setPassphraseMode(alreadySetUp ? 'unlock' : 'setup');
+      setShowPassphraseModal(true);
+    };
+    syncManager.onEncryptionNeeded(handleEncryptionNeeded);
 
     // Track offline → online transitions
     const handleOffline = () => {
@@ -52,7 +100,6 @@ export default function SyncInitializer() {
     };
     const handleOnline = () => {
       showOnlineToast();
-      // Trigger sync — the sync handler will show "Data synced" toast
       syncManager.syncNow();
     };
 
@@ -89,18 +136,42 @@ export default function SyncInitializer() {
       }
     }, 5 * 60 * 1000);
 
-    // Initial sync
-    syncManager.syncNow();
+    // ── Boot sequence: check encryption state, then initial sync ──
+    (async () => {
+      try {
+        const hasKeys = await isEncryptionSetUp();
+        if (hasKeys) {
+          // Prompt for passphrase to unlock
+          setPassphraseMode('unlock');
+          setShowPassphraseModal(true);
+        } else {
+          // First time — prompt to set up
+          setPassphraseMode('setup');
+          setShowPassphraseModal(true);
+        }
+      } catch {
+        // Prompt for setup as fallback
+        setPassphraseMode('setup');
+        setShowPassphraseModal(true);
+      }
+    })();
 
     return () => {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('pull-to-refresh', onRefresh);
+      syncManager.offEncryptionNeeded(handleEncryptionNeeded);
       networkListenerCleanup?.();
       clearInterval(interval);
       detector.destroy();
     };
-  }, [showSyncedToast, showOfflineToast, showOnlineToast]);
+  }, [showSyncedToast, showOfflineToast, showOnlineToast, handlePassphraseSubmit]);
 
-  return null;
+  return (
+    <EncryptionSetupModal
+      isOpen={showPassphraseModal}
+      mode={passphraseMode}
+      onSubmit={handlePassphraseSubmit}
+    />
+  );
 }

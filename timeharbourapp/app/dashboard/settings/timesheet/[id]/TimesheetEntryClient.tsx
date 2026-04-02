@@ -10,6 +10,7 @@ import { Button, Input, Textarea, Select, Badge, Text, SmallMuted } from '@miewe
 import { db, type DexieWorkSession, type SessionAttachment } from '@/TimeharborAPI/db';
 import { formatDurationMs } from '@/lib/formatDuration';
 import { linkifyText } from '@/lib/linkify';
+import { opLogWriter } from '@/TimeharborAPI/sync/OpLogWriter';
 
 /* ── options ───────────────────────────────────────────── */
 const FLAG_OPTIONS = [
@@ -185,7 +186,12 @@ export default function TimesheetEntryClient({ entryIdProp }: { entryIdProp?: st
         links: draft.links.length > 0 ? draft.links : undefined,
         attachments: editAttachments.length > 0 ? editAttachments : undefined,
         updatedAt: Date.now(),
-        _dirty: 1,
+      });
+      await opLogWriter.recordUpdate('workSessions', entry.sessionId, {
+        comment: draft.description,
+        links: draft.links.length > 0 ? draft.links : undefined,
+        attachments: editAttachments.length > 0 ? editAttachments : undefined,
+        updatedAt: Date.now(),
       });
 
       const updated = { ...draft, attachments: editAttachments };
