@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   // Expose the package.json version so components can display it
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
+    NEXT_PUBLIC_APP_BUILD: String(pkg.build ?? ''),
   },
   // Transpile @timeharbor/time-engine (linked from sibling workspace)
   transpilePackages: ['@timeharbor/time-engine'],

@@ -1,6 +1,7 @@
 {
   "name": "timeharbourapp",
-  "version": "0.1.0",
+  "version": "2.5.0",
+  "build": 8,
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
