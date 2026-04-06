@@ -41,7 +41,14 @@ const listeners: AuthListener[] = [];
  *  from re-caching the user via a stale SIGNED_IN callback. */
 let signingOut = false;
 
+/** ID of the currently signed-in user. Used by the $sessionSignal listener
+ *  to distinguish a genuine sign-in from a session refresh / profile update. */
+let currentUserId: string | null = null;
+
 const notifyListeners = (event: string, session: any) => {
+  // Track current user so $sessionSignal can detect real sign-ins vs updates
+  if (event === 'SIGNED_IN') currentUserId = session?.user?.id ?? null;
+  else if (event === 'SIGNED_OUT') currentUserId = null;
   listeners.forEach((listener) => listener(event, session));
 };
 
@@ -322,7 +329,11 @@ export const getUser = async () => {
   console.log('[auth] getUser: authClient.getSession() resolved in', Date.now() - start, 'ms', { hasData: !!data, hasError: !!error });
   if (error) return { user: null, error };
   if (!data?.user) return { user: null, error: null };
-  return { user: toUser(data.user), error: null };
+  const user = toUser(data.user);
+  // Keep currentUserId in sync so $sessionSignal can distinguish
+  // profile updates from genuine sign-ins (cold start sets this).
+  currentUserId = user.id;
+  return { user, error: null };
 };
 
 /**
@@ -819,7 +830,11 @@ export const onAuthStateChange = (callback: AuthListener) => {
       if (signingOut) return;
       const { data } = await authClient.getSession();
       if (data?.user) {
-        callback("SIGNED_IN", { user: toUser(data.user), session: data.session });
+        const user = toUser(data.user);
+        // Same user → session refresh or profile update (e.g. avatar upload).
+        // Different/new user → genuine sign-in from another tab.
+        const event = currentUserId && currentUserId === user.id ? 'USER_UPDATED' : 'SIGNED_IN';
+        callback(event, { user, session: data.session });
       }
     });
   }
