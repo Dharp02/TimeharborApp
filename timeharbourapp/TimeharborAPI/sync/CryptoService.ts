@@ -31,6 +31,22 @@ export function generateSalt(): Uint8Array<ArrayBuffer> {
   return crypto.getRandomValues(new Uint8Array(SALT_BYTES));
 }
 
+/**
+ * Derive a deterministic salt from the passphrase using SHA-256.
+ * This ensures the same passphrase produces the same PBKDF2 salt
+ * on any device — critical for cross-device sync key agreement.
+ */
+export async function derivePassphraseSalt(
+  passphrase: string,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const hash = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode('timeharbor-salt:' + passphrase),
+  );
+  // Use the first 16 bytes of the hash as the salt
+  return new Uint8Array(hash.slice(0, SALT_BYTES)) as Uint8Array<ArrayBuffer>;
+}
+
 /** Generate a random 96-bit IV for AES-GCM. */
 function generateIV(): Uint8Array<ArrayBuffer> {
   return crypto.getRandomValues(new Uint8Array(IV_BYTES));

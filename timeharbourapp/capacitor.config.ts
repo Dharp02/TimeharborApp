@@ -19,15 +19,19 @@ const config: CapacitorConfig = {
   webDir: 'out',
   server: {
     androidScheme: 'https',
-    // Ensure the URL is set when in dev mode
+    iosScheme: 'https',
+    // In dev mode, point to the local dev server.
     ...(isDev ? {
       url: devServerUrl,
-      cleartext: true
+      cleartext: true,
     } : {})
   },
   plugins: {
     CapacitorHttp: {
-      enabled: true,
+      // In dev mode with iosScheme:'https', the interceptor routes fetch through
+      // capacitor://localhost which is blocked as mixed content. Disable it so
+      // native fetch() hits the HTTPS dev server directly.
+      enabled: !isDev,
     },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],

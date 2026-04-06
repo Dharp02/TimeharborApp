@@ -2,11 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@mieweb/ui';
-import { Loader2, CheckCircle2, XCircle, RefreshCw, Trash2, Upload, Square, CheckSquare } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, RefreshCw, Trash2, Upload, Square, CheckSquare, ShieldCheck, Wifi, Database, Key } from 'lucide-react';
 import { db, type DexieOperationLog } from '@/TimeharborAPI/db';
 import { getApiUrl } from '@/TimeharborAPI/apiUrl';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import type { OpLogEntry } from '@/TimeharborAPI/sync/types';
+import { encrypt, decrypt, deriveMasterKey, deriveSyncKey, derivePassphraseSalt } from '@/TimeharborAPI/sync/CryptoService';
+import { isEncryptionSetUp, getDeviceId } from '@/TimeharborAPI/sync/KeyManager';
+import { pushOpLog, pullOpLog } from '@/TimeharborAPI/sync/EncryptedSyncEngine';
+import { HLC } from '@/TimeharborAPI/sync/HLC';
 
 const COLLECTION_COLORS: Record<string, string> = {
   workSessions: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
@@ -472,9 +476,310 @@ function OperationLogsTab() {
   );
 }
 
+// ── Diagnostics Tab ─────────────────────────────────────────
+
+type DiagResult = { status: 'idle' | 'running' | 'pass' | 'fail'; detail: string };
+
+function DiagnosticsTab() {
+  const [results, setResults] = useState<Record<string, DiagResult>>({
+    webCrypto: { status: 'idle', detail: '' },
+    encryptDecrypt: { status: 'idle', detail: '' },
+    keyDerivation: { status: 'idle', detail: '' },
+    encryptionSetup: { status: 'idle', detail: '' },
+    apiConnectivity: { status: 'idle', detail: '' },
+    syncPull: { status: 'idle', detail: '' },
+    opLogCount: { status: 'idle', detail: '' },
+    e2eSync: { status: 'idle', detail: '' },
+  });
+  const [running, setRunning] = useState(false);
+
+  const update = (key: string, val: DiagResult) =>
+    setResults((prev) => ({ ...prev, [key]: val }));
+
+  const runAll = useCallback(async () => {
+    setRunning(true);
+
+    // 1. WebCrypto availability
+    update('webCrypto', { status: 'running', detail: 'Checking…' });
+    if (globalThis.crypto?.subtle) {
+      update('webCrypto', { status: 'pass', detail: 'crypto.subtle is available (secure context)' });
+    } else {
+      update('webCrypto', { status: 'fail', detail: 'crypto.subtle is undefined — not a secure context' });
+      setRunning(false);
+      return;
+    }
+
+    // 2. Encrypt/Decrypt round-trip
+    update('encryptDecrypt', { status: 'running', detail: 'Testing AES-256-GCM…' });
+    try {
+      const testKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+      const testData = 'Hello TimeHarbor! 🚀';
+      const encrypted = await encrypt(testData, testKey);
+      const decrypted = await decrypt(encrypted, testKey);
+      if (decrypted === testData) {
+        update('encryptDecrypt', { status: 'pass', detail: `Round-trip OK: "${decrypted}"` });
+      } else {
+        update('encryptDecrypt', { status: 'fail', detail: `Mismatch: expected "${testData}", got "${decrypted}"` });
+      }
+    } catch (err: any) {
+      update('encryptDecrypt', { status: 'fail', detail: err.message });
+    }
+
+    // 3. Key derivation (deterministic salt)
+    update('keyDerivation', { status: 'running', detail: 'Testing PBKDF2 + HKDF…' });
+    try {
+      const testPass = 'test-passphrase-12345';
+      const salt = await derivePassphraseSalt(testPass);
+      const mk1 = await deriveMasterKey(testPass, salt);
+      const sk1 = await deriveSyncKey(mk1);
+      const mk2 = await deriveMasterKey(testPass, salt);
+      const sk2 = await deriveSyncKey(mk2);
+      const enc = await encrypt('cross-key test', sk1);
+      const dec = await decrypt(enc, sk2);
+      if (dec === 'cross-key test') {
+        update('keyDerivation', { status: 'pass', detail: 'Same passphrase → same key (deterministic salt works)' });
+      } else {
+        update('keyDerivation', { status: 'fail', detail: 'Keys differ — deterministic salt broken' });
+      }
+    } catch (err: any) {
+      update('keyDerivation', { status: 'fail', detail: err.message });
+    }
+
+    // 4. Encryption setup status
+    update('encryptionSetup', { status: 'running', detail: 'Checking device keys…' });
+    try {
+      const isSetUp = await isEncryptionSetUp();
+      update('encryptionSetup', {
+        status: isSetUp ? 'pass' : 'fail',
+        detail: isSetUp ? 'Device keys found in IndexedDB' : 'No device keys — encryption not set up',
+      });
+    } catch (err: any) {
+      update('encryptionSetup', { status: 'fail', detail: err.message });
+    }
+
+    // 5. API connectivity
+    update('apiConnectivity', { status: 'running', detail: 'Calling backend…' });
+    try {
+      const base = getApiUrl().replace(/\/api\/?$/, '');
+      const url = `${base}/api/auth/get-session`;
+      const res = await fetch(url, { credentials: 'include', headers: { 'X-App-Id': 'timeharbor' } });
+      update('apiConnectivity', {
+        status: res.ok ? 'pass' : 'fail',
+        detail: `${res.status} ${res.statusText} — ${url}`,
+      });
+    } catch (err: any) {
+      update('apiConnectivity', { status: 'fail', detail: `Fetch failed: ${err.message}` });
+    }
+
+    // 6. Sync pull test
+    update('syncPull', { status: 'running', detail: 'Pulling from server…' });
+    try {
+      const base = getApiUrl().replace(/\/api\/?$/, '');
+      const res = await fetch(`${base}/api/timeharbor/sync/oplog?deviceId=diag-test`, {
+        credentials: 'include',
+        headers: { 'X-App-Id': 'timeharbor' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const count = data.batches?.length ?? 0;
+        update('syncPull', { status: 'pass', detail: `${count} batch(es) on server` });
+      } else {
+        update('syncPull', { status: 'fail', detail: `${res.status} ${res.statusText}` });
+      }
+    } catch (err: any) {
+      update('syncPull', { status: 'fail', detail: `Fetch failed: ${err.message}` });
+    }
+
+    // 7. Local op-log count
+    update('opLogCount', { status: 'running', detail: 'Counting…' });
+    try {
+      const total = await db.opLog.count();
+      const allEntries = await db.opLog.toArray();
+      const unsynced = allEntries.filter((e) => e._synced === 0).length;
+      update('opLogCount', { status: 'pass', detail: `${total} total, ${unsynced} unsynced` });
+    } catch (err: any) {
+      update('opLogCount', { status: 'fail', detail: err.message });
+    }
+
+    // 8. End-to-end: create → encrypt → push to MongoDB → pull → decrypt → verify
+    update('e2eSync', { status: 'running', detail: 'Creating test entry…' });
+    try {
+      const sk = syncManager.getSyncKey();
+      if (!sk) {
+        update('e2eSync', { status: 'fail', detail: 'No sync key loaded — unlock encryption first' });
+        setRunning(false);
+        return;
+      }
+
+      const { getStoredUser } = await import('@/TimeharborAPI/auth');
+      const user = await getStoredUser();
+      if (!user) {
+        update('e2eSync', { status: 'fail', detail: 'Not logged in' });
+        setRunning(false);
+        return;
+      }
+
+      const deviceId = getDeviceId();
+      const hlc = new HLC(deviceId);
+      const testId = `diag-e2e-${Date.now()}`;
+      const testPayload = `e2e-test-${Math.random().toString(36).slice(2, 8)}`;
+
+      // Insert a test op-log entry into Dexie (unsynced)
+      const entry: OpLogEntry = {
+        id: testId,
+        deviceId,
+        userId: user.id,
+        timestamp: new Date().toISOString(),
+        hlc: hlc.tick(),
+        collection: 'notes',
+        operation: 'CREATE',
+        entityId: testId,
+        snapshot: { _diagTest: true, payload: testPayload },
+        _synced: 0,
+        _syncEnabled: 1,
+      };
+      await db.opLog.put(entry);
+      update('e2eSync', { status: 'running', detail: 'Pushing encrypted batch to MongoDB…' });
+
+      // Push to server (encrypts & POSTs)
+      const pushed = await pushOpLog(sk);
+      if (pushed === 0) {
+        update('e2eSync', { status: 'fail', detail: 'pushOpLog returned 0 — entry was not pushed' });
+        await db.opLog.delete(testId);
+        setRunning(false);
+        return;
+      }
+
+      update('e2eSync', { status: 'running', detail: `Pushed ${pushed} entry. Pulling back from server…` });
+
+      // Pull from server on a different "device" to get the batch we just pushed
+      const base = getApiUrl().replace(/\/api\/?$/, '');
+      const pullRes = await fetch(`${base}/api/timeharbor/sync/oplog?deviceId=diag-verify-${Date.now()}`, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-App-Id': 'timeharbor' },
+      });
+
+      if (!pullRes.ok) {
+        update('e2eSync', { status: 'fail', detail: `Pull failed: ${pullRes.status} ${pullRes.statusText}` });
+        await db.opLog.delete(testId);
+        setRunning(false);
+        return;
+      }
+
+      const pullData = await pullRes.json();
+      const batches = pullData.batches || [];
+      update('e2eSync', { status: 'running', detail: `Got ${batches.length} batch(es). Decrypting…` });
+
+      // Find our test entry in the decrypted batches
+      let found = false;
+      for (const batch of batches) {
+        try {
+          const plaintext = await decrypt(batch.payload, sk);
+          const ops: OpLogEntry[] = JSON.parse(plaintext);
+          const match = ops.find((o) => o.id === testId);
+          if (match) {
+            if ((match.snapshot as any)?.payload === testPayload) {
+              found = true;
+              update('e2eSync', {
+                status: 'pass',
+                detail: `E2E OK: created → encrypted → MongoDB → pulled → decrypted. Payload: "${testPayload}"`,
+              });
+            } else {
+              update('e2eSync', {
+                status: 'fail',
+                detail: `Payload mismatch: expected "${testPayload}", got "${(match.snapshot as any)?.payload}"`,
+              });
+            }
+            break;
+          }
+        } catch {
+          // Skip batches from different keys
+          continue;
+        }
+      }
+
+      if (!found && results.e2eSync?.status !== 'fail') {
+        update('e2eSync', {
+          status: 'fail',
+          detail: `Test entry "${testId}" not found in ${batches.length} batch(es) from server`,
+        });
+      }
+
+      // Clean up test entry from Dexie
+      await db.opLog.delete(testId);
+    } catch (err: any) {
+      update('e2eSync', { status: 'fail', detail: err.message });
+    }
+
+    setRunning(false);
+  }, []);
+
+  const statusIcon = (s: DiagResult['status']) => {
+    switch (s) {
+      case 'pass': return <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />;
+      case 'fail': return <XCircle className="w-5 h-5 text-red-500 shrink-0" />;
+      case 'running': return <Loader2 className="w-5 h-5 text-blue-500 shrink-0 animate-spin" />;
+      default: return <div className="w-5 h-5 rounded-full border-2 border-muted shrink-0" />;
+    }
+  };
+
+  const labels: Record<string, { icon: typeof Key; label: string }> = {
+    webCrypto: { icon: ShieldCheck, label: 'WebCrypto (crypto.subtle)' },
+    encryptDecrypt: { icon: Key, label: 'AES-256-GCM Encrypt/Decrypt' },
+    keyDerivation: { icon: Key, label: 'Deterministic Key Derivation' },
+    encryptionSetup: { icon: Database, label: 'Device Key Storage' },
+    apiConnectivity: { icon: Wifi, label: 'API Connectivity' },
+    syncPull: { icon: Database, label: 'Server Sync Pull' },
+    opLogCount: { icon: Database, label: 'Local Op-Log' },
+    e2eSync: { icon: ShieldCheck, label: 'E2E: Encrypt → MongoDB → Decrypt' },
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Test encryption, key derivation, and sync connectivity.
+        </p>
+        <Button onClick={runAll} disabled={running} variant="primary" size="sm">
+          {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+          Run Diagnostics
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        {Object.entries(results).map(([key, val]) => {
+          const meta = labels[key] || { icon: Key, label: key };
+          const Icon = meta.icon;
+          return (
+            <div
+              key={key}
+              className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                val.status === 'fail' ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/20' :
+                val.status === 'pass' ? 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/20' :
+                'border-border bg-card'
+              }`}
+            >
+              {statusIcon(val.status)}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Icon className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{meta.label}</span>
+                </div>
+                {val.detail && (
+                  <p className="text-xs text-muted-foreground mt-1 break-all">{val.detail}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page with Tabs ─────────────────────────────────────
 
-type TabKey = 'sync-queue' | 'operation-logs';
+type TabKey = 'sync-queue' | 'operation-logs' | 'diagnostics';
 
 export default function OpLogsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('sync-queue');
@@ -482,6 +787,7 @@ export default function OpLogsPage() {
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'sync-queue', label: 'Sync Queue' },
     { key: 'operation-logs', label: 'Operation Logs' },
+    { key: 'diagnostics', label: 'Diagnostics' },
   ];
 
   return (
@@ -508,7 +814,9 @@ export default function OpLogsPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'sync-queue' ? <SyncQueueTab /> : <OperationLogsTab />}
+      {activeTab === 'sync-queue' && <SyncQueueTab />}
+      {activeTab === 'operation-logs' && <OperationLogsTab />}
+      {activeTab === 'diagnostics' && <DiagnosticsTab />}
     </div>
   );
 }

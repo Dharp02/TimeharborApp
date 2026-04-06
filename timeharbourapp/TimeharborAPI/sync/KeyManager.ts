@@ -19,6 +19,7 @@ import { toBase64, fromBase64 } from './encoding';
 import {
   deriveMasterKey,
   deriveSyncKey,
+  derivePassphraseSalt,
   generateSalt,
   wrapKey,
   unwrapKey,
@@ -76,7 +77,9 @@ async function getNativeSecureStorage(): Promise<{
  * Returns the ready-to-use syncKey.
  */
 export async function setupEncryption(passphrase: string): Promise<CryptoKey> {
-  const salt = generateSalt();
+  // Use a deterministic salt so the same passphrase produces the same
+  // sync key on every device — required for cross-device decryption.
+  const salt = await derivePassphraseSalt(passphrase);
   const masterKey = await deriveMasterKey(passphrase, salt);
   const syncKey = await deriveSyncKey(masterKey);
 

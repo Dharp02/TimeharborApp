@@ -53,6 +53,7 @@ const OPLOG_CURSOR_KEY = 'encrypted-oplog';
  */
 export async function pushOpLog(syncKey: CryptoKey): Promise<number> {
   const deviceId = getDeviceId();
+  console.log('[sync:push] starting push, deviceId:', deviceId);
   let totalPushed = 0;
 
   // Process in batches to avoid huge payloads
@@ -86,11 +87,13 @@ export async function pushOpLog(syncKey: CryptoKey): Promise<number> {
       .modify({ _synced: 1 });
 
     totalPushed += entries.length;
+    console.log('[sync:push] pushed batch:', entries.length, 'entries, total:', totalPushed);
 
     // If this batch was smaller than BATCH_SIZE, we're done
     if (entries.length < BATCH_SIZE) break;
   }
 
+  console.log('[sync:push] done, total pushed:', totalPushed);
   return totalPushed;
 }
 
@@ -106,6 +109,7 @@ export async function pushOpLog(syncKey: CryptoKey): Promise<number> {
 export async function pullOpLog(syncKey: CryptoKey): Promise<number> {
   const deviceId = getDeviceId();
   const cursor = await getOpLogCursor();
+  console.log('[sync:pull] starting pull, deviceId:', deviceId, 'cursor:', cursor);
   const params = new URLSearchParams({ deviceId });
   if (cursor) params.set('since', cursor);
 
@@ -121,14 +125,28 @@ export async function pullOpLog(syncKey: CryptoKey): Promise<number> {
     serverTime: string;
   };
 
+  console.log('[sync:pull] received', batches.length, 'batch(es) from server');
   let totalApplied = 0;
 
   for (const batch of batches) {
-    const plaintext = await decrypt(batch.payload, syncKey);
-    const entries: OpLogEntry[] = JSON.parse(plaintext);
+    try {
+      console.log('[sync:pull] decrypting batch from', batch.deviceId, '—', batch.count, 'entries');
+      const plaintext = await decrypt(batch.payload, syncKey);
+      const entries: OpLogEntry[] = JSON.parse(plaintext);
+      console.log('[sync:pull] decrypted OK, applying', entries.length, 'ops');
 
-    await applyRemoteOps(entries);
-    totalApplied += entries.length;
+      await applyRemoteOps(entries);
+      totalApplied += entries.length;
+    } catch (err: any) {
+      // OperationError = wrong key (batch was encrypted with a different passphrase).
+      // Skip it and keep processing remaining batches.
+      if (err?.name === 'OperationError') {
+        console.warn('[sync:pull] skipping batch from', batch.deviceId, '— encrypted with a different key');
+        continue;
+      }
+      console.error('[sync:pull] error processing batch:', err);
+      throw err;
+    }
   }
 
   // Update cursor to the latest HLC we received
@@ -153,8 +171,10 @@ export async function pullOpLog(syncKey: CryptoKey): Promise<number> {
 export async function syncAll(
   syncKey: CryptoKey,
 ): Promise<{ pushed: number; pulled: number }> {
+  console.log('[sync] ── sync cycle starting ──');
   const pushed = await pushOpLog(syncKey);
   const pulled = await pullOpLog(syncKey);
+  console.log('[sync] ── sync cycle done ── pushed:', pushed, 'pulled:', pulled);
   return { pushed, pulled };
 }
 

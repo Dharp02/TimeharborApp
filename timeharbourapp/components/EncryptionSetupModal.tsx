@@ -52,6 +52,16 @@ export default function EncryptionSetupModal({
         return;
       }
 
+      // WebCrypto requires a secure context (HTTPS or localhost)
+      if (!globalThis.crypto?.subtle) {
+        setError(
+          'Encryption is not available in this context. ' +
+          'WebCrypto requires HTTPS or localhost. ' +
+          'Please use a production build to test encryption on this device.',
+        );
+        return;
+      }
+
       setLoading(true);
       try {
         await onSubmit(passphrase);

@@ -28,6 +28,11 @@ class SyncManager {
     this.syncKey = key;
   }
 
+  /** Get the current sync key (null if not set). */
+  public getSyncKey(): CryptoKey | null {
+    return this.syncKey;
+  }
+
   /** Register a callback that fires when encryption setup is needed. */
   public onEncryptionNeeded(listener: () => void) {
     this.encryptionNeededListeners.push(listener);
