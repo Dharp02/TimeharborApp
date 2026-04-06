@@ -33,6 +33,15 @@ class SyncManager {
     return this.syncKey;
   }
 
+  /**
+   * Flag the next sync cycle to include this device's own batches.
+   * Automatically resets after one sync cycle.
+   */
+  private pendingFullRestore = false;
+  public requestFullRestore() {
+    this.pendingFullRestore = true;
+  }
+
   /** Register a callback that fires when encryption setup is needed. */
   public onEncryptionNeeded(listener: () => void) {
     this.encryptionNeededListeners.push(listener);
@@ -72,7 +81,9 @@ class SyncManager {
     this.syncing = true;
     try {
       if (this.syncKey) {
-        await encryptedSyncAll(this.syncKey);
+        const includeOwn = this.pendingFullRestore;
+        this.pendingFullRestore = false;
+        await encryptedSyncAll(this.syncKey, { includeOwn });
       } else {
         // No key — prompt user for passphrase
         this.encryptionNeededListeners.forEach((l) => l());

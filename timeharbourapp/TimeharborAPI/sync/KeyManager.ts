@@ -133,6 +133,31 @@ export async function clearKeys(): Promise<void> {
     try { await secureStorage.remove({ key: 'th_master_salt' }); } catch { /* ok */ }
   }
   await db.deviceKeys.clear();
+  await db.cachedKeys.clear();
+}
+
+// ── Sync key cache (skip passphrase on reload) ──────────────
+
+/**
+ * Persist the sync key in IndexedDB so the user doesn't have to
+ * re-enter the passphrase on every page load.
+ * Cleared on sign-out via clearDatabase() / clearKeys().
+ */
+export async function cacheSyncKey(syncKey: CryptoKey): Promise<void> {
+  await db.cachedKeys.put({ id: 'sync', key: syncKey });
+}
+
+/**
+ * Load the cached sync key from IndexedDB.
+ * Returns null if not found (first visit or after sign-out).
+ */
+export async function loadCachedSyncKey(): Promise<CryptoKey | null> {
+  try {
+    const record = await db.cachedKeys.get('sync');
+    return record?.key ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Internal helpers ────────────────────────────────────────

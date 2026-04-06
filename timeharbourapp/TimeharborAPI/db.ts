@@ -205,6 +205,7 @@ export class TimeharborDB extends Dexie {
   opLog!: Table<OpLogEntry>;
   deviceKeys!: Table<StoredKeyRecord>;
   appliedOps!: Table<AppliedOp>;
+  cachedKeys!: Table<{ id: string; key: CryptoKey }>;
 
   constructor() {
     super('TimeharborDB');
@@ -314,6 +315,11 @@ export class TimeharborDB extends Dexie {
           entry._syncEnabled = 1;
         }
       });
+    });
+
+    // ── v18: Persistent sync key cache (skip passphrase on reload) ──
+    this.version(18).stores({
+      cachedKeys: 'id',
     });
   }
 }

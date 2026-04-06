@@ -100,17 +100,23 @@ export async function pushOpLog(syncKey: CryptoKey): Promise<number> {
 // ── Pull ────────────────────────────────────────────────────
 
 /**
- * Pull encrypted op-log batches from the server (from other devices)
- * and apply them to the local Dexie database.
+ * Pull encrypted op-log batches from the server and apply them
+ * to the local Dexie database.
  *
- * @param syncKey  The AES-256-GCM CryptoKey used for decryption.
+ * @param syncKey      The AES-256-GCM CryptoKey used for decryption.
+ * @param includeOwn   If true, also pull this device's own batches
+ *                     (needed after sign-out → sign-in to restore all data).
  * @returns Number of entries applied.
  */
-export async function pullOpLog(syncKey: CryptoKey): Promise<number> {
+export async function pullOpLog(
+  syncKey: CryptoKey,
+  { includeOwn = false }: { includeOwn?: boolean } = {},
+): Promise<number> {
   const deviceId = getDeviceId();
   const cursor = await getOpLogCursor();
-  console.log('[sync:pull] starting pull, deviceId:', deviceId, 'cursor:', cursor);
-  const params = new URLSearchParams({ deviceId });
+  console.log('[sync:pull] starting pull, deviceId:', deviceId, 'cursor:', cursor, 'includeOwn:', includeOwn);
+  const params = new URLSearchParams();
+  if (!includeOwn) params.set('deviceId', deviceId);
   if (cursor) params.set('since', cursor);
 
   const { batches, serverTime } = await apiRequest(
@@ -165,16 +171,25 @@ export async function pullOpLog(syncKey: CryptoKey): Promise<number> {
 /**
  * Execute a complete encrypted sync cycle:  push → pull.
  *
- * @param syncKey  The AES-256-GCM CryptoKey.
+ * @param syncKey     The AES-256-GCM CryptoKey.
+ * @param includeOwn  Pass true after sign-in to restore all data including
+ *                    batches this device previously pushed.
  * @returns Summary of pushed and pulled counts.
  */
 export async function syncAll(
   syncKey: CryptoKey,
+  { includeOwn = false }: { includeOwn?: boolean } = {},
 ): Promise<{ pushed: number; pulled: number }> {
-  console.log('[sync] ── sync cycle starting ──');
+  console.log('[sync] ── sync cycle starting ── includeOwn:', includeOwn);
   const pushed = await pushOpLog(syncKey);
-  const pulled = await pullOpLog(syncKey);
+  const pulled = await pullOpLog(syncKey, { includeOwn });
   console.log('[sync] ── sync cycle done ── pushed:', pushed, 'pulled:', pulled);
+
+  // Notify UI components that new data is available in Dexie
+  if (typeof window !== 'undefined' && pulled > 0) {
+    window.dispatchEvent(new Event('sync-complete'));
+  }
+
   return { pushed, pulled };
 }
 
@@ -193,6 +208,47 @@ export async function compactOpLog(): Promise<{ deleted: number }> {
     method: 'DELETE',
     body: JSON.stringify({ deviceId, beforeHLC: cursor }),
   });
+}
+
+// ── Status / verification ───────────────────────────────────
+
+/**
+ * Check whether the current user has any encrypted data on the server.
+ * Used to distinguish first-time setup from restore on a new device.
+ */
+export async function hasServerData(): Promise<boolean> {
+  const { hasData } = await apiRequest('/sync/oplog/status') as { hasData: boolean };
+  return hasData;
+}
+
+/**
+ * Verify a sync key by pulling one batch from the server and
+ * attempting to decrypt it.  Returns `true` if decryption succeeds,
+ * `false` if there are no batches to verify against (in which case
+ * we assume the passphrase is correct since there's nothing to contradict it).
+ *
+ * @throws {Error} with name 'OperationError' if passphrase is wrong.
+ */
+export async function verifySyncKey(syncKey: CryptoKey): Promise<void> {
+  const deviceId = getDeviceId();
+  const params = new URLSearchParams({ deviceId });
+
+  const { batches } = await apiRequest(
+    `/sync/oplog?${params.toString()}`,
+  ) as {
+    batches: Array<{
+      deviceId: string;
+      lastHLC: string;
+      count: number;
+      payload: EncryptedPayload;
+    }>;
+  };
+
+  if (batches.length === 0) return; // nothing to verify against
+
+  // Try to decrypt the first batch — if this throws OperationError,
+  // the passphrase is wrong.
+  await decrypt(batches[0].payload, syncKey);
 }
 
 // ── Helpers ─────────────────────────────────────────────────

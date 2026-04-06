@@ -7,8 +7,8 @@ import { Modal } from '@/components/ui/Modal';
 interface EncryptionSetupModalProps {
   /** Whether to show the modal. */
   isOpen: boolean;
-  /** 'setup' for first-time, 'unlock' for returning device. */
-  mode: 'setup' | 'unlock';
+  /** 'setup' for first-time, 'unlock' for returning device, 'restore' for existing user on new device. */
+  mode: 'setup' | 'unlock' | 'restore';
   /** Called with the passphrase after successful validation. */
   onSubmit: (passphrase: string) => Promise<void>;
 }
@@ -18,6 +18,7 @@ interface EncryptionSetupModalProps {
  *
  * - **Setup mode**: first-time encryption setup — requires confirmation.
  * - **Unlock mode**: returning user — single passphrase field.
+ * - **Restore mode**: existing user on a new device — enter existing passphrase to sync data.
  *
  * Cannot be dismissed — encryption must be configured before sync works.
  */
@@ -89,6 +90,8 @@ export default function EncryptionSetupModal({
   const title =
     mode === 'setup'
       ? 'Set Up End-to-End Encryption'
+      : mode === 'restore'
+      ? 'Restore Encrypted Data'
       : 'Unlock Encryption';
 
   // Prevent closing — encryption is required
@@ -100,6 +103,8 @@ export default function EncryptionSetupModal({
         <p className="text-sm text-muted-foreground">
           {mode === 'setup'
             ? 'Choose a passphrase to protect your data. This passphrase encrypts your data end-to-end — the server never sees it. You will need this passphrase to set up new devices.'
+            : mode === 'restore'
+            ? 'We found existing encrypted data for your account. Enter the passphrase you used on your other device to restore your data.'
             : 'Enter your encryption passphrase to unlock your data on this device.'}
         </p>
 
@@ -157,6 +162,8 @@ export default function EncryptionSetupModal({
             ? 'Please wait…'
             : mode === 'setup'
             ? 'Enable Encryption'
+            : mode === 'restore'
+            ? 'Restore Data'
             : 'Unlock'}
         </Button>
       </form>

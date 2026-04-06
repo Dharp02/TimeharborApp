@@ -9,11 +9,18 @@ import {
   isEncryptionSetUp,
   setupEncryption,
   unlockEncryption,
+  clearKeys,
+  cacheSyncKey,
+  loadCachedSyncKey,
 } from '@/TimeharborAPI/sync/KeyManager';
 import {
   isMigrated,
   runMigration,
 } from '@/TimeharborAPI/sync/MigrationService';
+import {
+  hasServerData,
+  verifySyncKey,
+} from '@/TimeharborAPI/sync/EncryptedSyncEngine';
 import EncryptionSetupModal from './EncryptionSetupModal';
 
 export default function SyncInitializer() {
@@ -26,7 +33,7 @@ export default function SyncInitializer() {
 
   // ── Encryption setup state ──
   const [showPassphraseModal, setShowPassphraseModal] = useState(false);
-  const [passphraseMode, setPassphraseMode] = useState<'setup' | 'unlock'>('setup');
+  const [passphraseMode, setPassphraseMode] = useState<'setup' | 'unlock' | 'restore'>('setup');
 
   const showSyncedToast = useCallback(() => {
     toastRef.current.success('Data synced successfully');
@@ -40,7 +47,7 @@ export default function SyncInitializer() {
     toastRef.current.info('Back online — syncing…');
   }, []);
 
-  // ── Handle passphrase submission (setup or unlock) ──
+  // ── Handle passphrase submission (setup, unlock, or restore) ──
   const handlePassphraseSubmit = useCallback(async (passphrase: string) => {
     const alreadySetUp = await isEncryptionSetUp();
 
@@ -48,12 +55,35 @@ export default function SyncInitializer() {
     if (alreadySetUp) {
       syncKey = await unlockEncryption(passphrase);
     } else {
+      // Both 'setup' (new user) and 'restore' (existing user, new device)
+      // use setupEncryption — the deterministic salt ensures the same
+      // passphrase produces the same sync key across devices.
       syncKey = await setupEncryption(passphrase);
     }
 
-    // Hand the key to the SyncManager
+    // In restore mode, verify the passphrase can decrypt existing server data
+    // before committing.  If wrong, verifySyncKey throws OperationError which
+    // the modal catches and shows "Incorrect passphrase".
+    if (passphraseMode === 'restore') {
+      try {
+        await verifySyncKey(syncKey);
+      } catch (err) {
+        // Clear the keys that setupEncryption just stored so the user can retry
+        await clearKeys();
+        throw err;
+      }
+    }
+
+    // Hand the key to the SyncManager and cache it for future page loads
     syncManager.setSyncKey(syncKey);
+    await cacheSyncKey(syncKey);
     setShowPassphraseModal(false);
+
+    // After sign-out → sign-in or restore, the local DB was wiped so we
+    // need to pull ALL server batches including this device's own.
+    if (passphraseMode === 'restore' || passphraseMode === 'setup') {
+      syncManager.requestFullRestore();
+    }
 
     // If migration hasn't run yet, run it now
     const migrated = await isMigrated();
@@ -66,8 +96,8 @@ export default function SyncInitializer() {
     }
 
     // Trigger an immediate sync now that we have the key
-    syncManager.syncNow();
-  }, []);
+    await syncManager.syncNow();
+  }, [passphraseMode]);
 
   useEffect(() => {
     const detector = NetworkDetector.getInstance();
@@ -88,7 +118,16 @@ export default function SyncInitializer() {
     // Listen for the SyncManager telling us it needs encryption setup
     const handleEncryptionNeeded = async () => {
       const alreadySetUp = await isEncryptionSetUp();
-      setPassphraseMode(alreadySetUp ? 'unlock' : 'setup');
+      if (alreadySetUp) {
+        setPassphraseMode('unlock');
+      } else {
+        try {
+          const serverHasData = await hasServerData();
+          setPassphraseMode(serverHasData ? 'restore' : 'setup');
+        } catch {
+          setPassphraseMode('setup');
+        }
+      }
       setShowPassphraseModal(true);
     };
     syncManager.onEncryptionNeeded(handleEncryptionNeeded);
@@ -136,19 +175,33 @@ export default function SyncInitializer() {
       }
     }, 5 * 60 * 1000);
 
-    // ── Boot sequence: check encryption state, then initial sync ──
+    // ── Boot sequence: check for cached key, then encryption state ──
     (async () => {
       try {
+        // Try to load a previously cached sync key (skip passphrase prompt)
+        const cachedKey = await loadCachedSyncKey();
+        if (cachedKey) {
+          syncManager.setSyncKey(cachedKey);
+          syncManager.syncNow();
+          return;
+        }
+
         const hasKeys = await isEncryptionSetUp();
         if (hasKeys) {
-          // Prompt for passphrase to unlock
+          // Local keys exist — prompt for passphrase to unlock
           setPassphraseMode('unlock');
-          setShowPassphraseModal(true);
         } else {
-          // First time — prompt to set up
-          setPassphraseMode('setup');
-          setShowPassphraseModal(true);
+          // No local keys — check if the user has data on the server
+          // (i.e., they set up encryption on another device)
+          try {
+            const serverHasData = await hasServerData();
+            setPassphraseMode(serverHasData ? 'restore' : 'setup');
+          } catch {
+            // Network error or not authenticated yet — default to setup
+            setPassphraseMode('setup');
+          }
         }
+        setShowPassphraseModal(true);
       } catch {
         // Prompt for setup as fallback
         setPassphraseMode('setup');
