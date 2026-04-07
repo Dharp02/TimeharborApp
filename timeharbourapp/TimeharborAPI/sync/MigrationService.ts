@@ -77,6 +77,9 @@ export async function runMigration(
       delete snapshot._serverId;
       delete snapshot._rev;
 
+      // Timehuddle tickets require manual sync approval; everything else auto-syncs
+      const isTimehuddleTicket = name === 'tickets' && snapshot.source === 'timehuddle';
+
       opEntries.push({
         id: uuidv4(),
         deviceId,
@@ -88,7 +91,7 @@ export async function runMigration(
         entityId: (record as any).id,
         snapshot,
         _synced: 0,
-        _syncEnabled: 0,
+        _syncEnabled: isTimehuddleTicket ? 0 : 1,
       });
     }
   }

@@ -163,11 +163,17 @@ function SyncQueueTab() {
         </div>
       </div>
 
+      {/* ── Info banner ── */}
+      <p className="text-xs text-muted-foreground">
+        All changes auto-sync to the server. Only Timehuddle ticket operations require manual approval here.
+      </p>
+
       {/* ── Pending cards ── */}
       {pending.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border py-12 text-center">
           <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">All changes are synced</p>
+          <p className="text-xs text-muted-foreground mt-1">Timehuddle ticket changes will appear here for review</p>
         </div>
       ) : (
         <div className="space-y-2">

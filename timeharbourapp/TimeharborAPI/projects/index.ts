@@ -116,24 +116,28 @@ export const deleteProject = async (id: string): Promise<void> => {
 export const assignTicketToProject = async (ticketId: string, projectId: string): Promise<void> => {
   const project = await db.projects.get(projectId);
   if (!project) throw new Error('Project not found');
+  const ticket = await db.tickets.get(ticketId) as any;
+  const isTimehuddle = ticket?.source === 'timehuddle';
   const updates = {
     projectId,
     projectName: project.name,
     updatedAt: new Date().toISOString(),
   };
   await db.tickets.update(ticketId, updates as any);
-  await opLogWriter.recordUpdate('tickets', ticketId, updates);
+  await opLogWriter.recordUpdate('tickets', ticketId, updates, { syncEnabled: !isTimehuddle });
   await operationsLog.log({ category: 'TICKET', action: 'ASSIGN', result: 'success', target: 'Ticket', targetId: ticketId, details: { projectId, projectName: project.name } });
 };
 
 export const removeTicketFromProject = async (ticketId: string): Promise<void> => {
+  const ticket = await db.tickets.get(ticketId) as any;
+  const isTimehuddle = ticket?.source === 'timehuddle';
   const updates = {
     projectId: undefined,
     projectName: undefined,
     updatedAt: new Date().toISOString(),
   };
   await db.tickets.update(ticketId, updates as any);
-  await opLogWriter.recordUpdate('tickets', ticketId, updates);
+  await opLogWriter.recordUpdate('tickets', ticketId, updates, { syncEnabled: !isTimehuddle });
   await operationsLog.log({ category: 'TICKET', action: 'UNASSIGN', result: 'success', target: 'Ticket', targetId: ticketId });
 };
 

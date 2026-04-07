@@ -49,7 +49,7 @@ export interface OpLogEntry {
   snapshot?: Record<string, unknown>;
   /** 0 = not yet pushed to server, 1 = acknowledged. */
   _synced: 0 | 1;
-  /** 0 = excluded from sync, 1 = eligible to sync. Defaults to 1. */
+  /** 0 = requires manual sync approval, 1 = auto-synced. Defaults to 1 (auto-sync). Timehuddle tickets default to 0. */
   _syncEnabled: 0 | 1;
 }
 

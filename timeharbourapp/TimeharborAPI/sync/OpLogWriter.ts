@@ -44,6 +44,11 @@ export function resetHLC(): void {
 
 // ── Writer ──────────────────────────────────────────────────
 
+export interface OpLogWriteOptions {
+  /** Override auto-sync. Set to false to require manual sync approval (e.g. timehuddle tickets). */
+  syncEnabled?: boolean;
+}
+
 class OpLogWriter {
   /**
    * Record a CREATE operation (full snapshot of the new entity).
@@ -52,8 +57,9 @@ class OpLogWriter {
     collection: SyncCollection,
     entityId: string,
     snapshot: Record<string, unknown>,
+    options?: OpLogWriteOptions,
   ): Promise<OpLogEntry> {
-    return this.write(collection, 'CREATE', entityId, { snapshot });
+    return this.write(collection, 'CREATE', entityId, { snapshot }, options);
   }
 
   /**
@@ -63,8 +69,9 @@ class OpLogWriter {
     collection: SyncCollection,
     entityId: string,
     patch: Record<string, unknown>,
+    options?: OpLogWriteOptions,
   ): Promise<OpLogEntry> {
-    return this.write(collection, 'UPDATE', entityId, { patch });
+    return this.write(collection, 'UPDATE', entityId, { patch }, options);
   }
 
   /**
@@ -73,8 +80,9 @@ class OpLogWriter {
   async recordDelete(
     collection: SyncCollection,
     entityId: string,
+    options?: OpLogWriteOptions,
   ): Promise<OpLogEntry> {
-    return this.write(collection, 'DELETE', entityId, {});
+    return this.write(collection, 'DELETE', entityId, {}, options);
   }
 
   // ── Internal ────────────────────────────────────────────
@@ -84,6 +92,7 @@ class OpLogWriter {
     operation: OpLogEntry['operation'],
     entityId: string,
     data: { snapshot?: Record<string, unknown>; patch?: Record<string, unknown> },
+    options?: OpLogWriteOptions,
   ): Promise<OpLogEntry> {
     const user = await getStoredUser();
     const userId = user?.id ?? 'anonymous';
@@ -102,7 +111,7 @@ class OpLogWriter {
       ...(data.snapshot ? { snapshot: data.snapshot } : {}),
       ...(data.patch ? { patch: data.patch } : {}),
       _synced: 0,
-      _syncEnabled: 0,
+      _syncEnabled: options?.syncEnabled === false ? 0 : 1,
     };
 
     await db.opLog.add(entry);
