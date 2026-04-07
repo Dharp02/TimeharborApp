@@ -1,6 +1,6 @@
 import { db, type DexieProject, type ProjectStatus, type ProjectColor } from '../db';
 import { v4 as uuidv4 } from 'uuid';
-import { getStoredUser } from '../auth';
+import { getIdentityUUID } from '../sync/IdentityManager';
 import { operationsLog } from '../OperationsLog';
 import { opLogWriter } from '../sync/OpLogWriter';
 
@@ -38,7 +38,6 @@ function derivePrefix(name: string): string {
 
 /* ── CRUD ───────────────────────────────────────────────── */
 export const createProject = async (data: CreateProjectData): Promise<Project> => {
-  const user = await getStoredUser();
   const project: DexieProject = {
     id: uuidv4(),
     name: data.name,
@@ -47,7 +46,7 @@ export const createProject = async (data: CreateProjectData): Promise<Project> =
     color: data.color || 'blue',
     prefix: data.prefix || derivePrefix(data.name),
     repoUrl: data.repoUrl,
-    createdBy: user?.id || '',
+    createdBy: getIdentityUUID(),
     _deleted: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

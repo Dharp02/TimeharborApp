@@ -25,6 +25,14 @@ export {
   getDeviceId,
 } from './KeyManager';
 
+// Identity management (auth-free local identity)
+export {
+  getIdentityUUID,
+  getIdentityPassphrase,
+  ensureIdentityAndEncryption,
+  regenerateIdentity,
+} from './IdentityManager';
+
 // Hybrid Logical Clock
 export { HLC, pack, unpack, compare } from './HLC';
 export type { HLCTimestamp } from './HLC';

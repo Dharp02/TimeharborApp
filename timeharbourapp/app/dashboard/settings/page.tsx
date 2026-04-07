@@ -10,12 +10,21 @@ import {
   Users,
   ChevronRight,
   Sun,
+  Share2,
+  KeyRound,
+  RefreshCw,
+  ShieldCheck,
+  UserRoundCog,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Text, SmallMuted, Switch, useThemeContext } from '@mieweb/ui';
 import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
+import ShareMyLinkModal from '@/components/ShareMyLinkModal';
+import KeyRegenerationModal from '@/components/KeyRegenerationModal';
+import ProfileSwitchModal from '@/components/ProfileSwitchModal';
+import AppLockToggle from '@/components/AppLockToggle';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -35,6 +44,9 @@ export default function SettingsPage() {
   };
 
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showRegenModal, setShowRegenModal] = useState(false);
+  const [showProfileSwitch, setShowProfileSwitch] = useState(false);
 
   const menuItems = [
     { label: 'Edit Profile', icon: User, href: '/dashboard/settings/profile' },
@@ -99,6 +111,59 @@ export default function SettingsPage() {
             aria-label="Toggle dark mode"
           />
         </div>
+      </div>
+
+      {/* ── Sync & Security Section ── */}
+      <div className="divide-y divide-border -mx-4">
+        <div className="px-6 py-3">
+          <SmallMuted className="text-xs uppercase tracking-wider font-semibold">Sync &amp; Security</SmallMuted>
+        </div>
+
+        {/* Share My Link */}
+        <button
+          onClick={() => setShowShareModal(true)}
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
+          aria-label="Share my sync link"
+        >
+          <div className="flex items-center gap-4">
+            <Share2 className="w-5 h-5 text-primary" />
+            <Text className="font-medium">Share My Link</Text>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </button>
+
+        {/* Regenerate Key */}
+        <button
+          onClick={() => setShowRegenModal(true)}
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
+          aria-label="Regenerate encryption key"
+        >
+          <div className="flex items-center gap-4">
+            <RefreshCw className="w-5 h-5 text-muted-foreground" />
+            <Text className="font-medium">Regenerate Key</Text>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </button>
+
+        {/* Switch Profile */}
+        <button
+          onClick={() => setShowProfileSwitch(true)}
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
+          aria-label="Switch sync profile"
+        >
+          <div className="flex items-center gap-4">
+            <UserRoundCog className="w-5 h-5 text-muted-foreground" />
+            <Text className="font-medium">Switch Profile</Text>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </button>
+
+        {/* App Lock */}
+        <AppLockToggle />
+      </div>
+
+      {/* ── Team Section ── */}
+      <div className="divide-y divide-border -mx-4">
 
         {/* Open Timehuddle */}
         <button
@@ -112,6 +177,11 @@ export default function SettingsPage() {
           <ChevronRight className="w-5 h-5 text-amber-500" />
         </button>
       </div>
+
+      {/* Modals */}
+      <ShareMyLinkModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} />
+      <KeyRegenerationModal isOpen={showRegenModal} onClose={() => setShowRegenModal(false)} />
+      <ProfileSwitchModal isOpen={showProfileSwitch} onClose={() => setShowProfileSwitch(false)} />
     </div>
   );
 }

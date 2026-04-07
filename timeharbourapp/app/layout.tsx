@@ -3,6 +3,7 @@ import "./globals.css";
 import AuthProvider from "@/components/auth/AuthProvider";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import ThemeWrapper from "@/components/ThemeWrapper";
+import AppLockGuard from "@/components/AppLockGuard";
 
 // const geistSans = Geist({
 //   variable: "--font-geist-sans",
@@ -33,7 +34,9 @@ export default function RootLayout({
         <ThemeWrapper>
           <AuthProvider>
             <NotificationProvider>
-              {children}
+              <AppLockGuard>
+                {children}
+              </AppLockGuard>
             </NotificationProvider>
           </AuthProvider>
         </ThemeWrapper>

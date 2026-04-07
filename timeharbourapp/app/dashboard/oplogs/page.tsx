@@ -617,13 +617,8 @@ function DiagnosticsTab() {
         return;
       }
 
-      const { getStoredUser } = await import('@/TimeharborAPI/auth');
-      const user = await getStoredUser();
-      if (!user) {
-        update('e2eSync', { status: 'fail', detail: 'Not logged in' });
-        setRunning(false);
-        return;
-      }
+      const { getIdentityUUID } = await import('@/TimeharborAPI/sync/IdentityManager');
+      const userId = getIdentityUUID();
 
       const deviceId = getDeviceId();
       const hlc = new HLC(deviceId);
@@ -634,7 +629,7 @@ function DiagnosticsTab() {
       const entry: OpLogEntry = {
         id: testId,
         deviceId,
-        userId: user.id,
+        userId,
         timestamp: new Date().toISOString(),
         hlc: hlc.tick(),
         collection: 'notes',

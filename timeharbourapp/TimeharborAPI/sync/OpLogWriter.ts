@@ -23,7 +23,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db';
 import { HLC, pack } from './HLC';
 import { getDeviceId } from './KeyManager';
-import { getStoredUser } from '../auth';
+import { getIdentityUUID } from './IdentityManager';
 import type { OpLogEntry, SyncCollection } from './types';
 
 // ── Singleton HLC clock ─────────────────────────────────────
@@ -94,8 +94,7 @@ class OpLogWriter {
     data: { snapshot?: Record<string, unknown>; patch?: Record<string, unknown> },
     options?: OpLogWriteOptions,
   ): Promise<OpLogEntry> {
-    const user = await getStoredUser();
-    const userId = user?.id ?? 'anonymous';
+    const userId = getIdentityUUID();
     const hlc = getHLC();
     const ts = hlc.now();
 

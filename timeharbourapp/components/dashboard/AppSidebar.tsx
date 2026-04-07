@@ -30,6 +30,7 @@ import {
   ScrollText,
   MessageSquarePlus,
   Bug,
+  Share2,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { auth } from '@/TimeharborAPI';
@@ -57,6 +58,7 @@ const NAV_SECTIONS = [
     label: 'Social',
     items: [
       { label: 'Pulse', icon: Activity, href: '/dashboard/pulse' },
+      { label: 'Share My Link', icon: Share2, href: '/dashboard/settings' },
     ],
   },
   {
@@ -104,7 +106,11 @@ export default function AppSidebar() {
       const preserved: Record<string, string> = {};
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.includes('auth') || key.includes('supabase') || key.includes('token'))) {
+        if (key && (
+          key.includes('auth') || key.includes('supabase') || key.includes('token')
+          || key.startsWith('th_identity_') || key === 'th_first_share_done'
+          || key === 'th_userid_migrated'
+        )) {
           preserved[key] = localStorage.getItem(key) || '';
         }
       }

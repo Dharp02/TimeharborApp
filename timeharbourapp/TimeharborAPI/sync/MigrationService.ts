@@ -16,7 +16,7 @@
 import { db } from '../db';
 import { HLC, pack } from './HLC';
 import { getDeviceId } from './KeyManager';
-import { getStoredUser } from '../auth';
+import { getIdentityUUID } from './IdentityManager';
 import type { OpLogEntry, SyncCollection } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import type { FieldHLCMap } from './types';
@@ -48,8 +48,7 @@ export async function runMigration(
 
   // ── Step 1: Generate CREATE op-log entries for all existing entities ──
   report(1, 'Creating encrypted operation log…');
-  const user = await getStoredUser();
-  const userId = user?.id ?? 'anonymous';
+  const userId = getIdentityUUID();
   const deviceId = getDeviceId();
   const hlc = new HLC(deviceId);
 

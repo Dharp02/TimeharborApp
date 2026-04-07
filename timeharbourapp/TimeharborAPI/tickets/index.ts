@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { v4 as uuidv4 } from 'uuid';
-import { getStoredUser } from '../auth';
+import { getIdentityUUID } from '../sync/IdentityManager';
 import { operationsLog } from '../OperationsLog';
 import { opLogWriter } from '../sync/OpLogWriter';
 
@@ -77,7 +77,6 @@ const PERSONAL_TEAM_ID = '__personal__';
 
 export const createTicket = async (teamId: string, data: CreateTicketData): Promise<Ticket> => {
   await ensureSeeded();
-  const user = await getStoredUser();
   const now = new Date().toISOString();
   const isTimehuddle = teamId !== PERSONAL_TEAM_ID;
   const ticket: any = {
@@ -88,7 +87,7 @@ export const createTicket = async (teamId: string, data: CreateTicketData): Prom
     priority: data.priority || 'Medium',
     link: data.link,
     teamId,
-    createdBy: user?.id || 'admin-1',
+    createdBy: getIdentityUUID(),
     assignedTo: data.assignedTo,
     createdAt: now,
     updatedAt: now,

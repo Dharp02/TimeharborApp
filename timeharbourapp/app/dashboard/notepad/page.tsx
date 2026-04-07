@@ -19,7 +19,7 @@ import {
 } from '@mieweb/ui';
 import { Modal } from '@/components/ui/Modal';
 import { db, type DexieNote } from '@/TimeharborAPI/db';
-import { getStoredUser } from '@/TimeharborAPI/auth';
+import { getIdentityUUID } from '@/TimeharborAPI/sync/IdentityManager';
 import { operationsLog } from '@/TimeharborAPI/OperationsLog';
 import { opLogWriter } from '@/TimeharborAPI/sync/OpLogWriter';
 import './notepad.scss';
@@ -70,12 +70,12 @@ export default function NotepadPage() {
   useEffect(() => {
     let cancelled = false;
     const loadNotes = async () => {
-      const user = await getStoredUser();
-      if (!user?.id || cancelled) return;
-      await migrateFromLocalStorage(user.id);
+      const userId = getIdentityUUID();
+      if (!userId || cancelled) return;
+      await migrateFromLocalStorage(userId);
       const loaded = await db.notes
         .where('userId')
-        .equals(user.id)
+        .equals(userId)
         .filter(n => !n._deleted)
         .toArray();
       loaded.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -117,10 +117,9 @@ export default function NotepadPage() {
   }, [notifyHeader]);
 
   const createNote = async () => {
-    const user = await getStoredUser();
     const newNote: DexieNote = {
       id: crypto.randomUUID(),
-      userId: user?.id || '',
+      userId: getIdentityUUID(),
       title: 'Untitled',
       content: '',
       _deleted: false,

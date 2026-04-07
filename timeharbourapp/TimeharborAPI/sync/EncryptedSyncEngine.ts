@@ -11,6 +11,7 @@ import { db } from '../db';
 import { getApiUrl } from '../apiUrl';
 import { encrypt, decrypt } from './CryptoService';
 import { getDeviceId } from './KeyManager';
+import { getIdentityUUID } from './IdentityManager';
 import { compare } from './HLC';
 import { applyRemoteOps } from './OpLogApplicator';
 import type { OpLogEntry, EncryptedPayload } from './types';
@@ -20,12 +21,14 @@ import type { OpLogEntry, EncryptedPayload } from './types';
 async function apiRequest(path: string, options: RequestInit = {}) {
   const base = getApiUrl().replace(/\/api\/?$/, '');
   const url = `${base}/api/timeharbor${path}`;
+  const identityUUID = getIdentityUUID();
   const res = await fetch(url, {
     ...options,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       'X-App-Id': 'timeharbor',
+      'X-Identity-UUID': identityUUID,
       ...options.headers,
     },
   });
@@ -210,6 +213,35 @@ export async function compactOpLog(): Promise<{ deleted: number }> {
   });
 }
 
+/**
+ * Purge ALL encrypted batches for this user from the server.
+ * Used during key regeneration so old-key data is completely removed.
+ * Also purges data stored under the old auth userId (pre-auth-free migration).
+ */
+export async function purgeAllServerData(): Promise<{ deleted: number }> {
+  // Detect old auth user ID that may have been used before the auth-free switch
+  let legacyUserId: string | undefined;
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('th_cached_user') : null;
+    if (raw) {
+      const cached = JSON.parse(raw);
+      if (cached?.id) legacyUserId = cached.id;
+    }
+  } catch { /* ignore */ }
+
+  return apiRequest('/sync/oplog/purge', {
+    method: 'DELETE',
+    body: JSON.stringify(legacyUserId ? { legacyUserId } : {}),
+  });
+}
+
+/**
+ * Reset the local op-log pull cursor so the next pull starts from scratch.
+ */
+export async function resetOpLogCursor(): Promise<void> {
+  await db.syncMeta.delete(OPLOG_CURSOR_KEY);
+}
+
 // ── Status / verification ───────────────────────────────────
 
 /**
@@ -263,8 +295,7 @@ async function setOpLogCursor(hlc: string): Promise<void> {
 }
 
 async function currentUserId(): Promise<string> {
-  // Reuse the existing auth helper already used by the legacy SyncEngine
-  const { getStoredUser } = await import('../auth');
-  const user = await getStoredUser();
-  return user?.id ?? 'anonymous';
+  // Use the local identity UUID as the user ID for op-log queries.
+  // Falls back to auth user ID if available (backwards compat).
+  return getIdentityUUID();
 }
