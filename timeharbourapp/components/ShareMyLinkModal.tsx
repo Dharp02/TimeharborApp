@@ -103,7 +103,7 @@ export default function ShareMyLinkModal({ isOpen, onClose }: ShareMyLinkModalPr
   const canClose = !isFirstShare || savedConfirmed;
 
   return (
-    <Modal isOpen={isOpen} onClose={canClose ? handleDone : () => {}} title="Share My Link">
+    <Modal isOpen={isOpen} onClose={onClose} title="Share My Link">
       <div className="flex flex-col gap-5">
         <p className="text-sm text-muted-foreground">
           Share this link and key with someone to give them access to your synced data.

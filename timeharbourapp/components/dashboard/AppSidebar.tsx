@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import { useState } from 'react';
 import {
   Sidebar,
   SidebarHeader,
@@ -24,7 +25,6 @@ import {
   NotebookPen,
   Settings,
   HelpCircle,
-  LogOut,
   Trash2,
   UserPen,
   ScrollText,
@@ -33,8 +33,8 @@ import {
   Share2,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { auth } from '@/TimeharborAPI';
 import { clearDatabase } from '@/TimeharborAPI/db';
+import ShareMyLinkModal from '@/components/ShareMyLinkModal';
 
 const NAV_SECTIONS = [
   {
@@ -58,7 +58,7 @@ const NAV_SECTIONS = [
     label: 'Social',
     items: [
       { label: 'Pulse', icon: Activity, href: '/dashboard/pulse' },
-      { label: 'Share My Link', icon: Share2, href: '/dashboard/settings' },
+      { label: 'Share My Link', icon: Share2, href: '#share', action: 'share' },
     ],
   },
   {
@@ -78,6 +78,7 @@ export default function AppSidebar() {
   const router = useRouter();
   const { user } = useAuth();
   const { closeMobile, isCollapsed } = useSidebar();
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';
@@ -125,6 +126,7 @@ export default function AppSidebar() {
   };
 
   return (
+    <>
     <Sidebar className="lg:sticky lg:top-0 z-50 pt-12 lg:pt-0">
       <SidebarToggle position="floating" />
       <SidebarHeader>
@@ -179,12 +181,15 @@ export default function AppSidebar() {
             <SidebarNavGroup key={section.label} label={section.label} defaultExpanded>
               {section.items.map((item) => (
                 <SidebarNavItem
-                  key={item.href}
+                  key={'action' in item ? item.label : item.href}
                   label={item.label}
                   icon={<item.icon className="w-5 h-5" />}
-                  isActive={'external' in item ? false : isActive(item.href)}
+                  isActive={'external' in item || 'action' in item ? false : isActive(item.href)}
                   onClick={() => {
-                    if ('external' in item) {
+                    if ('action' in item && item.action === 'share') {
+                      closeMobile();
+                      setShowShareModal(true);
+                    } else if ('external' in item) {
                       window.open(item.href, '_blank', 'noopener,noreferrer');
                     } else {
                       handleNavClick(item.href);
@@ -203,12 +208,6 @@ export default function AppSidebar() {
           icon={<Trash2 className="w-5 h-5" />}
           onClick={handleClearCache}
         />
-        <SidebarNavItem
-          label="Sign Out"
-          icon={<LogOut className="w-5 h-5" />}
-          onClick={() => auth.signOut()}
-          className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-        />
         {!isCollapsed && (
           <div className="flex items-center justify-center px-2 mt-2">
             <span className="text-xs text-muted-foreground">
@@ -218,5 +217,8 @@ export default function AppSidebar() {
         )}
       </SidebarFooter>
     </Sidebar>
+    <ShareMyLinkModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} />
+    </>
   );
 }
+

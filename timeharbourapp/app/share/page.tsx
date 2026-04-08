@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Input, Button, Alert, AlertDescription, Text, SmallMuted } from '@mieweb/ui';
 import { KeyRound, Download, Loader2 } from 'lucide-react';
@@ -23,6 +23,18 @@ import { verifySyncKey, pullOpLog } from '@/TimeharborAPI/sync/EncryptedSyncEngi
  * 4. Redirects to /dashboard
  */
 export default function SharePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }>
+      <SharePageContent />
+    </Suspense>
+  );
+}
+
+function SharePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const uuid = searchParams.get('uuid') || '';

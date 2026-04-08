@@ -74,5 +74,7 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>TimeHarbor needs camera access to scan QR codes for device pairing.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>TimeHarbor uses Face ID to unlock the app.</string>
 </dict>
 </plist>

@@ -41,10 +41,16 @@ export async function verifyAppLock(): Promise<boolean> {
   // Try native biometric first (Capacitor)
   if (Capacitor.isNativePlatform()) {
     try {
-      const { BiometricAuth } = await import('@capacitor-community/biometric-auth' as string) as any;
+      const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
+      const availability = await NativeBiometric.isAvailable();
+      if (!availability.isAvailable) return false;
+      await NativeBiometric.verifyIdentity({
+        reason: 'Unlock TimeHarbor',
+        title: 'App Lock',
+      });
       return true;
     } catch {
-      // Biometric failed or cancelled
+      // Biometric failed/cancelled — fall through to PIN
       return false;
     }
   }
@@ -87,11 +93,17 @@ export default function AppLockToggle() {
   const [confirmPin, setConfirmPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [hasWebAuthn, setHasWebAuthn] = useState(false);
+  const [nativeBioAvailable, setNativeBioAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     setEnabled(isAppLockEnabled());
-    // Check WebAuthn availability
-    if (!Capacitor.isNativePlatform() && typeof PublicKeyCredential !== 'undefined') {
+
+    if (Capacitor.isNativePlatform()) {
+      import('@capgo/capacitor-native-biometric')
+        .then(({ NativeBiometric }) => NativeBiometric.isAvailable())
+        .then((result) => setNativeBioAvailable(result.isAvailable))
+        .catch(() => setNativeBioAvailable(false));
+    } else if (typeof PublicKeyCredential !== 'undefined') {
       PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
         .then(setHasWebAuthn)
         .catch(() => setHasWebAuthn(false));
@@ -101,18 +113,23 @@ export default function AppLockToggle() {
   const handleToggle = useCallback(async (checked: boolean) => {
     if (checked) {
       if (Capacitor.isNativePlatform()) {
-        // Native: test biometric first, then enable
-        try {
-          const { BiometricAuth } = await import('@capacitor-community/biometric-auth' as string) as any;
-          await BiometricAuth.authenticate({
-            reason: 'Enable App Lock',
-            allowDeviceCredential: true,
-          });
-          localStorage.setItem(APP_LOCK_KEY, '1');
-          setEnabled(true);
-        } catch {
-          // User cancelled or biometric not available
+        if (nativeBioAvailable) {
+          try {
+            const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
+            await NativeBiometric.verifyIdentity({
+              reason: 'Enable App Lock',
+              title: 'App Lock',
+            });
+            localStorage.setItem(APP_LOCK_KEY, '1');
+            setEnabled(true);
+            return;
+          } catch {
+            // User cancelled biometric — don't fall through to PIN
+            return;
+          }
         }
+        // No biometric on device — use PIN
+        setShowPinSetup(true);
       } else if (hasWebAuthn) {
         // Web with biometric: register WebAuthn credential
         try {
@@ -155,7 +172,7 @@ export default function AppLockToggle() {
       localStorage.removeItem('th_webauthn_cred_id');
       setEnabled(false);
     }
-  }, [hasWebAuthn]);
+  }, [hasWebAuthn, nativeBioAvailable]);
 
   const handlePinSubmit = useCallback(async () => {
     setPinError('');
@@ -190,7 +207,9 @@ export default function AppLockToggle() {
             <Text className="font-medium">App Lock</Text>
             <p className="text-xs text-muted-foreground">
               {Capacitor.isNativePlatform()
-                ? 'Face ID / Touch ID on app open'
+                ? nativeBioAvailable
+                  ? 'Face ID / Touch ID on app open'
+                  : 'PIN lock on app open'
                 : hasWebAuthn
                   ? 'Biometric / PIN on app open'
                   : 'PIN lock on app open'}

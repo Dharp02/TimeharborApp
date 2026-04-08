@@ -42,6 +42,25 @@ export function resetHLC(): void {
   hlcInstance = null;
 }
 
+// ── Debounced sync trigger ──────────────────────────────────
+
+let syncTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Schedule a sync shortly after an op-log write.
+ * Debounced to 2 seconds so rapid edits batch into one push.
+ */
+function scheduleSyncAfterWrite(): void {
+  if (typeof window === 'undefined') return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    // Lazy import to avoid circular dependency
+    import('../SyncManager').then(({ syncManager }) => {
+      syncManager.syncNow();
+    });
+  }, 2000);
+}
+
 // ── Writer ──────────────────────────────────────────────────
 
 export interface OpLogWriteOptions {
@@ -114,6 +133,12 @@ class OpLogWriter {
     };
 
     await db.opLog.add(entry);
+
+    // Trigger a sync shortly after write so data reaches the server quickly
+    if (entry._syncEnabled) {
+      scheduleSyncAfterWrite();
+    }
+
     return entry;
   }
 }
