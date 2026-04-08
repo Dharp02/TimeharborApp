@@ -41,7 +41,7 @@ async function apiRequest(path: string, options: RequestInit = {}) {
 // ── Constants ───────────────────────────────────────────────
 
 /** Maximum number of op-log entries per encrypted batch. */
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 20;
 
 /** syncMeta key for tracking the last-received HLC cursor. */
 const OPLOG_CURSOR_KEY = 'encrypted-oplog';
