@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@timeharbor/time-engine'],
   // Allow cross-origin dev requests from the local machine IP (for mobile testing via proxy)
   // Include multiple format variants — Next.js version history varies on the expected format
-  allowedDevOrigins: ['10.3.95.139', '10.3.95.139:8080', 'https://10.3.95.139:8080', 'localhost', 'localhost:8080'],
+  allowedDevOrigins: ['10.0.0.8', '10.0.0.8:8080', 'https://10.0.0.8:8080', 'localhost', 'localhost:8080'],
   // Static export: only when building for Capacitor native apps.
   ...(isCapacitorBuild ? { output: 'export' } : {}),
   images: {

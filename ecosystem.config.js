@@ -4,7 +4,7 @@ module.exports = {
       name: "timeharbor-frontend",
       cwd: "/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbourapp",
       script: "npx",
-      args: "next dev -H 0.0.0.0 --experimental-https --experimental-https-cert ./10.3.95.139+2.pem --experimental-https-key ./10.3.95.139+2-key.pem",
+      args: "next dev -H 0.0.0.0 --experimental-https --experimental-https-cert ./10.0.0.8+2.pem --experimental-https-key ./10.0.0.8+2-key.pem",
       node_args: "--max-old-space-size=8192",
       env: {
         NODE_ENV: "development",
