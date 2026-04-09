@@ -12,6 +12,7 @@
  * be introduced without ambiguity.
  */
 
+import { Capacitor } from '@capacitor/core';
 import { getIdentityUUID, getIdentityPassphrase } from './IdentityManager';
 import { getApiUrl } from '../apiUrl';
 
@@ -21,6 +22,8 @@ const KEY_VERSION = 'TH1';
 const SEPARATOR = '.';
 /** Credential ID used in the browser password manager. */
 const CREDENTIAL_ID = 'timeharbor-recovery';
+/** Server identifier used in native Keychain / Keystore. */
+const NATIVE_KEYCHAIN_SERVER = 'timeharbor-recovery-key';
 
 // ── Encode / Decode ─────────────────────────────────────────
 
@@ -76,13 +79,22 @@ async function apiRequest(path: string, options: RequestInit = {}) {
   const base = getApiUrl().replace(/\/api\/?$/, '');
   const url = `${base}/api/timeharbor${path}`;
   const identityUUID = getIdentityUUID();
+
+  const headers: Record<string, string> = {
+    'X-App-Id': 'timeharbor',
+    'X-Identity-UUID': identityUUID,
+  };
+
+  // Only set Content-Type for requests that carry a body
+  if (options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const res = await fetch(url, {
     ...options,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
-      'X-App-Id': 'timeharbor',
-      'X-Identity-UUID': identityUUID,
+      ...headers,
       ...options.headers,
     },
   });
@@ -182,6 +194,51 @@ export async function loadFromCredentialManager(): Promise<string | null> {
     // User cancelled or API error
   }
 
+  return null;
+}
+
+// ── Native Keychain (iOS Keychain / Android Keystore via NativeBiometric) ──
+
+/**
+ * Check whether the app is running on a native platform (iOS / Android)
+ * where we can use the NativeBiometric plugin for secure credential storage.
+ */
+export function isNativeKeychainAvailable(): boolean {
+  return Capacitor.isNativePlatform();
+}
+
+/**
+ * Save the recovery key into the native Keychain (iOS) or Keystore (Android)
+ * using the @capgo/capacitor-native-biometric plugin.
+ */
+export async function saveToNativeKeychain(): Promise<void> {
+  const recoveryKey = buildRecoveryKey();
+
+  const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
+  await NativeBiometric.setCredentials({
+    username: CREDENTIAL_ID,
+    password: recoveryKey,
+    server: NATIVE_KEYCHAIN_SERVER,
+  });
+}
+
+/**
+ * Retrieve the recovery key from the native Keychain / Keystore.
+ * Returns the TH1-... key string, or null if not found.
+ */
+export async function loadFromNativeKeychain(): Promise<string | null> {
+  try {
+    const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
+    const cred = await NativeBiometric.getCredentials({
+      server: NATIVE_KEYCHAIN_SERVER,
+    });
+
+    if (cred?.password?.startsWith(`${KEY_VERSION}-`)) {
+      return cred.password;
+    }
+  } catch {
+    // No credentials stored or plugin error
+  }
   return null;
 }
 

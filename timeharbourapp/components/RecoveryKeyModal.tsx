@@ -11,6 +11,9 @@ import {
   saveToCredentialManager,
   loadFromCredentialManager,
   isCredentialManagerAvailable,
+  isNativeKeychainAvailable,
+  saveToNativeKeychain,
+  loadFromNativeKeychain,
 } from '@/TimeharborAPI/sync/RecoveryKeyService';
 import {
   setIdentityUUID,
@@ -24,8 +27,12 @@ import {
 import {
   verifySyncKey,
   resetOpLogCursor,
+  pullOpLog,
+  hasServerData,
 } from '@/TimeharborAPI/sync/EncryptedSyncEngine';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
+import { clearDatabase } from '@/TimeharborAPI/db';
+import { resetTicketState } from '@/TimeharborAPI/tickets';
 
 interface RecoveryKeyModalProps {
   isOpen: boolean;
@@ -41,17 +48,22 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
   const [inputKey, setInputKey] = useState('');
   const [restoring, setRestoring] = useState(false);
   const [restoreStep, setRestoreStep] = useState<'input' | 'restoring' | 'done'>('input');
+  const [pulledCount, setPulledCount] = useState(0);
 
   // ── Shared state ──
   const [error, setError] = useState('');
 
-  // ── Save: push recovery key to browser credential manager ──
+  // ── Save: push recovery key to native keychain or browser credential manager ──
   const handleSave = useCallback(async () => {
     setError('');
     setSaveStep('saving');
 
     try {
-      await saveToCredentialManager();
+      if (isNativeKeychainAvailable()) {
+        await saveToNativeKeychain();
+      } else {
+        await saveToCredentialManager();
+      }
       await markRecoveryKeySaved();
       setSaveStep('done');
     } catch (err: any) {
@@ -67,19 +79,22 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
     }
   }, []);
 
-  // ── Restore: load from credential manager or manual input ──
+  // ── Restore: load from native keychain / credential manager or manual input ──
   const handleRestoreFromBrowser = useCallback(async () => {
     setError('');
 
     try {
-      const key = await loadFromCredentialManager();
+      const key = isNativeKeychainAvailable()
+        ? await loadFromNativeKeychain()
+        : await loadFromCredentialManager();
+
       if (key) {
         setInputKey(key);
       } else {
-        setError('No recovery key found in your browser. Enter it manually below.');
+        setError('No recovery key found. Enter it manually below.');
       }
     } catch {
-      setError('Could not access browser credentials. Enter your key manually.');
+      setError('Could not access stored credentials. Enter your key manually.');
     }
   }, []);
 
@@ -87,28 +102,30 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
     setError('');
     setRestoring(true);
     setRestoreStep('restoring');
+    setPulledCount(0);
 
     try {
       // 1. Parse the recovery key
       const { uuid, passphrase } = parseRecoveryKey(inputKey);
 
-      // 2. Set the identity UUID and passphrase from the recovery key
+      // 2. Stop any in-flight sync before switching identity
+      await syncManager.stop();
+
+      // 3. Set the identity UUID and passphrase from the recovery key
       setIdentityUUID(uuid);
       setIdentityPassphrase(passphrase);
 
-      // 3. Clear any existing local keys (fresh start)
-      await clearKeys();
-
-      // 4. Setup encryption with the recovered passphrase
-      //    (deterministic salt → same key as original device)
-      const syncKey = await setupEncryption(passphrase);
+      // 4. Setup encryption BEFORE clearing DB so we can verify first
+      let syncKey = await setupEncryption(passphrase);
 
       // 5. Verify the key can decrypt server data
       try {
         await verifySyncKey(syncKey);
       } catch (verifyErr: any) {
-        // Wrong key — clear everything and revert
+        // Wrong key — clear everything and revert identity
         await clearKeys();
+        localStorage.removeItem('th_identity_uuid');
+        localStorage.removeItem('th_identity_passphrase');
         throw new Error(
           verifyErr?.name === 'OperationError'
             ? 'Recovery key is invalid or does not match server data.'
@@ -116,35 +133,64 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
         );
       }
 
-      // 6. Cache the sync key and wire it into the sync manager
+      // 6. Check if server has any data for this identity
+      const serverHasData = await hasServerData();
+      if (!serverHasData) {
+        await clearKeys();
+        localStorage.removeItem('th_identity_uuid');
+        localStorage.removeItem('th_identity_passphrase');
+        throw new Error(
+          'No synced data found on the server for this recovery key. ' +
+          'Data must have been synced at least once before it can be restored.',
+        );
+      }
+
+      // 7. Clear local database and keys from the previous profile
+      await clearDatabase();
+      resetTicketState();
+
+      // 8. Re-derive keys after DB wipe (clearDatabase wiped deviceKeys/cachedKeys)
+      syncKey = await setupEncryption(passphrase);
       await cacheSyncKey(syncKey);
       syncManager.setSyncKey(syncKey);
 
-      // 7. Reset the pull cursor so we pull ALL data from scratch
-      await resetOpLogCursor();
+      // 9. Resume sync and pull ALL data for the restored identity
+      syncManager.resume();
+      const pulled = await pullOpLog(syncKey, { includeOwn: true });
+      setPulledCount(pulled);
 
-      // 8. Request a full restore (pulls own batches too)
-      syncManager.requestFullRestore();
-      await syncManager.syncNow();
+      // 10. Notify UI that data changed
+      if (typeof window !== 'undefined' && pulled > 0) {
+        window.dispatchEvent(new Event('sync-complete'));
+      }
 
       setRestoreStep('done');
     } catch (err: any) {
       setError(err?.message || 'Restore failed.');
       setRestoreStep('input');
+      // Re-enable sync in case it was stopped
+      syncManager.resume();
     } finally {
       setRestoring(false);
     }
   }, [inputKey]);
 
   const handleClose = useCallback(() => {
+    // After a successful restore, reload to reset all in-memory state
+    if (restoreStep === 'done') {
+      window.location.href = '/dashboard';
+      return;
+    }
     setSaveStep('confirm');
     setInputKey('');
     setError('');
     setRestoreStep('input');
+    setPulledCount(0);
     onClose();
-  }, [onClose]);
+  }, [onClose, restoreStep]);
 
-  const credManagerAvailable = isCredentialManagerAvailable();
+  const isNative = isNativeKeychainAvailable();
+  const canSaveKey = isNative || isCredentialManagerAvailable();
 
   return (
     <Modal
@@ -159,16 +205,16 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
             <Alert aria-live="polite">
               <ShieldCheck className="w-4 h-4" />
               <AlertDescription>
-                Your recovery key will be saved to your browser&apos;s password manager
-                (Google Password Manager, iCloud Keychain, or Microsoft Autofill
-                depending on your browser). It syncs automatically with your cloud account.
+                {isNative
+                  ? 'Your recovery key will be saved securely to your device\u2019s Keychain. It stays on your device and is protected by your device passcode and biometrics.'
+                  : 'Your recovery key will be saved to your browser\u2019s password manager (Google Password Manager, iCloud Keychain, or Microsoft Autofill depending on your browser). It syncs automatically with your cloud account.'}
               </AlertDescription>
             </Alert>
 
             <p className="text-sm text-muted-foreground">
-              You will need this key to restore your data if you lose your device
-              or reinstall the app. The key is never shown as text — it goes
-              directly into your browser&apos;s secure storage.
+              {isNative
+                ? 'You will need this key to restore your data if you reinstall the app or switch devices.'
+                : 'You will need this key to restore your data if you lose your device or reinstall the app. The key is never shown as text \u2014 it goes directly into your browser\u2019s secure storage.'}
             </p>
 
             {error && (
@@ -179,14 +225,14 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
 
             <Button
               onClick={handleSave}
-              disabled={!credManagerAvailable}
+              disabled={!canSaveKey}
               className="w-full"
             >
               <KeyRound className="w-4 h-4 mr-2" />
-              Save to Password Manager
+              {isNative ? 'Save to Keychain' : 'Save to Password Manager'}
             </Button>
 
-            {!credManagerAvailable && (
+            {!canSaveKey && (
               <Alert variant="danger" aria-live="polite">
                 <AlertTriangle className="w-4 h-4" />
                 <AlertDescription>
@@ -207,7 +253,9 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
           <div className="flex flex-col items-center gap-3 py-6">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             <p className="text-sm text-muted-foreground">
-              Saving to your browser&apos;s password manager…
+              {isNative
+                ? 'Saving to your device\u2019s Keychain\u2026'
+                : 'Saving to your browser\u2019s password manager\u2026'}
             </p>
           </div>
         )}
@@ -218,8 +266,9 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
             <div className="flex flex-col items-center gap-3 py-4">
               <ShieldCheck className="w-10 h-10 text-green-500" />
               <p className="text-sm text-center text-muted-foreground">
-                Your recovery key has been saved to your browser&apos;s password manager.
-                It will sync to your cloud account automatically.
+                {isNative
+                  ? 'Your recovery key has been saved to your device\u2019s Keychain.'
+                  : 'Your recovery key has been saved to your browser\u2019s password manager. It will sync to your cloud account automatically.'}
               </p>
             </div>
             <Button onClick={handleClose} className="w-full">
@@ -232,8 +281,9 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
         {mode === 'restore' && restoreStep === 'input' && (
           <>
             <p className="text-sm text-muted-foreground">
-              Restore your data using the recovery key from your browser&apos;s password
-              manager, or enter it manually if you saved it elsewhere.
+              Restore your data using your saved recovery key
+              {isNative ? ' from device Keychain' : ' from your browser\u2019s password manager'},
+              or enter it manually if you saved it elsewhere.
             </p>
 
             <Alert variant="danger" aria-live="polite">
@@ -244,14 +294,14 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
               </AlertDescription>
             </Alert>
 
-            {credManagerAvailable && (
+            {canSaveKey && (
               <Button
                 variant="outline"
                 onClick={handleRestoreFromBrowser}
                 className="w-full"
               >
                 <KeyRound className="w-4 h-4 mr-2" />
-                Load from Password Manager
+                {isNative ? 'Load from Keychain' : 'Load from Password Manager'}
               </Button>
             )}
 
@@ -265,7 +315,7 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputKey(e.target.value)}
                 placeholder="TH1-..."
                 className="font-mono text-xs"
-                autoFocus={!credManagerAvailable}
+                autoFocus={!canSaveKey}
                 aria-label="Recovery key input"
               />
             </div>
@@ -306,8 +356,9 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
             <div className="flex flex-col items-center gap-3 py-4">
               <ShieldCheck className="w-10 h-10 text-green-500" />
               <p className="text-sm text-center text-muted-foreground">
-                Your data has been restored successfully. Your identity and encryption
-                keys are now set up on this device.
+                {pulledCount > 0
+                  ? `Restored ${pulledCount} entries from the server. Your identity and encryption keys are now set up on this device.`
+                  : 'Your identity and encryption keys are set up, but no data entries were found on the server. If you expected data, it may not have been synced from the original device.'}
               </p>
             </div>
             <Button onClick={handleClose} className="w-full">
