@@ -15,16 +15,19 @@ import {
   RefreshCw,
   ShieldCheck,
   UserRoundCog,
+  Upload,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Text, SmallMuted, Switch, useThemeContext } from '@mieweb/ui';
 import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 import ShareMyLinkModal from '@/components/ShareMyLinkModal';
 import KeyRegenerationModal from '@/components/KeyRegenerationModal';
 import ProfileSwitchModal from '@/components/ProfileSwitchModal';
+import RecoveryKeyModal from '@/components/RecoveryKeyModal';
 import AppLockToggle from '@/components/AppLockToggle';
+import { isRecoveryKeySaved } from '@/TimeharborAPI/sync/RecoveryKeyService';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -47,6 +50,15 @@ export default function SettingsPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showRegenModal, setShowRegenModal] = useState(false);
   const [showProfileSwitch, setShowProfileSwitch] = useState(false);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState<'save' | 'restore'>('save');
+  const [keySaved, setKeySaved] = useState(false);
+
+  useEffect(() => {
+    isRecoveryKeySaved()
+      .then(setKeySaved)
+      .catch(() => {});
+  }, [showRecoveryModal]);
 
   const menuItems = [
     { label: 'Edit Profile', icon: User, href: '/dashboard/settings/profile' },
@@ -132,6 +144,34 @@ export default function SettingsPage() {
           <ChevronRight className="w-5 h-5 text-muted-foreground" />
         </button>
 
+        {/* Save Recovery Key */}
+        <button
+          onClick={() => { setRecoveryMode('save'); setShowRecoveryModal(true); }}
+          disabled={keySaved}
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label={keySaved ? 'Recovery key already saved' : 'Save recovery key'}
+        >
+          <div className="flex items-center gap-4">
+            <KeyRound className="w-5 h-5 text-primary" />
+            <Text className="font-medium">{keySaved ? 'Recovery Key Saved' : 'Save Recovery Key'}</Text>
+          </div>
+          {!keySaved && <ChevronRight className="w-5 h-5 text-muted-foreground" />}
+          {keySaved && <ShieldCheck className="w-5 h-5 text-green-500" />}
+        </button>
+
+        {/* Restore from Recovery Key */}
+        <button
+          onClick={() => { setRecoveryMode('restore'); setShowRecoveryModal(true); }}
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
+          aria-label="Restore data from recovery key"
+        >
+          <div className="flex items-center gap-4">
+            <Upload className="w-5 h-5 text-muted-foreground" />
+            <Text className="font-medium">Restore from Recovery Key</Text>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </button>
+
         {/* Regenerate Key */}
         <button
           onClick={() => setShowRegenModal(true)}
@@ -182,6 +222,7 @@ export default function SettingsPage() {
       <ShareMyLinkModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} />
       <KeyRegenerationModal isOpen={showRegenModal} onClose={() => setShowRegenModal(false)} />
       <ProfileSwitchModal isOpen={showProfileSwitch} onClose={() => setShowProfileSwitch(false)} />
+      <RecoveryKeyModal isOpen={showRecoveryModal} onClose={() => setShowRecoveryModal(false)} mode={recoveryMode} />
     </div>
   );
 }

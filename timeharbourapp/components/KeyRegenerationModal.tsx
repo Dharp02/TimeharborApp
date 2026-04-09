@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { regenerateIdentity, getIdentityUUID } from '@/TimeharborAPI/sync/IdentityManager';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { purgeAllServerData, resetOpLogCursor, pushOpLog } from '@/TimeharborAPI/sync/EncryptedSyncEngine';
+import { resetRecoveryKeySaved } from '@/TimeharborAPI/sync/RecoveryKeyService';
 import { db } from '@/TimeharborAPI/db';
 
 interface KeyRegenerationModalProps {
@@ -31,6 +32,9 @@ export default function KeyRegenerationModal({ isOpen, onClose }: KeyRegeneratio
     try {
       // 1. Purge ALL old encrypted data from the server (old key becomes useless)
       await purgeAllServerData();
+
+      // 1b. Reset recovery-key-saved flag (new key = new recovery key needed)
+      await resetRecoveryKeySaved().catch(() => {});
 
       // 2. Regenerate passphrase + encryption keys
       const { passphrase, syncKey } = await regenerateIdentity();

@@ -35,6 +35,12 @@ export function getIdentityUUID(): string {
   return uuid;
 }
 
+/** Overwrite the local UUID (used during recovery key restore). */
+export function setIdentityUUID(uuid: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(IDENTITY_UUID_KEY, uuid);
+}
+
 // ── Passphrase ──────────────────────────────────────────────
 
 /** Generate a cryptographically random passphrase (44 chars base64). */
@@ -52,6 +58,12 @@ export function getIdentityPassphrase(): string {
     localStorage.setItem(IDENTITY_PASSPHRASE_KEY, passphrase);
   }
   return passphrase;
+}
+
+/** Overwrite the local passphrase (used during recovery key restore). */
+export function setIdentityPassphrase(passphrase: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(IDENTITY_PASSPHRASE_KEY, passphrase);
 }
 
 // ── Auto-setup ──────────────────────────────────────────────
