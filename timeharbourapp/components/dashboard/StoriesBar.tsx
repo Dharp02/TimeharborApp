@@ -1,12 +1,23 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@mieweb/ui';
 import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
+import { getProfile } from '@/TimeharborAPI/profile';
 import styles from './StoriesBar.module.css';
 export default function StoriesBar() {
   const { user } = useAuth();
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    getProfile().then((p) => {
+      if (p?.displayName) setProfileName(p.displayName);
+      if (p?.avatarBase64) setProfileAvatar(p.avatarBase64);
+    }).catch(() => {});
+  }, []);
 
   // Get user initials
   const getUserInitials = (name?: string, email?: string) => {
@@ -23,7 +34,7 @@ export default function StoriesBar() {
     return 'U';
   };
 
-  const currentUserInitials = getUserInitials(user?.full_name, user?.email);
+  const currentUserInitials = getUserInitials(profileName || user?.full_name, user?.email);
 
   return (
     <div className={styles.storiesBarContainer}>
@@ -32,7 +43,9 @@ export default function StoriesBar() {
         <div className={styles.storyItem}>
           <div className={`${styles.storyAvatar} ${styles.yourStory}`}>
             <div className={styles.avatarCircle}>
-              {user?.image ? (
+              {profileAvatar ? (
+                <img src={profileAvatar} alt="Profile" className={styles.avatarImage} />
+              ) : user?.image ? (
                 <img src={resolveBackendAsset(user.image)} alt="Profile" className={styles.avatarImage} />
               ) : (
                 <span className={styles.initials}>{currentUserInitials}</span>

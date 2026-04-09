@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Sidebar,
   SidebarHeader,
@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { clearDatabase } from '@/TimeharborAPI/db';
+import { getProfile } from '@/TimeharborAPI/profile';
 import ShareMyLinkModal from '@/components/ShareMyLinkModal';
 
 const NAV_SECTIONS = [
@@ -79,6 +80,16 @@ export default function AppSidebar() {
   const { user } = useAuth();
   const { closeMobile, isCollapsed } = useSidebar();
   const [showShareModal, setShowShareModal] = useState(false);
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+
+  // Load profile from Dexie on mount
+  useEffect(() => {
+    getProfile().then((p) => {
+      if (p?.displayName) setProfileName(p.displayName);
+      if (p?.avatarBase64) setProfileAvatar(p.avatarBase64);
+    }).catch(() => {});
+  }, []);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';
@@ -86,12 +97,13 @@ export default function AppSidebar() {
   };
 
   const getInitials = () => {
-    if (!user?.full_name) return user?.email?.charAt(0).toUpperCase() || 'U';
-    const parts = user.full_name.split(' ');
+    const name = profileName || user?.full_name;
+    if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
+    const parts = name.split(' ');
     if (parts.length >= 2) {
       return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }
-    return user.full_name.substring(0, 2).toUpperCase();
+    return name.substring(0, 2).toUpperCase();
   };
 
   const handleNavClick = (href: string) => {
@@ -153,7 +165,9 @@ export default function AppSidebar() {
         >
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white font-semibold text-sm overflow-hidden">
-              {user?.image ? (
+              {profileAvatar ? (
+                <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" />
+              ) : user?.image ? (
                 <img src={resolveBackendAsset(user.image)} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 getInitials()
@@ -162,7 +176,7 @@ export default function AppSidebar() {
             {!isCollapsed && (
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-foreground truncate">
-                  {user?.full_name || 'User'}
+                  {profileName || user?.full_name || 'User'}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
                   Personal workspace

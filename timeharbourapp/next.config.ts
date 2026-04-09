@@ -60,11 +60,24 @@ const nextConfig: NextConfig = {
   // when resolving CSS/PostCSS deps (e.g. tailwindcss). Without this,
   // enhanced-resolve finds /TimeharborApp/package.json and fails to locate
   // tailwindcss there, causing noisy errors on every CSS compile.
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve.modules = [
       path.join(__dirname, 'node_modules'),
       'node_modules',
     ];
+    // Capacitor-only native plugins aren't installed for web builds.
+    // Mark them as external so webpack doesn't try to resolve them.
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        '@capacitor-community/secure-storage-plugin': false,
+      };
+    } else {
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : []),
+        '@capacitor-community/secure-storage-plugin',
+      ];
+    }
     return config;
   },
 };

@@ -55,8 +55,10 @@ async function getNativeSecureStorage(): Promise<{
   if (!Capacitor.isNativePlatform()) return null;
   try {
     // Dynamic import so web builds don't pull in native code.
-    // @ts-expect-error — plugin may not be installed; that's handled by the catch
-    const mod = await import('@capacitor-community/secure-storage-plugin');
+    // Use string concatenation to prevent Turbopack/webpack static analysis
+    // from trying to resolve this Capacitor-only module at build time.
+    const pkg = '@capacitor-community/' + 'secure-storage-plugin';
+    const mod = await import(/* webpackIgnore: true */ pkg);
     return mod.SecureStoragePlugin;
   } catch {
     // Plugin not installed — fall back to Dexie.

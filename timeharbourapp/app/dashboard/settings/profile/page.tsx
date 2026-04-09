@@ -1,12 +1,12 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthProvider';
-import { auth } from '@/TimeharborAPI';
-import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
+import { getProfile, upsertProfile } from '@/TimeharborAPI/profile';
 import { User, Camera, Trash2, Github, Linkedin, Bug, Save, X, Loader2, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { Button, Input } from '@mieweb/ui';
 import { Modal } from '@/components/ui/Modal';
 import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
 
@@ -15,6 +15,7 @@ const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gi
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -51,33 +52,39 @@ export default function ProfilePage() {
   const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(null);
   const [avatarRemoved, setAvatarRemoved] = useState(false);
 
-  // Initialize form from user data
+  // Initialize form from auth user data (if available)
   useEffect(() => {
+    console.log('[ProfilePage] user effect', { user: !!user, full_name: user?.full_name, name: user?.name, email: user?.email });
     if (user) {
-      setName(user.full_name || user.name || '');
-      setEmail(user.email || '');
+      setName((prev) => prev || user.full_name || user.name || '');
+      setEmail((prev) => prev || user.email || '');
     }
   }, [user?.full_name, user?.name, user?.email]);
 
-  // Load linked accounts + avatar from backend profile (once on mount)
+  // Load profile from Dexie on mount — doesn't need auth user, uses getIdentityUUID()
   const profileLoadedRef = useRef(false);
   useEffect(() => {
-    if (!user || profileLoadedRef.current) return;
+    if (typeof window === 'undefined' || profileLoadedRef.current) return;
     profileLoadedRef.current = true;
 
-    auth.fetchProfile().then(({ profile }) => {
+    console.log('[ProfilePage] loading from Dexie...');
+    getProfile().then(async (profile) => {
+      console.log('[ProfilePage] getProfile result', profile);
       if (profile) {
-        setGithubUrl(profile.githubUrl || '');
-        setLinkedinUrl(profile.linkedinUrl || '');
-        setRedmineUrl(profile.redmineUrl || '');
-        // Use local offline avatar (base64) if available, else backend URL
-        const avatarSrc = (profile as any).avatarDataUrl || profile.avatarUrl;
-        if (avatarSrc) {
-          setSavedAvatarUrl(resolveBackendAsset(avatarSrc) ?? avatarSrc);
-        }
+        if (profile.displayName) setName(profile.displayName);
+        if (profile.email) setEmail(profile.email);
+        if (profile.githubUrl) setGithubUrl(profile.githubUrl);
+        if (profile.linkedinUrl) setLinkedinUrl(profile.linkedinUrl);
+        if (profile.redmineUrl) setRedmineUrl(profile.redmineUrl);
+        if (profile.avatarBase64) setSavedAvatarUrl(profile.avatarBase64);
       }
-    }).finally(() => setIsLoadingProfile(false));
-  }, [user]);
+    }).catch((err) => {
+      console.error('[ProfilePage] Dexie load error', err);
+    }).finally(() => {
+      console.log('[ProfilePage] loading complete');
+      setIsLoadingProfile(false);
+    });
+  }, []);
 
   const markChanged = () => {
     setHasChanges(true);
@@ -188,63 +195,70 @@ export default function ProfilePage() {
     setIsSaving(true);
     setSaveMessage(null);
     try {
-      // Handle avatar upload/delete first
+      // Convert avatar to base64 if a new file was selected
+      let avatarBase64: string | null | undefined;
       if (avatarFile) {
-        const { avatarUrl, error: uploadError } = await auth.uploadAvatar(avatarFile);
-        if (uploadError) {
-          setSaveMessage({ type: 'error', text: uploadError.message });
-          setIsSaving(false);
-          return;
-        }
-        setSavedAvatarUrl(avatarUrl);
+        const reader = new FileReader();
+        avatarBase64 = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(avatarFile);
+        });
+      } else if (avatarRemoved) {
+        avatarBase64 = null; // explicitly remove
+      }
+
+      const profileData = {
+        displayName: name,
+        email,
+        ...(avatarBase64 !== undefined ? { avatarBase64 } : {}),
+        githubUrl,
+        linkedinUrl,
+        redmineUrl,
+      };
+      console.log('[ProfilePage] saving', { hasAvatar: !!avatarFile, avatarBase64Length: typeof avatarBase64 === 'string' ? avatarBase64.length : avatarBase64, fields: Object.keys(profileData) });
+
+      // Single write: save everything to Dexie + op-log
+      const saved = await upsertProfile(profileData);
+      console.log('[ProfilePage] saved to Dexie', { hasAvatarInResult: !!saved.avatarBase64 });
+
+      // Update local UI state
+      if (avatarFile && avatarBase64) {
+        setSavedAvatarUrl(avatarBase64);
         setAvatarFile(null);
         setAvatarRemoved(false);
-      } else if (avatarRemoved && savedAvatarUrl) {
-        const { error: deleteError } = await auth.deleteAvatar();
-        if (deleteError) {
-          setSaveMessage({ type: 'error', text: deleteError.message });
-          setIsSaving(false);
-          return;
-        }
+      } else if (avatarRemoved) {
         setSavedAvatarUrl(null);
         setAvatarRemoved(false);
       }
 
-      const { error } = await auth.updateProfile({
-        full_name: name,
-        email,
-        github_url: githubUrl,
-        linkedin_url: linkedinUrl,
-        redmine_url: redmineUrl,
-      });
-      if (error) {
-        setSaveMessage({ type: 'error', text: error.message });
-      } else {
-        setSaveMessage({ type: 'success', text: 'Profile saved successfully.' });
-        setHasChanges(false);
-      }
-    } catch {
-      // If avatar was saved offline but profile update failed (network error),
-      // still show partial success so the user knows the avatar is queued
-      if (avatarFile || avatarRemoved) {
-        setSaveMessage({ type: 'success', text: 'Avatar saved locally. Profile will sync when you\'re back online.' });
-        setHasChanges(false);
-      } else {
-        setSaveMessage({ type: 'error', text: 'You appear to be offline. Changes will sync when connectivity is restored.' });
-      }
+      setSaveMessage({ type: 'success', text: 'Profile saved successfully.' });
+      setHasChanges(false);
+      // Refresh so sidebar/header pick up new profile data
+      window.location.href = '/dashboard/settings';
+    } catch (err) {
+      console.error('[ProfilePage] save error', err);
+      setSaveMessage({ type: 'error', text: 'Failed to save profile. Please try again.' });
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDiscard = () => {
-    if (user) {
-      setName(user.full_name || user.name || '');
-      setEmail(user.email || '');
-    }
-    setGithubUrl('');
-    setLinkedinUrl('');
-    setRedmineUrl('');
+    // Restore all fields from Dexie
+    getProfile().then((profile) => {
+      if (profile) {
+        if (profile.displayName) setName(profile.displayName);
+        if (profile.email) setEmail(profile.email);
+        setGithubUrl(profile.githubUrl || '');
+        setLinkedinUrl(profile.linkedinUrl || '');
+        setRedmineUrl(profile.redmineUrl || '');
+      } else {
+        setGithubUrl('');
+        setLinkedinUrl('');
+        setRedmineUrl('');
+      }
+    });
     handleRemoveAvatar();
     setAvatarRemoved(false);
     // Restore saved avatar if one exists

@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Text, SmallMuted, Switch, useThemeContext } from '@mieweb/ui';
 import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
+import { getProfile } from '@/TimeharborAPI/profile';
 import ShareMyLinkModal from '@/components/ShareMyLinkModal';
 import KeyRegenerationModal from '@/components/KeyRegenerationModal';
 import ProfileSwitchModal from '@/components/ProfileSwitchModal';
@@ -37,13 +38,29 @@ export default function SettingsPage() {
   const isDark = resolvedTheme === 'dark';
   const handleThemeToggle = (checked: boolean) => setTheme(checked ? 'dark' : 'light');
 
+  // Load display name + avatar from Dexie (works without auth session)
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileEmail, setProfileEmail] = useState<string | null>(null);
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    getProfile().then((p) => {
+      if (p?.displayName) setProfileName(p.displayName);
+      if (p?.email) setProfileEmail(p.email);
+      if (p?.avatarBase64) setProfileAvatar(p.avatarBase64);
+    }).catch(() => {});
+  }, []);
+
+  const displayName = profileName || user?.full_name || 'User';
+  const displayEmail = profileEmail || user?.email || '';
+
   const getInitials = () => {
-    if (!user?.full_name) return user?.email?.charAt(0).toUpperCase() || 'U';
-    const parts = user.full_name.split(' ');
+    if (!displayName || displayName === 'User') return displayEmail?.charAt(0).toUpperCase() || 'U';
+    const parts = displayName.split(' ');
     if (parts.length >= 2) {
       return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }
-    return user.full_name.substring(0, 2).toUpperCase();
+    return displayName.substring(0, 2).toUpperCase();
   };
 
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -72,14 +89,16 @@ export default function SettingsPage() {
       {/* Profile Header */}
       <div className="flex flex-col items-center pt-6 pb-2">
         <div className="w-24 h-24 rounded-full bg-primary-400 flex items-center justify-center text-white text-3xl font-semibold mb-4 overflow-hidden">
-          {user?.image ? (
+          {profileAvatar ? (
+            <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" />
+          ) : user?.image ? (
             <img src={resolveBackendAsset(user.image)} alt="Profile" className="w-full h-full object-cover" />
           ) : (
             getInitials()
           )}
         </div>
-        <Text className="text-xl font-bold">{user?.full_name || 'User'}</Text>
-        <SmallMuted>{user?.email}</SmallMuted>
+        <Text className="text-xl font-bold">{displayName}</Text>
+        <SmallMuted>{displayEmail}</SmallMuted>
       </div>
 
       {/* Menu Items */}

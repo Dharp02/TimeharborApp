@@ -159,6 +159,7 @@ export async function migrateAuthUserIdToIdentity(): Promise<void> {
     { table: db.workSessions, field: 'userId' },
     { table: db.notes, field: 'userId' },
     { table: db.activityLogs, field: 'userId' },
+    { table: db.userProfiles, field: 'userId' },
   ];
 
   for (const { table, field } of tables) {
@@ -224,6 +225,11 @@ export async function migrateAuthUserIdToIdentity(): Promise<void> {
     await db.projects
       .where('createdBy').equals(oldId)
       .modify({ createdBy: identityUUID });
+
+    // userProfiles: userId field + id (which equals userId)
+    await db.userProfiles
+      .where('userId').equals(oldId)
+      .modify({ userId: identityUUID, id: identityUUID });
 
     // opLog: userId field
     await db.opLog.toCollection()

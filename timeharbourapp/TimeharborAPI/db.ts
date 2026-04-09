@@ -179,6 +179,21 @@ export interface DexieProject {
   updatedAt: string;
 }
 
+export interface DexieUserProfile {
+  id: string; // same as userId — one profile per user
+  userId: string;
+  displayName?: string;
+  email?: string;
+  avatarBase64?: string | null;
+  githubUrl?: string;
+  linkedinUrl?: string;
+  redmineUrl?: string;
+  _deleted?: boolean;
+  _fieldHLC?: Record<string, string>;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+
 /** Tracks which op-log entry IDs have been applied from remote devices. */
 export interface AppliedOp {
   /** The op-log entry id that was already applied. */
@@ -201,6 +216,7 @@ export class TimeharborDB extends Dexie {
   syncMeta!: Table<SyncMeta>;
   notes!: Table<DexieNote>;
   operationLogs!: Table<DexieOperationLog>;
+  userProfiles!: Table<DexieUserProfile>;
   // ── Encrypted sync tables (v15) ──
   opLog!: Table<OpLogEntry>;
   deviceKeys!: Table<StoredKeyRecord>;
@@ -320,6 +336,11 @@ export class TimeharborDB extends Dexie {
     // ── v18: Persistent sync key cache (skip passphrase on reload) ──
     this.version(18).stores({
       cachedKeys: 'id',
+    });
+
+    // ── v19: User profiles table (synced via op-log) ──
+    this.version(19).stores({
+      userProfiles: 'id, userId',
     });
   }
 }

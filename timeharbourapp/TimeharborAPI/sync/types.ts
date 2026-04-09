@@ -14,7 +14,8 @@ export type SyncCollection =
   | 'tickets'
   | 'notes'
   | 'projects'
-  | 'activityLogs';
+  | 'activityLogs'
+  | 'userProfiles';
 
 /** Mutation verbs stored in the op log. */
 export type OpType = 'CREATE' | 'UPDATE' | 'DELETE';

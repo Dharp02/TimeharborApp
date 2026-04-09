@@ -153,6 +153,8 @@ function getTable(collection: SyncCollection): Table | null {
       return db.projects;
     case 'activityLogs':
       return db.activityLogs;
+    case 'userProfiles':
+      return db.userProfiles;
     default:
       return null;
   }

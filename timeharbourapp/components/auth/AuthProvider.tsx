@@ -148,7 +148,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (u) {
         console.log('[AuthProvider] session verified', { id: u.id });
         setUserAndCache(u);
-        auth.fetchProfile().catch(() => {});
+        // Load profile into Dexie userProfiles if not already seeded
+        import('@/TimeharborAPI/profile').then(async ({ getProfile, upsertProfile }) => {
+          const local = await getProfile();
+          if (!local) {
+            // First device bootstrap: fetch from server and seed Dexie
+            const { profile } = await auth.fetchProfile();
+            if (profile) {
+              await upsertProfile({
+                displayName: profile.displayName,
+                githubUrl: profile.githubUrl,
+                linkedinUrl: profile.linkedinUrl,
+                redmineUrl: profile.redmineUrl,
+              });
+            }
+          }
+        }).catch(() => {});
       } else if (!hasCached) {
         // Only clear if there was no cached user to begin with.
         // If the user had a cached session, keep them signed in —
