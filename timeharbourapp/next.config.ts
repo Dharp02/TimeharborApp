@@ -55,6 +55,14 @@ const nextConfig: NextConfig = {
   // is this package, not the monorepo root
   turbopack: {
     root: path.resolve(__dirname, '..'),
+    // Capacitor-only native plugins aren't available for web/server builds.
+    // Alias them to lightweight stubs so Turbopack doesn't fail on resolution.
+    resolveAlias: {
+      '@capgo/capacitor-native-biometric':
+        './timeharbourapp/stubs/capacitor-native-biometric.js',
+      '@capacitor-community/secure-storage-plugin':
+        './timeharbourapp/stubs/capacitor-native-biometric.js',
+    },
   },
   // Prevent webpack from walking up to the monorepo root's node_modules
   // when resolving CSS/PostCSS deps (e.g. tailwindcss). Without this,
