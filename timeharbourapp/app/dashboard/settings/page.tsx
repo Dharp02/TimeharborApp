@@ -3,7 +3,6 @@
 import { useAuth } from '@/components/auth/AuthProvider';
 import {
   User,
-  Lock,
   Bell,
   Globe,
   CalendarDays,
@@ -79,7 +78,6 @@ export default function SettingsPage() {
 
   const menuItems = [
     { label: 'Edit Profile', icon: User, href: '/dashboard/settings/profile' },
-    { label: 'Change Password', icon: Lock, href: '/dashboard/settings/password' },
     { label: 'Language', icon: Globe, href: '/dashboard/settings/language' },
     { label: 'Timesheet Settings', icon: CalendarDays, href: '/dashboard/settings/timesheet' },
   ];

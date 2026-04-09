@@ -184,19 +184,20 @@ export default function ShareMyLinkModal({ isOpen, onClose }: ShareMyLinkModalPr
         </div>
 
         {/* Export actions */}
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={exportKeyFile}>
-            <Download className="w-4 h-4 mr-2" />
-            Export to File
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" size="sm" onClick={exportKeyFile} className="gap-1.5">
+            <Download className="w-4 h-4 shrink-0" />
+            Export
           </Button>
           <Button
             variant="outline"
-            className="flex-1"
+            size="sm"
+            className="gap-1.5"
             onClick={() => {
               copyToClipboard(shareUrl, 'link');
             }}
           >
-            <Share2 className="w-4 h-4 mr-2" />
+            <Share2 className="w-4 h-4 shrink-0" />
             Copy All
           </Button>
         </div>

@@ -15,7 +15,6 @@ test.describe('Settings Page', () => {
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByText('Edit Profile').first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('Change Password').first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('dark mode toggle is present', async ({ authedPage: page }) => {
