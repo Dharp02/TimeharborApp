@@ -8,7 +8,6 @@ on:
       - 'timeharbourapp/**'
       - 'ecosystem.uat.config.js'
       - 'ecosystem.config.js'
-      - '.github/workflows/deploy-uat.yml'
 
 jobs:
   deploy:
@@ -43,9 +42,19 @@ jobs:
               ${{ secrets.DEPLOY_SSH_USER }}@${{ secrets[matrix.host_secret] }} << 'EOF'
             set -e
 
-            cd /home/pdharamkar/TimeharborApp
+            REPO_DIR="/home/pdharamkar/TimeharborApp"
 
-            echo "� Stashing local changes..."
+            # Fix git safe directory (sudo npm creates root-owned files)
+            git config --global --add safe.directory "$REPO_DIR" 2>/dev/null || true
+
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              echo "📥 Cloning repository for first-time setup..."
+              git clone -b main https://github.com/Dharp02/TimeharborApp.git "$REPO_DIR"
+            fi
+
+            cd "$REPO_DIR"
+
+            echo "📦 Stashing local changes..."
             STASHED=false
             if ! git diff --quiet || ! git diff --cached --quiet; then
               git stash push -m "deploy-auto-stash"
@@ -57,6 +66,7 @@ jobs:
 
             echo "🔄 Fetching and pulling latest code from main..."
             git fetch origin
+            git checkout main
             git pull origin main
             git submodule update --init --recursive
 
@@ -68,8 +78,8 @@ jobs:
             sudo npm run build
 
             echo "🚀 Restarting PM2 frontend on port 80..."
-            sudo pm2 restart timeharbor-frontend --update-env 2>/dev/null || \
-              sudo pm2 start node_modules/.bin/next --name timeharbor-frontend -- start -p 80 -H 0.0.0.0
+            sudo pm2 delete timeharbor-frontend 2>/dev/null || true
+            sudo pm2 start node_modules/.bin/next --name timeharbor-frontend -- start -p 80 -H 0.0.0.0
             sudo pm2 save
             cd ..
 
