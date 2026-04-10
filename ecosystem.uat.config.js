@@ -4,7 +4,7 @@ module.exports = {
       name: 'timeharbor-frontend',
       cwd: '/home/pdharamkar/TimeharborApp/timeharbourapp',
       script: 'node_modules/.bin/next',
-      args: 'start -p 3000',
+      args: 'start -p 80 -H 0.0.0.0',
       env: {
         NODE_ENV: 'production',
         NODE_OPTIONS: '--max-old-space-size=8192',
