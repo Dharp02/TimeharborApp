@@ -8,6 +8,7 @@ on:
       - 'timeharbourapp/**'
       - 'ecosystem.uat.config.js'
       - 'ecosystem.config.js'
+      - '.github/workflows/deploy-uat.yml'
 
 jobs:
   deploy:
