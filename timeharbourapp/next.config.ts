@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@timeharbor/time-engine'],
   // Allow cross-origin dev requests from the local machine IP (for mobile testing via proxy)
   // Include multiple format variants — Next.js version history varies on the expected format
-  allowedDevOrigins: ['10.3.46.165', '10.3.46.165:8080', 'http://10.3.46.165:8080'],
+  allowedDevOrigins: ['10.0.0.8', '10.0.0.8:8080', 'https://10.0.0.8:8080', 'localhost', 'localhost:8080'],
   // Static export: only when building for Capacitor native apps.
   ...(isCapacitorBuild ? { output: 'export' } : {}),
   images: {
@@ -55,16 +55,37 @@ const nextConfig: NextConfig = {
   // is this package, not the monorepo root
   turbopack: {
     root: path.resolve(__dirname, '..'),
+    // Capacitor-only native plugins aren't available for web/server builds.
+    // Alias them to lightweight stubs so Turbopack doesn't fail on resolution.
+    resolveAlias: {
+      '@capgo/capacitor-native-biometric':
+        './timeharbourapp/stubs/capacitor-native-biometric.js',
+      '@capacitor-community/secure-storage-plugin':
+        './timeharbourapp/stubs/capacitor-native-biometric.js',
+    },
   },
   // Prevent webpack from walking up to the monorepo root's node_modules
   // when resolving CSS/PostCSS deps (e.g. tailwindcss). Without this,
   // enhanced-resolve finds /TimeharborApp/package.json and fails to locate
   // tailwindcss there, causing noisy errors on every CSS compile.
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve.modules = [
       path.join(__dirname, 'node_modules'),
       'node_modules',
     ];
+    // Capacitor-only native plugins aren't installed for web builds.
+    // Mark them as external so webpack doesn't try to resolve them.
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        '@capacitor-community/secure-storage-plugin': false,
+      };
+    } else {
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : []),
+        '@capacitor-community/secure-storage-plugin',
+      ];
+    }
     return config;
   },
 };

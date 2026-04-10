@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, type DexieWorkSession, type SessionAttachment } from '../db';
 import { computeSession } from '@timeharbor/time-engine';
 import { operationsLog } from '../OperationsLog';
+import { opLogWriter } from '../sync/OpLogWriter';
 
 export interface ClockOutOptions {
   comment?: string;
@@ -36,8 +37,6 @@ export class SessionManager {
     const session: DexieWorkSession = {
       id: uuidv4(),
       clientSessionId: uuidv4(),
-      _dirty: 1,
-      _rev: 1,
       userId,
       date: dateStr,
       clockIn: now,
@@ -55,6 +54,7 @@ export class SessionManager {
 
     try {
       await db.workSessions.add(session);
+      await opLogWriter.recordCreate('workSessions', session.id, session as unknown as Record<string, unknown>);
       await operationsLog.log({ category: 'SESSION', action: 'CLOCK_IN', result: 'success', target: 'WorkSession', targetId: session.id });
       return session;
     } catch (err: any) {
@@ -251,11 +251,22 @@ export class SessionManager {
     session.totalBreakMs = stats.totalBreakMs;
     session.netWorkMs = stats.netWorkMs;
     session.ticketBreakdown = stats.ticketBreakdown;
-    session._dirty = 1;
-    session._rev += 1;
     session.updatedAt = now;
 
     await db.workSessions.put(session);
+    await opLogWriter.recordUpdate('workSessions', session.id, {
+      ticketSegments: session.ticketSegments,
+      breaks: session.breaks,
+      clockOut: session.clockOut,
+      totalSessionMs: session.totalSessionMs,
+      totalBreakMs: session.totalBreakMs,
+      netWorkMs: session.netWorkMs,
+      ticketBreakdown: session.ticketBreakdown,
+      comment: session.comment,
+      links: session.links,
+      attachments: session.attachments,
+      updatedAt: session.updatedAt,
+    });
     return session;
   }
 }

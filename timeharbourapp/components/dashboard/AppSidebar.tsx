@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import {
   Sidebar,
   SidebarHeader,
@@ -24,16 +25,17 @@ import {
   NotebookPen,
   Settings,
   HelpCircle,
-  LogOut,
   Trash2,
   UserPen,
   ScrollText,
   MessageSquarePlus,
   Bug,
+  Share2,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { auth } from '@/TimeharborAPI';
 import { clearDatabase } from '@/TimeharborAPI/db';
+import { getProfile } from '@/TimeharborAPI/profile';
+import ShareMyLinkModal from '@/components/ShareMyLinkModal';
 
 const NAV_SECTIONS = [
   {
@@ -57,6 +59,7 @@ const NAV_SECTIONS = [
     label: 'Social',
     items: [
       { label: 'Pulse', icon: Activity, href: '/dashboard/pulse' },
+      { label: 'Share My Link', icon: Share2, href: '#share', action: 'share' },
     ],
   },
   {
@@ -76,6 +79,17 @@ export default function AppSidebar() {
   const router = useRouter();
   const { user } = useAuth();
   const { closeMobile, isCollapsed } = useSidebar();
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+
+  // Load profile from Dexie on mount
+  useEffect(() => {
+    getProfile().then((p) => {
+      if (p?.displayName) setProfileName(p.displayName);
+      if (p?.avatarBase64) setProfileAvatar(p.avatarBase64);
+    }).catch(() => {});
+  }, []);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';
@@ -83,12 +97,13 @@ export default function AppSidebar() {
   };
 
   const getInitials = () => {
-    if (!user?.full_name) return user?.email?.charAt(0).toUpperCase() || 'U';
-    const parts = user.full_name.split(' ');
+    const name = profileName || user?.full_name;
+    if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
+    const parts = name.split(' ');
     if (parts.length >= 2) {
       return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }
-    return user.full_name.substring(0, 2).toUpperCase();
+    return name.substring(0, 2).toUpperCase();
   };
 
   const handleNavClick = (href: string) => {
@@ -104,7 +119,11 @@ export default function AppSidebar() {
       const preserved: Record<string, string> = {};
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.includes('auth') || key.includes('supabase') || key.includes('token'))) {
+        if (key && (
+          key.includes('auth') || key.includes('supabase') || key.includes('token')
+          || key.startsWith('th_identity_') || key === 'th_first_share_done'
+          || key === 'th_userid_migrated'
+        )) {
           preserved[key] = localStorage.getItem(key) || '';
         }
       }
@@ -119,6 +138,7 @@ export default function AppSidebar() {
   };
 
   return (
+    <>
     <Sidebar className="lg:sticky lg:top-0 z-50 pt-12 lg:pt-0">
       <SidebarToggle position="floating" />
       <SidebarHeader>
@@ -145,7 +165,9 @@ export default function AppSidebar() {
         >
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white font-semibold text-sm overflow-hidden">
-              {user?.image ? (
+              {profileAvatar ? (
+                <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" />
+              ) : user?.image ? (
                 <img src={resolveBackendAsset(user.image)} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 getInitials()
@@ -154,7 +176,7 @@ export default function AppSidebar() {
             {!isCollapsed && (
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-foreground truncate">
-                  {user?.full_name || 'User'}
+                  {profileName || user?.full_name || 'User'}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
                   Personal workspace
@@ -173,12 +195,15 @@ export default function AppSidebar() {
             <SidebarNavGroup key={section.label} label={section.label} defaultExpanded>
               {section.items.map((item) => (
                 <SidebarNavItem
-                  key={item.href}
+                  key={'action' in item ? item.label : item.href}
                   label={item.label}
                   icon={<item.icon className="w-5 h-5" />}
-                  isActive={'external' in item ? false : isActive(item.href)}
+                  isActive={'external' in item || 'action' in item ? false : isActive(item.href)}
                   onClick={() => {
-                    if ('external' in item) {
+                    if ('action' in item && item.action === 'share') {
+                      closeMobile();
+                      setShowShareModal(true);
+                    } else if ('external' in item) {
                       window.open(item.href, '_blank', 'noopener,noreferrer');
                     } else {
                       handleNavClick(item.href);
@@ -197,12 +222,6 @@ export default function AppSidebar() {
           icon={<Trash2 className="w-5 h-5" />}
           onClick={handleClearCache}
         />
-        <SidebarNavItem
-          label="Sign Out"
-          icon={<LogOut className="w-5 h-5" />}
-          onClick={() => auth.signOut()}
-          className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-        />
         {!isCollapsed && (
           <div className="flex items-center justify-center px-2 mt-2">
             <span className="text-xs text-muted-foreground">
@@ -212,5 +231,8 @@ export default function AppSidebar() {
         )}
       </SidebarFooter>
     </Sidebar>
+    <ShareMyLinkModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} />
+    </>
   );
 }
+

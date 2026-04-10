@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { db, type DexieOperationLog } from './db';
-import { getStoredUser } from './auth';
+import { getIdentityUUID } from './sync/IdentityManager';
+import { opLogWriter } from './sync/OpLogWriter';
 
 export type OperationCategory =
   | 'SESSION'
@@ -77,12 +78,9 @@ export interface OperationLogEntry {
 class OperationsLog {
   async log(entry: OperationLogEntry): Promise<void> {
     try {
-      const user = await getStoredUser();
       const record: DexieOperationLog = {
         id: uuidv4(),
-        _dirty: 1,
-        _rev: 1,
-        userId: user?.id || '',
+        userId: getIdentityUUID(),
         category: entry.category,
         action: entry.action,
         result: entry.result,
@@ -93,6 +91,8 @@ class OperationsLog {
         timestamp: new Date().toISOString(),
       };
       await db.operationLogs.add(record);
+      // Do NOT record op-log entries for operation logs themselves
+      // to avoid infinite recursion
     } catch (err) {
       // Never let logging itself crash the app
       console.warn('OperationsLog: failed to persist entry', err);

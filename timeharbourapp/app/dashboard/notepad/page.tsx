@@ -19,8 +19,9 @@ import {
 } from '@mieweb/ui';
 import { Modal } from '@/components/ui/Modal';
 import { db, type DexieNote } from '@/TimeharborAPI/db';
-import { getStoredUser } from '@/TimeharborAPI/auth';
+import { getIdentityUUID } from '@/TimeharborAPI/sync/IdentityManager';
 import { operationsLog } from '@/TimeharborAPI/OperationsLog';
+import { opLogWriter } from '@/TimeharborAPI/sync/OpLogWriter';
 import './notepad.scss';
 
 const NoteEditor = dynamic(
@@ -45,8 +46,6 @@ async function migrateFromLocalStorage(userId: string) {
           userId,
           title: note.title,
           content: note.content,
-          _dirty: 1,
-          _rev: 1,
           _deleted: false,
           createdAt: note.updatedAt,
           updatedAt: note.updatedAt,
@@ -71,12 +70,12 @@ export default function NotepadPage() {
   useEffect(() => {
     let cancelled = false;
     const loadNotes = async () => {
-      const user = await getStoredUser();
-      if (!user?.id || cancelled) return;
-      await migrateFromLocalStorage(user.id);
+      const userId = getIdentityUUID();
+      if (!userId || cancelled) return;
+      await migrateFromLocalStorage(userId);
       const loaded = await db.notes
         .where('userId')
-        .equals(user.id)
+        .equals(userId)
         .filter(n => !n._deleted)
         .toArray();
       loaded.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -118,19 +117,17 @@ export default function NotepadPage() {
   }, [notifyHeader]);
 
   const createNote = async () => {
-    const user = await getStoredUser();
     const newNote: DexieNote = {
       id: crypto.randomUUID(),
-      userId: user?.id || '',
+      userId: getIdentityUUID(),
       title: 'Untitled',
       content: '',
-      _dirty: 1,
-      _rev: 1,
       _deleted: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     await db.notes.put(newNote);
+    await opLogWriter.recordCreate('notes', newNote.id, newNote as unknown as Record<string, unknown>);
     await operationsLog.log({ category: 'NOTE', action: 'CREATE', result: 'success', target: 'Note', targetId: newNote.id, details: { title: newNote.title } });
     setNotes((prev) => [newNote, ...prev]);
     setActiveNoteId(newNote.id);
@@ -143,11 +140,12 @@ export default function NotepadPage() {
       const now = new Date().toISOString();
       setNotes((prev) =>
         prev.map((n) =>
-          n.id === activeNoteId ? { ...n, content, updatedAt: now, _dirty: 1 } : n
+          n.id === activeNoteId ? { ...n, content, updatedAt: now } : n
         )
       );
       if (activeNoteId) {
-        db.notes.update(activeNoteId, { content, updatedAt: now, _dirty: 1 });
+        db.notes.update(activeNoteId, { content, updatedAt: now });
+        opLogWriter.recordUpdate('notes', activeNoteId, { content, updatedAt: now });
       }
     },
     [activeNoteId]
@@ -158,11 +156,12 @@ export default function NotepadPage() {
       const now = new Date().toISOString();
       setNotes((prev) =>
         prev.map((n) =>
-          n.id === activeNoteId ? { ...n, title, updatedAt: now, _dirty: 1 } : n
+          n.id === activeNoteId ? { ...n, title, updatedAt: now } : n
         )
       );
       if (activeNoteId) {
-        db.notes.update(activeNoteId, { title, updatedAt: now, _dirty: 1 });
+        db.notes.update(activeNoteId, { title, updatedAt: now });
+        opLogWriter.recordUpdate('notes', activeNoteId, { title, updatedAt: now });
       }
       notifyHeader(true, title);
     },
@@ -173,13 +172,9 @@ export default function NotepadPage() {
     if (!noteToDelete) return;
     const deletedNote = notes.find((n) => n.id === noteToDelete);
     const now = new Date().toISOString();
-    if (deletedNote?._serverId) {
-      // Soft-delete for sync: flag so push can tell the server to hard-delete
-      await db.notes.update(noteToDelete, { _deleted: true, _dirty: 1, updatedAt: now });
-    } else {
-      // Never synced — just remove from IndexedDB
-      await db.notes.delete(noteToDelete);
-    }
+    // Always soft-delete — op-log sync handles propagation
+    await db.notes.update(noteToDelete, { _deleted: true, updatedAt: now });
+    await opLogWriter.recordDelete('notes', noteToDelete);
     await operationsLog.log({ category: 'NOTE', action: 'DELETE', result: 'success', target: 'Note', targetId: noteToDelete, details: { title: deletedNote?.title, contentPreview: deletedNote?.content?.slice(0, 200) } });
     const updated = notes.filter((n) => n.id !== noteToDelete);
     setNotes(updated);

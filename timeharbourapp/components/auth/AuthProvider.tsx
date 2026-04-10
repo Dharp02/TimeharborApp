@@ -148,7 +148,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (u) {
         console.log('[AuthProvider] session verified', { id: u.id });
         setUserAndCache(u);
-        auth.fetchProfile().catch(() => {});
+        // Load profile into Dexie userProfiles if not already seeded
+        import('@/TimeharborAPI/profile').then(async ({ getProfile, upsertProfile }) => {
+          const local = await getProfile();
+          if (!local) {
+            // First device bootstrap: fetch from server and seed Dexie
+            const { profile } = await auth.fetchProfile();
+            if (profile) {
+              await upsertProfile({
+                displayName: profile.displayName,
+                githubUrl: profile.githubUrl,
+                linkedinUrl: profile.linkedinUrl,
+                redmineUrl: profile.redmineUrl,
+              });
+            }
+          }
+        }).catch(() => {});
       } else if (!hasCached) {
         // Only clear if there was no cached user to begin with.
         // If the user had a cached session, keep them signed in —
@@ -208,6 +223,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setLoading(false);
           router.replace('/dashboard');
         }
+      } else if (url.startsWith('timeharbor://share')) {
+        // Deep link from QR scan: timeharbor://share?uuid=X&key=Y
+        try {
+          const parsed = new URL(url);
+          const uuid = parsed.searchParams.get('uuid');
+          const key = parsed.searchParams.get('key');
+          if (uuid && key) {
+            // Navigate to share page with params (Next.js handles the query)
+            router.push(`/share?uuid=${uuid}&key=${encodeURIComponent(key)}`);
+          } else if (uuid) {
+            router.push(`/share?uuid=${uuid}`);
+          }
+        } catch { /* invalid URL */ }
       }
     }).then((h) => { urlOpenHandle.current = h; });
 
@@ -243,16 +271,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (loading) return;
 
     const p = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
-    const isAuthPage = ['/login', '/signup', '/forgot-password', '/'].includes(p);
-    const isDashboard = p.startsWith('/dashboard');
+    const isAuthPage = ['/login', '/signup', '/forgot-password'].includes(p);
+    const isRoot = p === '/';
 
     console.log('[AuthProvider] routing', { user: !!user, path: p });
 
+    // Authenticated user on auth pages → redirect to dashboard
     if (user && isAuthPage) {
       router.replace('/dashboard');
-    } else if (!user && isDashboard) {
-      router.replace('/login');
     }
+    // Root → always go to dashboard (no auth gate)
+    if (isRoot) {
+      router.replace('/dashboard');
+    }
+    // Unauthenticated users can access /dashboard freely — no redirect to /login
   }, [user, loading, pathname, router]);
 
   return (

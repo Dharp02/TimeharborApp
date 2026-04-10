@@ -5,6 +5,7 @@ import { Activity } from '@/TimeharborAPI/dashboard';
 import { db, type DexieActivityLog } from '@/TimeharborAPI/db';
 import { useRefresh } from '../../contexts/RefreshContext';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { opLogWriter } from '@/TimeharborAPI/sync/OpLogWriter';
 
 interface ActivityLogContextType {
   activities: Activity[];
@@ -74,13 +75,13 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
     // Optimistic Update UI
     setActivities(prev => [newActivity, ...prev]);
 
-    // Persist to Dexie with sync fields
+    // Persist to Dexie
     const record: DexieActivityLog = {
       ...newActivity,
-      _dirty: 1,
-      _rev: 1,
     };
-    db.activityLogs.put(record).catch(e => console.error('Dexie put failed', e));
+    db.activityLogs.put(record)
+      .then(() => opLogWriter.recordCreate('activityLogs', id, record as unknown as Record<string, unknown>))
+      .catch(e => console.error('Dexie put failed', e));
     
     return id;
   };
@@ -90,8 +91,10 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
       activity.id === id ? { ...activity, ...updates } : activity
     ));
     
-    // Update Dexie with dirty flag
-    db.activityLogs.update(id, { ...updates, _dirty: 1 });
+    // Update Dexie
+    db.activityLogs.update(id, { ...updates })
+      .then(() => opLogWriter.recordUpdate('activityLogs', id, updates))
+      .catch(e => console.error('Dexie update failed', e));
   };
 
   const updateActiveSession = (endTime: string, duration: string) => {
@@ -104,8 +107,10 @@ export function ActivityLogProvider({ children }: { children: React.ReactNode })
           duration
         } as Activity;
         
-        // Update Dexie with dirty flag
-        db.activityLogs.put({ ...updated, _dirty: 1, _rev: ((updated as any)._rev || 0) + 1 } as DexieActivityLog);
+        // Update Dexie
+        db.activityLogs.put({ ...updated } as DexieActivityLog)
+          .then(() => opLogWriter.recordUpdate('activityLogs', updated.id, { status: 'Completed', endTime, duration }))
+          .catch(e => console.error('Dexie put failed', e));
          
         return updated;
       }

@@ -9,6 +9,7 @@ import { db } from '@/TimeharborAPI/db';
 import { useSession } from '@/TimeharborAPI/time/useSession';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { getIdentityUUID } from '@/TimeharborAPI/sync/IdentityManager';
 import { Modal } from '@/components/ui/Modal';
 import { useActivityLog } from './ActivityLogContext';
 import { formatDuration, formatDurationClock } from '@timeharbor/time-engine';
@@ -66,8 +67,11 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   const { addActivity, updateActivity, updateActiveSession } = useActivityLog();
   const router = useRouter();
 
+  // Use identity UUID (always available) with auth user.id as fallback
+  const userId = user?.id ?? getIdentityUUID();
+
   // Live session from Dexie via useSession hook (reactively updates every 1s)
-  const { currentSession, stats, isOpen, isOnBreak, activeTicketId } = useSession(user?.id);
+  const { currentSession, stats, isOpen, isOnBreak, activeTicketId } = useSession(userId);
 
   // Modals
   const [isSessionOptionsOpen, setIsSessionOptionsOpen] = useState(false);
@@ -158,7 +162,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleSession = useCallback(async () => {
-    if (!user?.id) return;
+    if (!userId) return;
 
     if (isSessionActive && currentSession) {
       // Open the Take a Break / Clock Out options modal
@@ -167,7 +171,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Clock In
-    await sessionManager.clockIn(user.id);
+    await sessionManager.clockIn(userId);
 
     addActivity({
       type: 'SESSION',
@@ -185,7 +189,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     // Prompt to pick a ticket
     setIsClockInPromptOpen(true);
     fetchClockInTickets();
-  }, [user?.id, isSessionActive, currentSession, addActivity]);
+  }, [userId, isSessionActive, currentSession, addActivity]);
 
   const takeBreak = useCallback(async () => {
     if (!currentSession) return;

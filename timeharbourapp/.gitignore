@@ -46,6 +46,9 @@ next-env.d.ts
 /playwright-report/
 /playwright/.cache/
 
+# Xcode / SPM build artifacts
+ios/App/CapApp-SPM/build/
+
 # Sensitive configuration files
 android/app/google-services.json
 ios/App/App/GoogleService-Info.plist

@@ -17,6 +17,7 @@ let package = Package(
         .package(name: "CapacitorClipboard", path: "../../../node_modules/@capacitor/clipboard"),
         .package(name: "CapacitorNetwork", path: "../../../node_modules/@capacitor/network"),
         .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
+        .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric"),
         .package(name: "CapgoCapacitorSocialLogin", path: "../../../node_modules/@capgo/capacitor-social-login")
     ],
     targets: [
@@ -30,6 +31,7 @@ let package = Package(
                 .product(name: "CapacitorClipboard", package: "CapacitorClipboard"),
                 .product(name: "CapacitorNetwork", package: "CapacitorNetwork"),
                 .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
+                .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric"),
                 .product(name: "CapgoCapacitorSocialLogin", package: "CapgoCapacitorSocialLogin")
             ]
         )

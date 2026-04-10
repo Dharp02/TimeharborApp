@@ -1,7 +1,8 @@
 import { db } from '../db';
 import { v4 as uuidv4 } from 'uuid';
-import { getStoredUser } from '../auth';
+import { getIdentityUUID } from '../sync/IdentityManager';
 import { operationsLog } from '../OperationsLog';
+import { opLogWriter } from '../sync/OpLogWriter';
 
 export interface Ticket {
   id: string;
@@ -76,8 +77,8 @@ const PERSONAL_TEAM_ID = '__personal__';
 
 export const createTicket = async (teamId: string, data: CreateTicketData): Promise<Ticket> => {
   await ensureSeeded();
-  const user = await getStoredUser();
   const now = new Date().toISOString();
+  const isTimehuddle = teamId !== PERSONAL_TEAM_ID;
   const ticket: any = {
     id: uuidv4(),
     title: data.title,
@@ -86,16 +87,16 @@ export const createTicket = async (teamId: string, data: CreateTicketData): Prom
     priority: data.priority || 'Medium',
     link: data.link,
     teamId,
-    createdBy: user?.id || 'admin-1',
+    createdBy: getIdentityUUID(),
     assignedTo: data.assignedTo,
     createdAt: now,
     updatedAt: now,
-    _dirty: 1,
-    _rev: 1,
+    source: isTimehuddle ? 'timehuddle' : 'personal',
     fieldTimestamps: { title: now, status: now, priority: now },
   };
   try {
     await db.tickets.put(ticket);
+    await opLogWriter.recordCreate('tickets', ticket.id, ticket, { syncEnabled: !isTimehuddle });
     await operationsLog.log({ category: 'TICKET', action: 'CREATE', result: 'success', target: 'Ticket', targetId: ticket.id, details: { title: data.title, teamId } });
     return ticket;
   } catch (err: any) {
@@ -116,6 +117,7 @@ export const getTickets = async (teamId: string, options?: { sort?: string; stat
 export const updateTicket = async (_teamId: string, ticketId: string, data: UpdateTicketData): Promise<Ticket> => {
   const existing = await db.tickets.get(ticketId) as any;
   if (!existing) throw new Error('Ticket not found');
+  const isTimehuddle = existing.source === 'timehuddle';
   const now = new Date().toISOString();
   const prevTs = existing.fieldTimestamps ?? {};
   const newTs = { ...prevTs };
@@ -126,12 +128,11 @@ export const updateTicket = async (_teamId: string, ticketId: string, data: Upda
     ...existing,
     ...data,
     updatedAt: now,
-    _dirty: 1,
-    _rev: (existing._rev ?? 0) + 1,
     fieldTimestamps: newTs,
   };
   try {
     await db.tickets.put(updated);
+    await opLogWriter.recordUpdate('tickets', ticketId, { ...data, updatedAt: now, fieldTimestamps: newTs }, { syncEnabled: !isTimehuddle });
     await operationsLog.log({ category: 'TICKET', action: 'UPDATE', result: 'success', target: 'Ticket', targetId: ticketId, details: { fields: Object.keys(data) } });
     return updated;
   } catch (err: any) {
@@ -141,18 +142,15 @@ export const updateTicket = async (_teamId: string, ticketId: string, data: Upda
 };
 
 export const deleteTicket = async (_teamId: string, ticketId: string): Promise<void> => {
-  const existing = await db.tickets.get(ticketId) as any;
   try {
-    if (existing?._serverId) {
-      await db.tickets.update(ticketId, {
-        _deleted: true,
-        _dirty: 1,
-        _rev: (existing._rev ?? 0) + 1,
-        updatedAt: new Date().toISOString(),
-      } as any);
-    } else {
-      await db.tickets.delete(ticketId);
-    }
+    const existing = await db.tickets.get(ticketId) as any;
+    const isTimehuddle = existing?.source === 'timehuddle';
+    // Always soft-delete — op-log sync handles propagation
+    await db.tickets.update(ticketId, {
+      _deleted: true,
+      updatedAt: new Date().toISOString(),
+    } as any);
+    await opLogWriter.recordDelete('tickets', ticketId, { syncEnabled: !isTimehuddle });
     await operationsLog.log({ category: 'TICKET', action: 'DELETE', result: 'success', target: 'Ticket', targetId: ticketId });
   } catch (err: any) {
     await operationsLog.log({ category: 'TICKET', action: 'DELETE', result: 'failure', target: 'Ticket', targetId: ticketId, errorMessage: err?.message });

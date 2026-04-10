@@ -5,21 +5,43 @@ import { Palette } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@mieweb/ui';
 import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
+import { db } from '@/TimeharborAPI/db';
+import { getIdentityUUID } from '@/TimeharborAPI/sync/IdentityManager';
 import BrandSwitcher from './BrandSwitcher';
 
 export default function ProfileAvatarMenu() {
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [avatarSrc, setAvatarSrc] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Load avatar from Dexie userProfiles (base64), fall back to user.image
+  useEffect(() => {
+    const uid = getIdentityUUID();
+    db.userProfiles?.get(uid).then((profile) => {
+      if (profile?.avatarBase64) {
+        setAvatarSrc(profile.avatarBase64);
+      } else if (profile?.displayName) {
+        setProfileName(profile.displayName);
+      }
+      if (!profile?.avatarBase64 && user?.image) {
+        setAvatarSrc(resolveBackendAsset(user.image) ?? null);
+      }
+    }).catch(() => {
+      if (user?.image) setAvatarSrc(resolveBackendAsset(user.image) ?? null);
+    });
+  }, [user?.id, user?.image]);
 
   // Get user initials
   const getInitials = () => {
-    if (!user?.full_name) return user?.email?.charAt(0).toUpperCase() || 'U';
-    const parts = user.full_name.split(' ');
+    const name = profileName || user?.full_name;
+    if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
+    const parts = name.split(' ');
     if (parts.length >= 2) {
       return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }
-    return user.full_name.substring(0, 2).toUpperCase();
+    return name.substring(0, 2).toUpperCase();
   };
 
   // Close menu when clicking outside
@@ -47,8 +69,8 @@ export default function ProfileAvatarMenu() {
         className="relative w-10 h-10 rounded-full bg-primary-600 dark:bg-primary-500 flex items-center justify-center text-white font-semibold text-sm hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors overflow-hidden !p-0"
         aria-label="Profile menu"
       >
-        {user?.image ? (
-          <img src={resolveBackendAsset(user.image)} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
+        {avatarSrc ? (
+          <img src={avatarSrc} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           getInitials()
         )}

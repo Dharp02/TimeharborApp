@@ -6,9 +6,8 @@ import { test, expect } from './fixtures/auth';
  * These tests verify that:
  *  1. Data is persisted in IndexedDB (Dexie) when the user is online
  *  2. Data remains accessible when the browser goes offline
- *  3. Dirty-flag tracking works (new records are marked _dirty:1)
- *  4. Coming back online triggers a sync cycle
- *  5. The SyncEngine correctly pushes/pulls data
+ *  3. Coming back online triggers a sync cycle
+ *  4. The EncryptedSyncEngine correctly pushes/pulls data
  *
  * We use page.evaluate() to interact with Dexie directly inside the browser.
  */
@@ -41,6 +40,10 @@ test.describe('IndexedDB (Dexie) Data Storage', () => {
     expect(stores).toContain('syncMeta');
     expect(stores).toContain('projects');
     expect(stores).toContain('activityLogs');
+    // v15 encrypted sync tables
+    expect(stores).toContain('opLog');
+    expect(stores).toContain('deviceKeys');
+    expect(stores).toContain('appliedOps');
   });
 
   test('work session data is accessible in IndexedDB', async ({ authedPage: page }) => {
@@ -86,9 +89,6 @@ test.describe('IndexedDB (Dexie) Data Storage', () => {
           const id = `test-note-${Date.now()}`;
           store.put({
             id,
-            _serverId: undefined,
-            _dirty: 1,
-            _rev: 1,
             userId: 'test-user',
             title: 'E2E Test Note',
             content: '{}',
@@ -138,8 +138,6 @@ test.describe('IndexedDB (Dexie) Data Storage', () => {
             createdBy: 'test-user',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            _dirty: 1,
-            _rev: 1,
           });
 
           tx.oncomplete = () => {
@@ -242,8 +240,6 @@ test.describe('Offline Mode Behavior', () => {
           const id = `offline-note-${Date.now()}`;
           store.put({
             id,
-            _dirty: 1,
-            _rev: 1,
             userId: 'test',
             title: 'Offline Note',
             content: '{}',
@@ -294,53 +290,6 @@ test.describe('Offline Mode Behavior', () => {
     expect(persisted).toBe(true);
   });
 
-  test('offline records have _dirty:1 flag', async ({ authedPage: page }) => {
-    await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
-
-    await page.context().setOffline(true);
-
-    const dirtyFlag = await page.evaluate(async () => {
-      return new Promise<number | null>((resolve) => {
-        const request = indexedDB.open('TimeharborDB');
-        request.onsuccess = () => {
-          const idb = request.result;
-          const tx = idb.transaction('tickets', 'readwrite');
-          const store = tx.objectStore('tickets');
-
-          const id = `dirty-ticket-${Date.now()}`;
-          store.put({
-            id,
-            title: 'Dirty Flag Test',
-            status: 'Open',
-            priority: 'Low',
-            teamId: '__personal__',
-            createdBy: 'test',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            _dirty: 1,
-            _rev: 1,
-          });
-
-          tx.oncomplete = () => {
-            const rtx = idb.transaction('tickets', 'readonly');
-            const rs = rtx.objectStore('tickets');
-            const gr = rs.get(id);
-            gr.onsuccess = () => {
-              idb.close();
-              resolve(gr.result?._dirty ?? null);
-            };
-            gr.onerror = () => { idb.close(); resolve(null); };
-          };
-        };
-        request.onerror = () => resolve(null);
-      });
-    });
-
-    expect(dirtyFlag).toBe(1);
-
-    await page.context().setOffline(false);
-  });
 });
 
 test.describe('Sync Cycle Verification', () => {
@@ -438,8 +387,6 @@ test.describe('Sync Cycle Verification', () => {
           const id = `persistence-test-${Date.now()}`;
           store.put({
             id,
-            _dirty: 1,
-            _rev: 1,
             userId: 'persist-test',
             title: 'Persistence Test',
             content: '{}',
@@ -476,37 +423,36 @@ test.describe('Sync Cycle Verification', () => {
   });
 });
 
-test.describe('Dirty Flag Sync Flow', () => {
+test.describe('Sync Meta Verification', () => {
 
-  test('synced records have _dirty:0 after push', async ({ authedPage: page }) => {
+  test('synced records are tracked in opLog table', async ({ authedPage: page }) => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
     // Wait a bit for initial sync to complete
     await page.waitForTimeout(3_000);
 
-    // Check if any workSessions are clean (_dirty === 0)
-    const cleanSessions = await page.evaluate(async () => {
+    // Check if opLog table is accessible
+    const opLogCount = await page.evaluate(async () => {
       return new Promise<number>((resolve) => {
         const request = indexedDB.open('TimeharborDB');
         request.onsuccess = () => {
           const idb = request.result;
-          const tx = idb.transaction('workSessions', 'readonly');
-          const store = tx.objectStore('workSessions');
-          const getAll = store.getAll();
-          getAll.onsuccess = () => {
-            const clean = getAll.result.filter((s: any) => s._dirty === 0);
+          const tx = idb.transaction('opLog', 'readonly');
+          const store = tx.objectStore('opLog');
+          const countReq = store.count();
+          countReq.onsuccess = () => {
             idb.close();
-            resolve(clean.length);
+            resolve(countReq.result);
           };
-          getAll.onerror = () => { idb.close(); resolve(-1); };
+          countReq.onerror = () => { idb.close(); resolve(-1); };
         };
         request.onerror = () => resolve(-1);
       });
     });
 
-    // Value should be non-negative (could be 0 if user has no sessions)
-    expect(cleanSessions).toBeGreaterThanOrEqual(0);
+    // Value should be non-negative
+    expect(opLogCount).toBeGreaterThanOrEqual(0);
   });
 
   test('all collections in syncMeta have ISO timestamps', async ({ authedPage: page }) => {

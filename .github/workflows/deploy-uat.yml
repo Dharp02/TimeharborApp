@@ -1,77 +1,85 @@
-name: Deploy to UAT
+name: Deploy Frontend
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'timeharbourapp/**'
+      - 'ecosystem.uat.config.js'
+      - 'ecosystem.config.js'
 
 jobs:
   deploy:
-    name: Deploy to UAT Server
+    name: Deploy Frontend - ${{ matrix.env }}
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    strategy:
+      matrix:
+        include:
+          - env: DEV
+            host_secret: DEV_FRONTEND_HOST
+            port: 2011
+            pm2_config: ecosystem.uat.config.js
+          - env: PROD
+            host_secret: PROD_FRONTEND_HOST
+            port: 2007
+            pm2_config: ecosystem.uat.config.js
 
+    steps:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.UAT_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p 2011 ${{ secrets.UAT_SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -p ${{ matrix.port }} ${{ secrets[matrix.host_secret] }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Deploy to UAT Server
+      - name: Deploy to ${{ matrix.env }}
         run: |
-          ssh -p 2011 \
+          ssh -p ${{ matrix.port }} \
               -i ~/.ssh/deploy_key \
               -o StrictHostKeyChecking=no \
-              ${{ secrets.UAT_SSH_USER }}@${{ secrets.UAT_SSH_HOST }} << 'EOF'
+              ${{ secrets.DEPLOY_SSH_USER }}@${{ secrets[matrix.host_secret] }} << 'EOF'
             set -e
-            
-            echo "📦 Navigating to project directory..."
+
             cd /home/pdharamkar/TimeharborApp
-            
-            echo "🔄 Pulling latest code from main..."
-            git pull origin main
-            
+
+            echo "� Stashing local changes..."
+            STASHED=false
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+              git stash push -m "deploy-auto-stash"
+              STASHED=true
+            fi
+
             echo "🛑 Stopping PM2 services..."
-            sudo pm2 stop ecosystem.uat.config.js || true
-            
-            echo "⚙️  Installing dependencies for timeharbor-timehuddle-backend..."
-            cd timeharbor-timehuddle-backend
-            sudo npm install
-            
-            echo "🏗️  Building Fastify backend..."
-            cd apps/api
-            sudo npm run build
-            cd ../..
-            cd ..
-            
-            echo "⚙️  Installing dependencies for timeharbor-proxy..."
-            cd timeharbor-proxy
-            sudo npm install --production
-            cd ..
-            
+            sudo pm2 stop all || true
+
+            echo "🔄 Fetching and pulling latest code from main..."
+            git fetch origin
+            git pull origin main
+            git submodule update --init --recursive
+
             echo "⚙️  Installing dependencies for timeharbourapp..."
             cd timeharbourapp
             sudo npm install
-            
+
             echo "🏗️  Building Next.js frontend..."
             sudo npm run build
+
+            echo "🚀 Restarting PM2 frontend on port 80..."
+            sudo pm2 restart timeharbor-frontend --update-env 2>/dev/null || \
+              sudo pm2 start node_modules/.bin/next --name timeharbor-frontend -- start -p 80 -H 0.0.0.0
+            sudo pm2 save
             cd ..
-            
-            echo " Starting PM2 services..."
-            sudo pm2 start ecosystem.uat.config.js --update-env
-            
-            echo "✅ Deployment completed successfully!"
+
+            if [ "$STASHED" = true ]; then
+              echo "📦 Restoring stashed changes..."
+              git stash pop || echo "⚠️  Stash pop had conflicts, manual resolution needed"
+            fi
+
+            echo "✅ ${{ matrix.env }} deployment completed!"
             sudo pm2 status
           EOF
 
       - name: Deployment Status
-        if: success()
-        run: echo "✅ Successfully deployed to UAT!"
-
-      - name: Deployment Failed
         if: failure()
-        run: echo "❌ Deployment failed! Check the logs above."
+        run: echo "❌ ${{ matrix.env }} deployment failed!"
