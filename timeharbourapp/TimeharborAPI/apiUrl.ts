@@ -39,14 +39,17 @@ export function getBackendOrigin(): string {
 }
 
 /**
- * Resolves a backend asset path to an absolute URL.
- * If the path is already absolute (starts with http), returns it as-is.
- * If relative (e.g. /uploads/avatars/…), prepends the backend origin.
+ * Resolves a backend asset path to a usable URL.
+ *
+ * Relative paths like /uploads/avatars/… are returned as-is so the
+ * Next.js rewrite proxy handles routing them to the backend.
+ * Absolute URLs and data: URIs pass through unchanged.
  */
 export function resolveBackendAsset(path: string | undefined | null): string | undefined {
   if (!path) return undefined;
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
     return path;
   }
-  return `${getBackendOrigin()}${path.startsWith('/') ? '' : '/'}${path}`;
+  // Return relative path — Next.js rewrites /uploads/* to the backend
+  return path.startsWith('/') ? path : `/${path}`;
 }

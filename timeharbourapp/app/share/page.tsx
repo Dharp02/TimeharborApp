@@ -112,6 +112,11 @@ function SharePageContent() {
 
       // Pull all data (including our own since we're restoring)
       const pulled = await pullOpLog(syncKey, { includeOwn: true });
+
+      // Clear sender's profile so the recipient starts fresh.
+      // Session sharing syncs work data, not personal profile info.
+      await db.userProfiles.clear();
+
       setPulledCount(pulled);
       setSyncing(false);
       setSyncComplete(true);
