@@ -41,6 +41,10 @@ export default function Dashboard() {
         <span className="text-xs font-medium text-[var(--mieweb-primary-500)] border border-[var(--mieweb-primary-500)]/50 rounded-full px-3 py-1">via Timehuddle</span>
       </div>
       <StoriesBar />
+
+      <div className="px-4 py-2 rounded-lg bg-[var(--mieweb-primary-500)]/10 border border-[var(--mieweb-primary-500)]/30 text-center text-sm font-medium text-[var(--mieweb-primary-500)] mt-2">
+        hi — deploy test
+      </div>
       
       <div className="space-y-3 md:space-y-6 pb-20 md:pb-0 mt-2 md:mt-3">
         <DashboardSummary />
