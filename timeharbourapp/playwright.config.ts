@@ -2,24 +2,35 @@ import { defineConfig, devices } from '@playwright/test';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load environment variables from .env.local
 dotenv.config({ path: path.resolve(__dirname, '.env.local') });
 
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000';
+
 export default defineConfig({
-  testDir: './tests',
+  testDir: './tests/e2e',
+  outputDir: './test-results',
+
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
+
   reporter: [
-    ['html'],
-    ['list']
+    ['list'],
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
   ],
-  
+
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    actionTimeout: 10_000,
+    navigationTimeout: 15_000,
+  },
+
+  expect: {
+    timeout: 10_000,
   },
 
   projects: [
@@ -31,12 +42,16 @@ export default defineConfig({
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
     },
+    {
+      name: 'mobile-chrome',
+      use: { ...devices['Pixel 7'] },
+    },
   ],
 
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3000',
+    url: BASE_URL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
+    timeout: 120_000,
   },
 });
