@@ -334,9 +334,31 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setStopTicketFiles([]);
   };
 
-  const handleClockInTicketSelect = (ticketId: string, ticketTitle: string) => {
+  const handleClockInTicketSelect = async (ticketId: string, ticketTitle: string) => {
     setIsClockInPromptOpen(false);
-    toggleTicketTimer(ticketId, ticketTitle);
+
+    // The session was just created by toggleSession; React state (currentSession)
+    // may not have updated yet.  Read the open session straight from Dexie so
+    // we don't silently bail out inside toggleTicketTimer's guard.
+    let session = currentSession;
+    if (!session) {
+      const allSessions = await db.workSessions.toArray();
+      session = allSessions
+        .filter(s => s.clockOut === null)
+        .sort((a, b) => b.clockIn - a.clockIn)[0] ?? null;
+    }
+    if (!session) return;
+
+    await sessionManager.startTicket(session.id, ticketId, ticketTitle);
+
+    addActivity({
+      type: 'SESSION',
+      title: 'Started Ticket',
+      subtitle: ticketTitle,
+      status: 'Active',
+      duration: '0m',
+      startTime: new Date().toISOString(),
+    });
   };
 
   const dismissClockInPrompt = () => {

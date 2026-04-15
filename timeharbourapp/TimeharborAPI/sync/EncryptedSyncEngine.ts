@@ -18,24 +18,45 @@ import type { OpLogEntry, EncryptedPayload } from './types';
 
 // ── Shared fetch helper (same pattern as existing SyncEngine) ───
 
+/** Maximum retries for transient network errors (e.g. backend restart). */
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1500;
+
 async function apiRequest(path: string, options: RequestInit = {}) {
   const base = getApiUrl().replace(/\/api\/?$/, '');
   const url = `${base}/api/timeharbor${path}`;
   const identityUUID = getIdentityUUID();
-  const res = await fetch(url, {
-    ...options,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-App-Id': 'timeharbor',
-      'X-Identity-UUID': identityUUID,
-      ...options.headers,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`EncryptedSyncEngine: ${res.status} ${res.statusText} — ${path}`);
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url, {
+        ...options,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-App-Id': 'timeharbor',
+          'X-Identity-UUID': identityUUID,
+          ...options.headers,
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`EncryptedSyncEngine: ${res.status} ${res.statusText} — ${path}`);
+      }
+      return res.json();
+    } catch (err: unknown) {
+      lastError = err;
+      // Retry only on network-level failures (TypeError from fetch),
+      // not on HTTP errors (Error thrown above).
+      const isNetworkError = err instanceof TypeError;
+      if (!isNetworkError || attempt === MAX_RETRIES) throw err;
+      console.warn(
+        `[sync] network error on ${path}, retrying (${attempt + 1}/${MAX_RETRIES})…`,
+      );
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+    }
   }
-  return res.json();
+  throw lastError;
 }
 
 // ── Constants ───────────────────────────────────────────────

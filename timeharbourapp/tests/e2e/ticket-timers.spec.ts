@@ -215,6 +215,23 @@ async function goOnline(cdp: import('playwright-core').CDPSession) {
 
 // ─── UI helpers ─────────────────────────────────────────────
 
+/** Wait for migration/encryption overlays to finish before interacting. */
+async function waitForAppReady(page: import('@playwright/test').Page) {
+  // Dismiss any "Migrating data to encrypted sync…" / "Migration complete" toasts
+  // by waiting for z-50 overlay to disappear
+  const overlay = page.locator('.fixed.inset-0.z-50');
+  // First wait briefly for any overlay to appear
+  await page.waitForTimeout(1_000);
+  // Then wait for it to disappear (if it appeared)
+  await overlay.waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
+  // Also dismiss any toast dismiss buttons
+  const dismissButtons = page.locator('[role="alert"] button[aria-label="Dismiss notification"]');
+  const count = await dismissButtons.count();
+  for (let i = 0; i < count; i++) {
+    await dismissButtons.nth(i).click().catch(() => {});
+  }
+}
+
 /** Click the central BottomNav clock button. */
 async function clickClockButton(page: import('@playwright/test').Page) {
   const btn = page.locator('.fixed.bottom-0 .relative.-top-5 button');
@@ -235,17 +252,49 @@ async function clockIn(page: import('@playwright/test').Page) {
 
   if (winner === 'skip') {
     await skipBtn.click();
+    // Wait for modal to finish closing
+    await page.waitForTimeout(500);
   }
 
-  await page.waitForTimeout(500);
+  // Double-check: dismiss again if the prompt reappeared
   if (await skipBtn.isVisible()) {
     await skipBtn.click();
+    await page.waitForTimeout(500);
   }
 
   // Wait for any modal overlay to disappear
   await page.locator('.fixed.inset-0.z-50').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
 
   await expect(clockOutLabel).toBeVisible({ timeout: 10_000 });
+}
+
+/**
+ * Clock in AND start a ticket timer via the "What are you working on?" modal.
+ * Clicks the ticket button in the modal instead of skipping.
+ */
+async function clockInAndStartTicket(page: import('@playwright/test').Page, ticketTitle: string) {
+  await clickClockButton(page);
+
+  // Wait for the clock-in prompt dialog to appear
+  const dialog = page.getByRole('dialog', { name: /What are you working on/ });
+  await dialog.waitFor({ state: 'visible', timeout: 10_000 });
+
+  // Click the ticket button WITHIN the dialog to start the timer
+  const ticketBtn = dialog.getByRole('button', { name: `Start timer for ${ticketTitle}` });
+  await expect(ticketBtn).toBeVisible({ timeout: 5_000 });
+  await ticketBtn.click();
+
+  // Wait for the dialog to close
+  await dialog.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+  await page.waitForTimeout(500);
+
+  // Verify we're clocked in
+  const clockOutLabel = page.getByText('Clock Out', { exact: true }).first();
+  await expect(clockOutLabel).toBeVisible({ timeout: 10_000 });
+
+  // Verify the ticket timer actually started (Stop button visible)
+  const ticketCard = page.locator('.space-y-2').filter({ has: page.getByText(ticketTitle, { exact: true }) }).first();
+  await expect(ticketCard.getByRole('button', { name: 'Stop' })).toBeVisible({ timeout: 10_000 });
 }
 
 /** Clock out via the modal option. */
@@ -263,12 +312,15 @@ async function clockOut(page: import('@playwright/test').Page) {
 async function createTicket(page: import('@playwright/test').Page, title: string, description = '') {
   await page.goto('/dashboard/tickets/create');
   await page.waitForLoadState('networkidle');
-  await page.getByPlaceholder('Enter ticket title').fill(title);
+  // Wait for the form to be interactive (handles dev-server compilation delay)
+  const titleInput = page.getByPlaceholder('Enter ticket title');
+  await expect(titleInput).toBeVisible({ timeout: 15_000 });
+  await titleInput.fill(title);
   if (description) {
     await page.getByPlaceholder('Add more details...').fill(description);
   }
   await page.getByRole('button', { name: 'Create Ticket' }).click();
-  await expect(page).toHaveURL(/\/dashboard\/tickets\/?$/, { timeout: 10_000 });
+  await expect(page).toHaveURL(/\/dashboard\/tickets\/?$/, { timeout: 15_000 });
   await page.waitForLoadState('networkidle');
 
   // Retrieve ticket id from IndexedDB
@@ -313,6 +365,11 @@ async function switchTicketTimer(page: import('@playwright/test').Page, newTicke
 
 test.describe('Ticket Timers — Online', () => {
 
+  // Each test creates tickets + navigates multiple pages; allow time for dev-server compilation.
+  test.beforeEach(() => {
+    test.setTimeout(60_000);
+  });
+
   test('start ticket timer → UI shows running timer + ticketSegment in IndexedDB', async ({ page }) => {
     const ticketTitle = `Timer Start ${Date.now()}`;
 
@@ -322,15 +379,10 @@ test.describe('Ticket Timers — Online', () => {
     // Navigate to dashboard (where My Tickets card shows)
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
-    // Clock in first (required before starting ticket timers)
-    await clockIn(page);
-
-    // Wait for ticket to appear in My Tickets section
-    await expect(page.getByText(ticketTitle).first()).toBeVisible({ timeout: 10_000 });
-
-    // Start the ticket timer
-    await startTicketTimer(page, ticketTitle);
+    // Clock in and start the ticket timer via the "What are you working on?" modal
+    await clockInAndStartTicket(page, ticketTitle);
 
     // UI should show "Stop" button and a running timer on the ticket
     const ticketCard = page.locator('.space-y-2').filter({ has: page.getByText(ticketTitle, { exact: true }) }).first();
@@ -367,12 +419,9 @@ test.describe('Ticket Timers — Online', () => {
     await createTicket(page, ticketTitle);
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
-    await clockIn(page);
-    await expect(page.getByText(ticketTitle).first()).toBeVisible({ timeout: 10_000 });
-
-    // Start ticket timer
-    await startTicketTimer(page, ticketTitle);
+    await clockInAndStartTicket(page, ticketTitle);
     await page.waitForTimeout(3_000); // Let some time accumulate
 
     // Get session id before stopping
@@ -438,13 +487,10 @@ test.describe('Ticket Timers — Online', () => {
 
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
-    await clockIn(page);
-    await expect(page.getByText(titleA).first()).toBeVisible({ timeout: 10_000 });
+    await clockInAndStartTicket(page, titleA);
     await expect(page.getByText(titleB).first()).toBeVisible({ timeout: 10_000 });
-
-    // Start timer on ticket A
-    await startTicketTimer(page, titleA);
     await page.waitForTimeout(3_000); // Accumulate time on A
 
     // Switch to ticket B (this stops A and starts B)
@@ -499,11 +545,8 @@ test.describe('Ticket Timers — Online', () => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
-    await clockIn(page);
-    await expect(page.getByText(ticketTitle).first()).toBeVisible({ timeout: 10_000 });
-
-    // Start and stop ticket timer
-    await startTicketTimer(page, ticketTitle);
+    await waitForAppReady(page);
+    await clockInAndStartTicket(page, ticketTitle);
     await page.waitForTimeout(2_000);
     await stopTicketTimer(page, ticketTitle);
 
@@ -539,12 +582,9 @@ test.describe('Ticket Timers — Online', () => {
     await createTicket(page, ticketTitle);
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
-    await clockIn(page);
-    await expect(page.getByText(ticketTitle).first()).toBeVisible({ timeout: 10_000 });
-
-    // Start ticket timer
-    await startTicketTimer(page, ticketTitle);
+    await clockInAndStartTicket(page, ticketTitle);
     await page.waitForTimeout(5_000); // Let time accumulate
 
     // Stop ticket and clock out to finalize the session
@@ -565,6 +605,10 @@ test.describe('Ticket Timers — Online', () => {
 
 test.describe('Ticket Timers — Offline', () => {
 
+  test.beforeEach(({ browserName }) => {
+    test.skip(browserName === 'webkit', 'CDP network emulation is not supported on WebKit');
+  });
+
   test('start + stop ticket timer offline → IndexedDB + opLog + operationLogs correct', async ({ page }) => {
     test.setTimeout(60_000);
 
@@ -576,8 +620,7 @@ test.describe('Ticket Timers — Offline', () => {
     // Navigate to dashboard and clock in while online
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
-    await clockIn(page);
-    await expect(page.getByText(ticketTitle).first()).toBeVisible({ timeout: 10_000 });
+    await clockInAndStartTicket(page, ticketTitle);
 
     // Get session id
     const openSession = await getOpenSession(page);
@@ -587,6 +630,9 @@ test.describe('Ticket Timers — Offline', () => {
     // Snapshot counts before going offline
     const opLogBefore = await getOpLogEntries(page);
     const countBefore = opLogBefore.length;
+
+    // Stop the running ticket timer before going offline (so we can re-start it offline)
+    await stopTicketTimer(page, ticketTitle);
 
     // Go offline
     const cdp = await goOffline(page);
@@ -660,18 +706,19 @@ test.describe('Ticket Timers — Offline', () => {
 
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
-    await clockIn(page);
-    await expect(page.getByText(titleA).first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(titleB).first()).toBeVisible({ timeout: 10_000 });
+    await clockInAndStartTicket(page, titleA);
 
     const openSession = await getOpenSession(page);
     expect(openSession).not.toBeNull();
     const sessionId = openSession!.id as string;
 
+    // Stop ticket A before going offline, so we can test offline switch
+    await stopTicketTimer(page, titleA);
+
     // Go offline
     const cdp = await goOffline(page);
 
-    // Start timer on ticket A
+    // Start timer on ticket A (offline)
     await startTicketTimer(page, titleA);
     await page.waitForTimeout(3_000);
 
@@ -727,12 +774,14 @@ test.describe('Ticket Timers — Offline', () => {
     await createTicket(page, ticketTitle);
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
-    await clockIn(page);
-    await expect(page.getByText(ticketTitle).first()).toBeVisible({ timeout: 10_000 });
+    await clockInAndStartTicket(page, ticketTitle);
 
     const openSession = await getOpenSession(page);
     expect(openSession).not.toBeNull();
     const sessionId = openSession!.id as string;
+
+    // Stop ticket before going offline so we can restart it offline
+    await stopTicketTimer(page, ticketTitle);
 
     // Go offline, start + stop ticket timer
     const cdp = await goOffline(page);
@@ -775,8 +824,10 @@ test.describe('Ticket Timers — Offline', () => {
     await createTicket(page, ticketTitle);
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
-    await clockIn(page);
-    await expect(page.getByText(ticketTitle).first()).toBeVisible({ timeout: 10_000 });
+    await clockInAndStartTicket(page, ticketTitle);
+
+    // Stop ticket before going offline so we can restart it offline
+    await stopTicketTimer(page, ticketTitle);
 
     // Go offline, run a ticket timer, clock out
     const cdp = await goOffline(page);

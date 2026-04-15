@@ -137,6 +137,10 @@ async function goOnline(cdp: import('playwright-core').CDPSession) {
 
 test.describe('Offline Tickets — IndexedDB-only CRUD & OpLog', () => {
 
+  test.beforeEach(({ browserName }) => {
+    test.skip(browserName === 'webkit', 'CDP network emulation is not supported on WebKit');
+  });
+
   test('create ticket offline → stored in IndexedDB with unsynced opLog entry', async ({ page }) => {
     // Navigate to create page online so JS bundles are loaded
     await page.goto('/dashboard/tickets/create');

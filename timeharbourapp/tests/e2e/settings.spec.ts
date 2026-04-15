@@ -189,7 +189,8 @@ test.describe('Settings — Share My Link', () => {
     expect(download.suggestedFilename()).toBe('timeharbor-sync-key.txt');
   });
 
-  test('share URL works offline — identity stays consistent', async ({ page }) => {
+  test('share URL works offline — identity stays consistent', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'CDP network emulation is not supported on WebKit');
     await goToSettings(page);
 
     // Capture identity before going offline
@@ -652,8 +653,21 @@ test.describe('Settings — Switch Profile E2E Flow', () => {
   test('share link from user A → switch profile on user B → opLogs exist', async ({ browser }) => {
     test.setTimeout(90_000);
 
+    const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000';
+    const sharedStorageState = {
+      cookies: [] as { name: string; value: string; domain: string; path: string }[],
+      origins: [
+        {
+          origin: BASE_URL,
+          localStorage: [
+            { name: 'th_walkthrough_completed', value: '1' },
+          ],
+        },
+      ],
+    };
+
     // ── User A: Open dashboard (no auth required) ──
-    const ctxA = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const ctxA = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: sharedStorageState });
     const pageA = await ctxA.newPage();
 
     await pageA.goto('/dashboard');
@@ -678,7 +692,7 @@ test.describe('Settings — Switch Profile E2E Flow', () => {
     await pageA.getByRole('button', { name: 'Done' }).click();
 
     // ── User B: Open dashboard in separate context (gets its own identity) ──
-    const ctxB = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const ctxB = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: sharedStorageState });
     const pageB = await ctxB.newPage();
 
     await pageB.goto('/dashboard');

@@ -490,6 +490,10 @@ test.describe('Profile — Online', () => {
 
 test.describe('Profile — Offline', () => {
 
+  test.beforeEach(({ browserName }) => {
+    test.skip(browserName === 'webkit', 'CDP network emulation is not supported on WebKit');
+  });
+
   test('edit profile offline → all data persisted in IndexedDB with opLog unsynced', async ({ page }) => {
     test.setTimeout(60_000);
 

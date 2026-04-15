@@ -211,6 +211,10 @@ async function clockOut(page: import('@playwright/test').Page) {
 
 test.describe('Offline Time Engine — Clock In / Clock Out', () => {
 
+  test.beforeEach(({ browserName }) => {
+    test.skip(browserName === 'webkit', 'CDP network emulation is not supported on WebKit');
+  });
+
   test('clock in offline → session in IndexedDB with CREATE opLog entry', async ({ page }) => {
     // Load dashboard online (JS bundles cached)
     await page.goto('/dashboard');

@@ -88,6 +88,14 @@ class SyncManager {
         // No key — prompt user for passphrase
         this.encryptionNeededListeners.forEach((l) => l());
       }
+    } catch (err) {
+      // Swallow transient network errors so they don't become unhandled
+      // rejections. The next sync cycle will retry automatically.
+      if (err instanceof TypeError) {
+        console.warn('[sync] network unavailable, will retry next cycle', err.message);
+      } else {
+        throw err;
+      }
     } finally {
       this.syncing = false;
     }

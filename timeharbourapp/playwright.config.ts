@@ -22,6 +22,7 @@ export default defineConfig({
 
   use: {
     baseURL: BASE_URL,
+    ignoreHTTPSErrors: true,
     // Suppress the walkthrough modal for all tests by default.
     // Walkthrough-specific tests clear this key via reopenWalkthrough().
     storageState: {
@@ -64,6 +65,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: BASE_URL,
+    ignoreHTTPSErrors: true,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
