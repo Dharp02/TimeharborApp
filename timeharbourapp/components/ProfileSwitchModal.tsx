@@ -522,7 +522,7 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
                 onClick={() => { setError(''); setView('new'); }}
                 className="w-full gap-2"
                 disabled={!canAddProfile()}
-                aria-label="Create a new profile"
+                aria-label="New Profile"
               >
                 <Plus className="w-4 h-4" />
                 New Profile
@@ -533,7 +533,7 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
                 onClick={() => { setError(''); setView('import'); }}
                 className="w-full gap-2"
                 disabled={!canAddProfile()}
-                aria-label="Import a profile with UUID and encryption key"
+                aria-label="Import Profile"
               >
                 <Download className="w-4 h-4" />
                 Import Profile

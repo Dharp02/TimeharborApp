@@ -48,11 +48,56 @@ TimeharborApp/
 - **Per-field conflict resolution** — HLC-based Last-Writer-Wins via op-log
 - **Shared calculation engine** — `@timeharbor/time-engine` runs identically on client and server
 - **Multi-device support** — each device creates separate session docs, deduped by UUID
+- **Multi-profile** — up to 5 named profiles per device, instant switch via saved credentials
 - **Push notifications** — FCM (Android) + APNs (iOS)
 - **OAuth** — Google, Apple, Facebook via Better Auth
 - **Biometric app lock** — native biometric authentication via Capacitor
 - **Dark mode** — Tailwind CSS dark theme
 - **Responsive** — mobile, tablet, desktop
+
+---
+
+## Multi-Profile Support
+
+Users can manage up to **5 named profiles** per device, switching between them from **Settings → Profiles**.
+
+### How It Works
+
+Each profile is a saved set of credentials (UUID + encryption key) stored in localStorage. Switching profiles clears the local Dexie database and re-pulls data from the server using the target profile's encryption key.
+
+| Action | What Happens |
+|--------|-------------|
+| **New Profile** | Generates fresh UUID + passphrase, clears local DB, starts with empty data |
+| **Import Profile** | Enter UUID + encryption key (or scan QR), pull and decrypt remote data |
+| **Switch** | Saves current profile, clears DB, restores target profile from server |
+| **Rename** | Updates the display name (stored locally) |
+| **Remove** | Deletes saved credentials (cannot remove active profile) |
+
+### Profile Registry
+
+Profiles are stored in `localStorage` under `th_saved_profiles` as a JSON array:
+
+```json
+[
+  {
+    "uuid": "95ba0fea-7b62-40f1-9ecf-ed7fcf48e8fa",
+    "passphrase": "base64-encoded-key",
+    "name": "Work",
+    "createdAt": "2026-04-15T10:00:00.000Z",
+    "lastUsedAt": "2026-04-15T14:30:00.000Z"
+  }
+]
+```
+
+The active profile is auto-registered on app init via `ensureCurrentProfileSaved()` in `SyncInitializer`.
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `TimeharborAPI/sync/ProfileRegistry.ts` | CRUD for saved profiles (max 5, localStorage-backed) |
+| `components/ProfileSwitchModal.tsx` | Modal UI — profile list, new profile, import profile |
+| `components/SyncInitializer.tsx` | Auto-registers active profile on launch |
 
 ---
 
@@ -493,6 +538,7 @@ Tests cover Chromium, WebKit, and Mobile Chrome (Pixel 7). See `playwright.confi
 tests/
 ├── e2e/              # Test specs (grouped by feature)
 │   ├── dashboard.spec.ts
+│   ├── multi-profile.spec.ts
 │   ├── offline-tickets.spec.ts
 │   ├── offline-time-engine.spec.ts
 │   ├── profile.spec.ts

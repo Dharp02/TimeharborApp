@@ -554,53 +554,42 @@ test.describe('Settings — Regenerate Key', () => {
 
 test.describe('Settings — Switch Profile', () => {
 
-  test('switch profile button opens modal with form and current UUID', async ({ page }) => {
+  test('switch profile button opens modal with profile list', async ({ page }) => {
     await goToSettings(page);
 
     // Click "Switch Profile"
     await page.getByRole('button', { name: 'Switch sync profile' }).click();
 
     // Modal should open with title
-    await expect(page.getByRole('heading', { name: 'Switch Profile' })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible({ timeout: 5_000 });
 
-    // Current UUID is displayed
-    await expect(page.getByText('Current UUID:')).toBeVisible();
+    // Active profile badge is shown
+    await expect(page.getByText('Active')).toBeVisible();
 
-    // Warning about clearing local data
-    await expect(
-      page.getByText('Switching profiles will clear all local data')
-    ).toBeVisible();
-
-    // UUID input field
-    const uuidInput = page.locator('#switch-uuid');
-    await expect(uuidInput).toBeVisible();
-
-    // Encryption key input field
-    const keyInput = page.locator('#switch-key');
-    await expect(keyInput).toBeVisible();
-
-    // Scan QR Code button
-    await expect(page.getByRole('button', { name: 'Scan QR Code' })).toBeVisible();
-
-    // Switch Profile submit button
-    await expect(page.getByRole('button', { name: 'Switch Profile' })).toBeVisible();
+    // New Profile and Import Profile buttons visible
+    await expect(page.getByRole('button', { name: 'New Profile' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Import Profile' })).toBeVisible();
   });
 
-  test('switch profile requires both UUID and encryption key', async ({ page }) => {
+  test('import profile requires both UUID and encryption key', async ({ page }) => {
     await goToSettings(page);
 
     await page.getByRole('button', { name: 'Switch sync profile' }).click();
-    await expect(page.getByRole('heading', { name: 'Switch Profile' })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible({ timeout: 5_000 });
+
+    // Navigate to Import view
+    await page.getByRole('button', { name: 'Import Profile' }).click();
+    await expect(page.getByRole('heading', { name: 'Import Profile' })).toBeVisible({ timeout: 5_000 });
 
     // Submit with empty fields
-    await page.getByRole('button', { name: 'Switch Profile' }).click();
+    await page.getByRole('button', { name: 'Import & Switch' }).click();
 
     // Should show error about UUID
     await expect(page.getByText('Please enter the UUID')).toBeVisible({ timeout: 5_000 });
 
     // Fill UUID only
     await page.locator('#switch-uuid').fill('12345678-1234-4123-8123-123456789abc');
-    await page.getByRole('button', { name: 'Switch Profile' }).click();
+    await page.getByRole('button', { name: 'Import & Switch' }).click();
 
     // Should show error about encryption key
     await expect(page.getByText('Please enter the encryption key')).toBeVisible({ timeout: 5_000 });
@@ -610,12 +599,16 @@ test.describe('Settings — Switch Profile', () => {
     await goToSettings(page);
 
     await page.getByRole('button', { name: 'Switch sync profile' }).click();
-    await expect(page.getByRole('heading', { name: 'Switch Profile' })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible({ timeout: 5_000 });
+
+    // Navigate to Import view
+    await page.getByRole('button', { name: 'Import Profile' }).click();
+    await expect(page.getByRole('heading', { name: 'Import Profile' })).toBeVisible({ timeout: 5_000 });
 
     // Enter invalid UUID format
     await page.locator('#switch-uuid').fill('not-a-valid-uuid');
     await page.locator('#switch-key').fill('test-passphrase');
-    await page.getByRole('button', { name: 'Switch Profile' }).click();
+    await page.getByRole('button', { name: 'Import & Switch' }).click();
 
     // Should show UUID format error
     await expect(page.getByText('Invalid UUID format')).toBeVisible({ timeout: 5_000 });
@@ -630,12 +623,16 @@ test.describe('Settings — Switch Profile', () => {
     const identity = await getIdentity(page);
 
     await page.getByRole('button', { name: 'Switch sync profile' }).click();
-    await expect(page.getByRole('heading', { name: 'Switch Profile' })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible({ timeout: 5_000 });
+
+    // Navigate to Import view
+    await page.getByRole('button', { name: 'Import Profile' }).click();
+    await expect(page.getByRole('heading', { name: 'Import Profile' })).toBeVisible({ timeout: 5_000 });
 
     // Enter our own UUID but with a wrong key
     await page.locator('#switch-uuid').fill(identity.uuid!);
     await page.locator('#switch-key').fill('wrong-encryption-key-value');
-    await page.getByRole('button', { name: 'Switch Profile' }).click();
+    await page.getByRole('button', { name: 'Import & Switch' }).click();
 
     // Should show verification error
     await expect(
@@ -706,12 +703,16 @@ test.describe('Settings — Switch Profile E2E Flow', () => {
     // ── Switch Profile on User B to User A's profile ──
     await goToSettings(pageB);
     await pageB.getByRole('button', { name: 'Switch sync profile' }).click();
-    await expect(pageB.getByRole('heading', { name: 'Switch Profile' })).toBeVisible({ timeout: 5_000 });
+    await expect(pageB.getByRole('heading', { name: 'Profiles' })).toBeVisible({ timeout: 5_000 });
+
+    // Navigate to Import view
+    await pageB.getByRole('button', { name: 'Import Profile' }).click();
+    await expect(pageB.getByRole('heading', { name: 'Import Profile' })).toBeVisible({ timeout: 5_000 });
 
     // Enter User A's UUID and passphrase
     await pageB.locator('#switch-uuid').fill(identityA.uuid!);
     await pageB.locator('#switch-key').fill(identityA.passphrase!);
-    await pageB.getByRole('button', { name: 'Switch Profile' }).click();
+    await pageB.getByRole('button', { name: 'Import & Switch' }).click();
 
     // Wait for sync completion
     await expect(
@@ -772,7 +773,7 @@ test.describe('Settings — Sync & Security Section', () => {
     // Regenerate Key
     await expect(page.getByRole('button', { name: 'Regenerate encryption key' })).toBeVisible();
 
-    // Switch Profile
+    // Switch Profile (opens Profiles modal)
     await expect(page.getByRole('button', { name: 'Switch sync profile' })).toBeVisible();
   });
 
