@@ -100,13 +100,6 @@ export default function LoginForm() {
           {isLoading ? 'Signing in...' : 'Sign In'}
         </Button>
 
-        <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-          Don't have an account?{' '}
-          <Link href="/signup" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">
-            Sign up
-          </Link>
-        </div>
-
         <div className="relative my-2">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-300 dark:border-gray-600" />

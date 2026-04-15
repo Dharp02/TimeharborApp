@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   UserRoundCog,
   Upload,
+  HelpCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -217,6 +218,31 @@ export default function SettingsPage() {
 
         {/* App Lock */}
         <AppLockToggle />
+      </div>
+
+      {/* ── Help Section ── */}
+      <div className="divide-y divide-border -mx-4">
+        <div className="px-6 py-3">
+          <SmallMuted className="text-xs uppercase tracking-wider font-semibold">Help</SmallMuted>
+        </div>
+
+        {/* Replay Walkthrough */}
+        <button
+          onClick={() => {
+            localStorage.removeItem('th_walkthrough_completed');
+            router.push('/dashboard');
+            // Dispatch after navigation so the dashboard page is visible
+            setTimeout(() => window.dispatchEvent(new Event('open-walkthrough')), 300);
+          }}
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
+          aria-label="Replay app walkthrough"
+        >
+          <div className="flex items-center gap-4">
+            <HelpCircle className="w-5 h-5 text-primary" />
+            <Text className="font-medium">Replay Walkthrough</Text>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </button>
       </div>
 
       {/* ── Team Section ── */}

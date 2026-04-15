@@ -1,0 +1,206 @@
+/* ── Walkthrough Spotlight Tour ── */
+
+.wt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none; // let clicks pass through to the backdrop/tooltip only
+}
+
+/* Full-screen dark layer — used when no element is spotlighted. */
+.wt-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+/* Transparent click catcher behind the tooltip when spotlight is active.
+   Clicking anywhere outside the tooltip dismisses the walkthrough. */
+.wt-backdrop-click {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+  z-index: 9999;
+}
+
+/* ── Tooltip card ── */
+
+.wt-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: auto;
+  background: var(--mieweb-card, #fff);
+  border: 1px solid var(--mieweb-border, #e5e7eb);
+  border-radius: 1rem;
+  padding: 1rem 1.25rem 1rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  animation: wt-pop-in 0.25s ease forwards;
+  width: max-content;
+
+  &--centered {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  &--anchored {
+    // Positioned inline via style
+  }
+}
+
+@keyframes wt-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+// Centered variant needs translate preserved
+.wt-tooltip--centered {
+  animation: wt-pop-in-center 0.25s ease forwards;
+}
+
+@keyframes wt-pop-in-center {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* ── Progress ── */
+
+.wt-progress-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--mieweb-border, #e5e7eb);
+  overflow: hidden;
+}
+
+.wt-progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--mieweb-primary-500, #6366f1);
+  transition: width 0.3s ease;
+}
+
+/* ── Counter ── */
+
+.wt-counter {
+  font-size: 0.75rem;
+  color: var(--mieweb-muted-foreground, #9ca3af);
+  text-align: center;
+  margin: 0;
+}
+
+/* ── Content ── */
+
+.wt-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.wt-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 1.25rem;
+  background: var(--mieweb-card, #f9fafb);
+  border: 1px solid var(--mieweb-border, #e5e7eb);
+  flex-shrink: 0;
+}
+
+.wt-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--mieweb-foreground, #111827);
+  line-height: 1.3;
+  margin: 0;
+}
+
+.wt-description {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--mieweb-muted-foreground, #6b7280);
+  margin: 0;
+}
+
+/* ── Tip ── */
+
+.wt-tip {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--mieweb-primary-50, #eef2ff);
+  color: var(--mieweb-primary-700, #4338ca);
+  text-align: left;
+  width: 100%;
+}
+
+.wt-tip-label {
+  font-weight: 600;
+}
+
+/* ── Dots ── */
+
+.wt-dots {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 0.125rem 0;
+}
+
+.wt-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: var(--mieweb-border, #d1d5db);
+  transition: background 0.2s ease, transform 0.2s ease;
+
+  &--active {
+    background: var(--mieweb-primary-500, #6366f1);
+    transform: scale(1.35);
+  }
+
+  &:hover:not(&--active) {
+    background: var(--mieweb-muted-foreground, #9ca3af);
+  }
+}
+
+/* ── Actions ── */
+
+.wt-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
+
+.wt-skip-btn {
+  color: var(--mieweb-muted-foreground, #9ca3af) !important;
+  font-size: 0.83rem !important;
+}

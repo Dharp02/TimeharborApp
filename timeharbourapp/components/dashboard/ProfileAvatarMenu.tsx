@@ -68,6 +68,7 @@ export default function ProfileAvatarMenu() {
         onClick={() => setIsMenuOpen(!isMenuOpen)}
         className="relative w-10 h-10 rounded-full bg-primary-600 dark:bg-primary-500 flex items-center justify-center text-white font-semibold text-sm hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors overflow-hidden !p-0"
         aria-label="Profile menu"
+        data-walkthrough="profile-avatar"
       >
         {avatarSrc ? (
           <img src={avatarSrc} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />

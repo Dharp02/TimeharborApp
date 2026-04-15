@@ -50,7 +50,7 @@ export default function BottomNav() {
           }`}>Tickets</span>
         </Link>
 
-        <div className="relative -top-5">
+        <div className="relative -top-5" data-walkthrough="clock-in-fab">
           <Button 
             onClick={() => isOnBreak ? resumeFromBreak() : toggleSession()}
             className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-card ${

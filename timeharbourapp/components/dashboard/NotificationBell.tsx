@@ -12,6 +12,7 @@ export default function NotificationBell({ isMobile = false }) {
       href="/dashboard/notifications"
       className="p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors relative"
       aria-label="Notifications"
+      data-walkthrough="notification-bell"
     >
       <Bell className="w-5 h-5" />
       {unreadCount > 0 && (

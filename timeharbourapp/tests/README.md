@@ -17,9 +17,7 @@ tests/
 │   └── test-data.ts
 └── pages/            # Page Object Model classes
     ├── base.page.ts
-    ├── dashboard.page.ts
-    ├── login.page.ts
-    └── signup.page.ts
+    └── dashboard.page.ts
 ```
 
 ## Running Tests

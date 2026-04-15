@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import * as API from '@/TimeharborAPI';
 import { formatDurationMs } from '@/lib/formatDuration';
 import { useRefresh } from '@/contexts/RefreshContext';
+import { useWalkthroughActive } from '@/contexts/WalkthroughContext';
 
 interface DashboardStats {
   totalHoursToday: string;
@@ -19,10 +20,21 @@ const DEFAULT_STATS: DashboardStats = {
   totalMsWeek: 0,
 };
 
+const WALKTHROUGH_STATS: DashboardStats = {
+  totalHoursToday: '3h 24m',
+  totalHoursWeek: '18h 45m',
+  totalMsToday: 12_240_000,
+  totalMsWeek: 67_500_000,
+};
+
 export default function DashboardSummary() {
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
   const [loading, setLoading] = useState(true);
   const { register } = useRefresh();
+  const isWalkthrough = useWalkthroughActive();
+
+  // Show simulated data during walkthrough
+  const displayStats = isWalkthrough ? WALKTHROUGH_STATS : stats;
 
   const loadStats = useCallback(async () => {
     try {
@@ -54,7 +66,7 @@ export default function DashboardSummary() {
     };
   }, [loadStats, register]);
 
-  if (loading) {
+  if (loading && !isWalkthrough) {
     return (
       <div className="grid grid-cols-2 gap-3 md:gap-6 animate-pulse">
         {[...Array(2)].map((_, i) => (
@@ -65,14 +77,14 @@ export default function DashboardSummary() {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:gap-6">
+    <div className="grid grid-cols-2 gap-3 md:gap-6" data-walkthrough="dashboard-summary">
       <div className="p-3 md:p-6 bg-primary-50 dark:bg-primary-900/20 rounded-xl border border-primary-100 dark:border-primary-800 flex flex-col justify-between">
         <div>
           <h3 className="text-xs md:text-lg font-semibold text-primary-900 dark:text-primary-100 mb-1 md:mb-2 truncate">
             Total Hours
           </h3>
           <p className="text-lg md:text-3xl font-bold text-primary-600 dark:text-primary-400 truncate">
-            {stats.totalMsToday > 0 ? formatDurationMs(stats.totalMsToday) : stats.totalHoursToday}
+            {displayStats.totalMsToday > 0 ? formatDurationMs(displayStats.totalMsToday) : displayStats.totalHoursToday}
           </p>
         </div>
         <p className="text-[10px] md:text-sm text-primary-600/60 dark:text-primary-400/60 mt-1 truncate">Today</p>
@@ -84,7 +96,7 @@ export default function DashboardSummary() {
             This Week
           </h3>
           <p className="text-lg md:text-3xl font-bold text-primary-600 dark:text-primary-400 truncate">
-            {stats.totalMsWeek > 0 ? formatDurationMs(stats.totalMsWeek) : stats.totalHoursWeek}
+            {displayStats.totalMsWeek > 0 ? formatDurationMs(displayStats.totalMsWeek) : displayStats.totalHoursWeek}
           </p>
         </div>
         <p className="text-[10px] md:text-sm text-primary-600/60 dark:text-primary-400/60 mt-1 truncate">Total hours</p>

@@ -8,7 +8,7 @@ export default function DesktopFooter() {
   const { isSessionActive, isOnBreak, sessionDuration, sessionFormat, toggleSession, resumeFromBreak } = useClockIn();
 
   return (
-    <div className="hidden lg:flex fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 justify-center items-center z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+    <div className="hidden lg:flex fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 justify-center items-center z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]" data-walkthrough="desktop-clock-in">
       <div className="relative flex items-center gap-4">
         <Button
           onClick={() => isOnBreak ? resumeFromBreak() : toggleSession()}

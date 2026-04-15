@@ -6,7 +6,6 @@ export class LoginPage extends BasePage {
   readonly passwordInput: Locator;
   readonly signInButton: Locator;
   readonly forgotPasswordLink: Locator;
-  readonly signUpLink: Locator;
 
   constructor(page: Page) {
     super(page);
@@ -14,7 +13,6 @@ export class LoginPage extends BasePage {
     this.passwordInput = page.getByLabel('Password');
     this.signInButton = page.getByRole('button', { name: 'Sign In', exact: true });
     this.forgotPasswordLink = page.getByRole('link', { name: /forgot/i });
-    this.signUpLink = page.getByRole('link', { name: /sign up|create/i });
   }
 
   async navigate() {

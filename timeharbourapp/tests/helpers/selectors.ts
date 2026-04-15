@@ -4,12 +4,8 @@
  */
 
 export const AUTH = {
-  fullName: 'Full Name',
   email: 'Email',
   password: '#password',
-  confirmPassword: '#confirmPassword',
-  createAccount: 'Create Account',
-  signIn: 'Sign In',
   signOut: 'Sign Out',
 } as const;
 
@@ -23,4 +19,17 @@ export const NAV = {
   notifications: 'Notifications',
   activity: 'Activity',
   calendar: 'Calendar',
+} as const;
+
+export const WALKTHROUGH = {
+  overlay: '.wt-overlay',
+  tooltip: '.wt-tooltip',
+  title: '.wt-title',
+  counter: '.wt-counter',
+  nextBtn: '.wt-actions button:last-child',
+  backBtn: '.wt-actions button:first-child',
+  skipBtn: '.wt-skip-btn',
+  dot: '.wt-dot',
+  activeDot: '.wt-dot--active',
+  progressBar: '.wt-progress-bar',
 } as const;

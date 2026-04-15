@@ -9,25 +9,41 @@ type AuthFixtures = {
 /**
  * Extends the base Playwright test with an `authedPage` fixture.
  *
- * Each worker gets its own unique user created via the signup form.
+ * Each worker gets its own unique user created via the API.
  * The authenticated browser context is shared for the life of the fixture.
  */
 export const test = base.extend<AuthFixtures>({
   authedPage: [
-    async ({ browser }, use) => {
+    async ({ browser, baseURL }, use) => {
       const email = uniqueEmail('e2e-worker');
-      const ctx = await browser.newContext();
+
+      // Pre-set localStorage so the walkthrough modal never appears.
+      // storageState is applied at context creation — before any JS runs.
+      const ctx = await browser.newContext({
+        storageState: {
+          cookies: [],
+          origins: [
+            {
+              origin: baseURL!,
+              localStorage: [
+                { name: 'th_walkthrough_completed', value: '1' },
+              ],
+            },
+          ],
+        },
+      });
       const page = await ctx.newPage();
 
-      await page.goto('/signup');
-      await page.getByLabel('Full Name').fill('E2E Worker');
-      await page.getByLabel('Email').fill(email);
-      await page.locator('#password').fill(TEST_PASSWORD);
-      await page.locator('#confirmPassword').fill(TEST_PASSWORD);
-      await page.getByRole('button', { name: 'Create Account' }).click();
+      // Register a new user via the better-auth API endpoint
+      const res = await page.request.post(`${baseURL}/api/auth/sign-up/email`, {
+        data: { email, password: TEST_PASSWORD, name: 'E2E Worker' },
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect(res.ok(), `Signup API failed: ${res.status()}`).toBe(true);
 
+      // Navigate to dashboard — AuthProvider picks up the session cookie
+      await page.goto('/dashboard');
       await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
-      await page.waitForLoadState('networkidle');
 
       await use(page);
       await ctx.close();

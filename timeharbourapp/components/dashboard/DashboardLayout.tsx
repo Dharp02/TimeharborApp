@@ -22,6 +22,8 @@ import PullToRefresh from '@/components/ui/PullToRefresh';
 import { Button, SidebarProvider, SidebarMobileToggle } from '@mieweb/ui';
 import SyncInitializer from '@/components/SyncInitializer';
 import { BrandWatcher } from './BrandSwitcher';
+import WalkthroughModal, { useWalkthrough } from '@/components/WalkthroughModal';
+import { WalkthroughProvider } from '@/contexts/WalkthroughContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, initialSyncing } = useAuth();
@@ -105,6 +107,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
+  // ── Walkthrough ──
+  const [showWalkthrough, setShowWalkthrough] = useWalkthrough();
+
+  // Listen for manual trigger from Settings
+  useEffect(() => {
+    const handler = () => setShowWalkthrough(true);
+    window.addEventListener('open-walkthrough', handler);
+    return () => window.removeEventListener('open-walkthrough', handler);
+  }, [setShowWalkthrough]);
+
   // Scroll to top on route change
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -126,6 +138,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   return (
+    <WalkthroughProvider value={{ isActive: showWalkthrough }}>
     <ClockInProvider>
       <SidebarProvider>
         <SyncInitializer />
@@ -196,7 +209,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <BottomNav />
           </div>
         </div>
+
+        {/* First-time user walkthrough */}
+        <WalkthroughModal isOpen={showWalkthrough} onClose={() => setShowWalkthrough(false)} />
       </SidebarProvider>
     </ClockInProvider>
+    </WalkthroughProvider>
   );
 }

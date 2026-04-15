@@ -50,7 +50,7 @@ export default function ResetPasswordForm() {
     // Clear any existing session so the user logs in fresh as the
     // account whose password was just reset, not a previously cached one.
     await clearStoredSession();
-    setTimeout(() => router.push('/login'), 3000);
+    setTimeout(() => router.push('/dashboard'), 3000);
   };
 
   if (isSuccess) {
@@ -66,10 +66,10 @@ export default function ResetPasswordForm() {
           Your password has been reset. Redirecting you to sign in…
         </p>
         <Link
-          href="/login"
+          href="/dashboard"
           className="inline-block w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
         >
-          Go to Sign In
+          Go to Dashboard
         </Link>
       </div>
     );

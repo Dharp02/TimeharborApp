@@ -22,6 +22,19 @@ export default defineConfig({
 
   use: {
     baseURL: BASE_URL,
+    // Suppress the walkthrough modal for all tests by default.
+    // Walkthrough-specific tests clear this key via reopenWalkthrough().
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: BASE_URL,
+          localStorage: [
+            { name: 'th_walkthrough_completed', value: '1' },
+          ],
+        },
+      ],
+    },
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

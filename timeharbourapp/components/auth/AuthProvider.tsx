@@ -271,7 +271,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (loading) return;
 
     const p = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
-    const isAuthPage = ['/login', '/signup', '/forgot-password'].includes(p);
+    const isAuthPage = ['/forgot-password'].includes(p);
     const isRoot = p === '/';
 
     console.log('[AuthProvider] routing', { user: !!user, path: p });
@@ -284,7 +284,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (isRoot) {
       router.replace('/dashboard');
     }
-    // Unauthenticated users can access /dashboard freely — no redirect to /login
+    // Unauthenticated users can access /dashboard freely — no auth gate
   }, [user, loading, pathname, router]);
 
   return (
