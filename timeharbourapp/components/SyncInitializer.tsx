@@ -22,6 +22,7 @@ import {
   verifySyncKey,
 } from '@/TimeharborAPI/sync/EncryptedSyncEngine';
 import { ensureIdentityAndEncryption, migrateAuthUserIdToIdentity } from '@/TimeharborAPI/sync/IdentityManager';
+import { ensureCurrentProfileSaved } from '@/TimeharborAPI/sync/ProfileRegistry';
 import { db } from '@/TimeharborAPI/db';
 import EncryptionSetupModal from './EncryptionSetupModal';
 
@@ -124,6 +125,7 @@ export default function SyncInitializer() {
         // Migrate any data stored under old auth user.id to identity UUID
         await migrateAuthUserIdToIdentity();
         const syncKey = await ensureIdentityAndEncryption();
+        ensureCurrentProfileSaved();
         syncManager.setSyncKey(syncKey);
 
         // If local DB is empty but server has data, do a full restore
