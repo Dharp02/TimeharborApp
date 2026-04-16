@@ -19,6 +19,13 @@ test.describe('Dashboard Layout', () => {
     }
   });
 
+  test('shows clear cache button in sidebar', async ({ page }) => {
+    const dash = new DashboardPage(page);
+    await dash.navigate();
+
+    await expect(dash.clearCacheButton).toBeVisible();
+  });
+
   test('shows dashboard summary stats', async ({ page }) => {
     const dash = new DashboardPage(page);
     await dash.navigate();
