@@ -181,7 +181,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 ) : (
                   <SidebarMobileToggle className="p-1 text-muted-foreground" />
                 )}
-                <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400 truncate max-w-[200px]">
+                <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400 truncate max-w-50">
                   {pathname?.startsWith('/dashboard/member')
                     ? <Suspense fallback="Member"><MemberName /></Suspense>
                     : getHeaderTitle()}

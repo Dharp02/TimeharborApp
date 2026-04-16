@@ -580,10 +580,12 @@ function DiagnosticsTab() {
     // 6. Sync pull test
     update('syncPull', { status: 'running', detail: 'Pulling from server…' });
     try {
+      const { getIdentityUUID } = await import('@/TimeharborAPI/sync/IdentityManager');
+      const userId = getIdentityUUID();
       const base = getApiUrl().replace(/\/api\/?$/, '');
       const res = await fetch(`${base}/api/timeharbor/sync/oplog?deviceId=diag-test`, {
         credentials: 'include',
-        headers: { 'X-App-Id': 'timeharbor' },
+        headers: { 'X-App-Id': 'timeharbor', 'X-Identity-UUID': userId },
       });
       if (res.ok) {
         const data = await res.json();
@@ -657,7 +659,7 @@ function DiagnosticsTab() {
       const base = getApiUrl().replace(/\/api\/?$/, '');
       const pullRes = await fetch(`${base}/api/timeharbor/sync/oplog?deviceId=diag-verify-${Date.now()}`, {
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-App-Id': 'timeharbor' },
+        headers: { 'Content-Type': 'application/json', 'X-App-Id': 'timeharbor', 'X-Identity-UUID': userId },
       });
 
       if (!pullRes.ok) {

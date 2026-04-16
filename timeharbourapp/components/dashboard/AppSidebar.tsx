@@ -111,32 +111,6 @@ export default function AppSidebar() {
     closeMobile();
   };
 
-  const handleClearCache = async () => {
-    if (!window.confirm('Clear all local data? This won\'t log you out, but will remove offline data until it syncs again.')) return;
-    try {
-      await clearDatabase();
-
-      const preserved: Record<string, string> = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (
-          key.includes('auth') || key.includes('supabase') || key.includes('token')
-          || key.startsWith('th_identity_') || key === 'th_first_share_done'
-          || key === 'th_userid_migrated'
-        )) {
-          preserved[key] = localStorage.getItem(key) || '';
-        }
-      }
-      localStorage.clear();
-      Object.entries(preserved).forEach(([k, v]) => localStorage.setItem(k, v));
-      sessionStorage.clear();
-      alert('Cache cleared successfully!');
-      window.location.reload();
-    } catch {
-      alert('Failed to clear cache. Please try again.');
-    }
-  };
-
   return (
     <>
     <Sidebar className="lg:sticky lg:top-0 z-50 pt-12 lg:pt-0">
@@ -225,11 +199,6 @@ export default function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarNavItem
-          label="Clear Cache"
-          icon={<Trash2 className="w-5 h-5" />}
-          onClick={handleClearCache}
-        />
         {!isCollapsed && (
           <div className="flex items-center justify-center px-2 mt-2">
             <span className="text-xs text-muted-foreground">
