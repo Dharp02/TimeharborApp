@@ -122,36 +122,6 @@ export const signIn = async (
   return { data: { user, session }, error: null };
 };
 
-export const signUp = async (
-  email: string,
-  password: string,
-  name: string,
-): Promise<{ data: AuthResponse | null; error: AuthError | null }> => {
-  const { data, error } = await authClient.signUp.email({
-    email,
-    password,
-    name,
-  });
-
-  if (error) {
-    const message =
-      error.message ?? "Registration failed";
-    await operationsLog.log({ category: 'AUTH', action: 'SIGN_UP', result: 'failure', target: 'User', errorMessage: message });
-    return { data: null, error: { message, details: [] } };
-  }
-
-  const user = toUser(data!.user);
-  const session: Session = {
-    access_token: data!.token ?? "",
-    refresh_token: "",
-    expires_in: 60 * 60 * 24 * 7,
-  };
-
-  notifyListeners("SIGNED_IN", { user, session });
-  await operationsLog.log({ category: 'AUTH', action: 'SIGN_UP', result: 'success', target: 'User', targetId: user.id });
-  return { data: { user, session }, error: null };
-};
-
 export const signInWithGoogle = async () => {
   if (Capacitor.isNativePlatform()) {
     return socialSignInNative("google");

@@ -10,6 +10,7 @@ import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { Ticket as TicketType } from '@/TimeharborAPI/tickets';
 import { useActivityLog } from './ActivityLogContext';
 import { useRefresh } from '../../contexts/RefreshContext';
+import { useWalkthroughActive } from '@/contexts/WalkthroughContext';
 import { db } from '@/TimeharborAPI/db';
 import { collectAttachments } from '@/TimeharborAPI/time/attachmentUtils';
 import { formatDuration } from '@timeharbor/time-engine';
@@ -26,10 +27,40 @@ const formatRelativeTime = (dateStr: string) => {
   return Math.floor(hrs / 24) + ' days ago';
 };
 
+const WALKTHROUGH_TICKETS: TicketType[] = [
+  {
+    id: '__wt_demo_1__',
+    title: 'Design homepage layout',
+    description: 'Create the main landing page UI',
+    status: 'In Progress',
+    priority: 'High',
+    teamId: '__personal__',
+    createdBy: 'demo',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    source: 'personal',
+    trackedTime: '1h 12m',
+  },
+  {
+    id: '__wt_demo_2__',
+    title: 'Fix login bug',
+    description: 'Users unable to sign in on Safari',
+    status: 'Open',
+    priority: 'Medium',
+    teamId: '__personal__',
+    createdBy: 'demo',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    source: 'personal',
+    trackedTime: '0m',
+  },
+];
+
 export default function OpenTickets() {
   const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, getFormattedTotalTime, toggleSession, ticketDuration, ticketDurations } = useClockIn();
   const { addActivity } = useActivityLog();
   const { register, lastRefreshed } = useRefresh();
+  const isWalkthrough = useWalkthroughActive();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'stop' | 'switch'>('stop');
@@ -186,7 +217,7 @@ export default function OpenTickets() {
         </div>
       </div>
     </Modal>
-    <Card className="p-4 md:p-6 relative">
+    <Card className="p-4 md:p-6 relative" data-walkthrough="open-tickets">
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <Text className="text-lg md:text-xl font-bold">My Tickets</Text>
         <div className="flex items-center gap-2">
@@ -207,12 +238,12 @@ export default function OpenTickets() {
       </div>
 
       <div className="space-y-3">
-        {isLoading ? (
+        {isLoading && !isWalkthrough ? (
           <SmallMuted className="text-center py-4 block">Loading tickets...</SmallMuted>
-        ) : tickets.length === 0 ? (
+        ) : (isWalkthrough ? (tickets.length > 0 ? tickets : WALKTHROUGH_TICKETS) : tickets).length === 0 ? (
           <SmallMuted className="text-center py-4 block">No tickets found. Create one to get started!</SmallMuted>
         ) : (
-          tickets
+          (isWalkthrough ? (tickets.length > 0 ? tickets : WALKTHROUGH_TICKETS) : tickets)
             .slice()
             .sort((a, b) => {
               if (a.id === activeTicketId) return -1;
@@ -310,11 +341,14 @@ export default function OpenTickets() {
                   )}
 
                   <div className="flex items-center gap-2 pt-1">
-                    <div className="flex flex-col items-start gap-1">
+                    <div className="flex flex-col items-start gap-1" data-walkthrough="ticket-timer">
                       <Button
                         variant={activeTicketId === ticket.id ? 'danger' : 'secondary'}
                         size="sm"
-                        onClick={(e) => handleTicketClick(e, ticket.id, ticket.title)}
+                        onClick={(e) => {
+                          if (ticket.id.startsWith('__wt_')) { e.stopPropagation(); return; }
+                          handleTicketClick(e, ticket.id, ticket.title);
+                        }}
                         className="rounded-full px-3 py-1 text-xs font-medium"
                       >
                         {activeTicketId === ticket.id ? (

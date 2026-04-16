@@ -2,51 +2,9 @@ import Dexie, { type Table } from 'dexie';
 import type { TicketSegment, Break, TicketTime } from '@timeharbor/time-engine';
 import type { OpLogEntry, StoredKeyRecord, FieldHLCMap } from './sync/types';
 
-export interface OfflineMutation {
-  id?: number;
-  url: string;
-  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  body: any;
-  timestamp: number;
-  retryCount: number;
-  tempId?: string; // ID of the temporary record created offline
-}
-
 export interface UserProfile {
   key: string;
   data: any;
-}
-
-export type TimeEventType = 'CLOCK_IN' | 'CLOCK_OUT' | 'START_TICKET' | 'STOP_TICKET' | 'BREAK_START' | 'BREAK_END';
-
-export interface TimeEvent {
-  id: string;
-  userId: string;
-  type: TimeEventType;
-  timestamp: string; // ISO string
-  ticketId?: string | null;
-  teamId?: string | null;
-  ticketTitle?: string | null;
-  comment?: string | null;
-  link?: string | null;
-  synced: number; // 0 for false, 1 for true
-}
-
-export interface Member {
-  id: string;
-  name: string;
-  email?: string;
-  status: 'online' | 'offline';
-  role: 'Leader' | 'Member';
-  avatar?: string;
-}
-
-export interface Team {
-  id: string;
-  name: string;
-  members: Member[];
-  role: 'Leader' | 'Member';
-  code: string;
 }
 
 export interface Ticket {
@@ -203,14 +161,9 @@ export interface AppliedOp {
 }
 
 export class TimeharborDB extends Dexie {
-  offlineMutations!: Table<OfflineMutation>;
   profile!: Table<UserProfile>;
-  events!: Table<TimeEvent>;
-  teams!: Table<Team>;
   tickets!: Table<Ticket>;
   projects!: Table<DexieProject>;
-  dashboardStats!: Table<{ teamId: string; data: any; updatedAt: number }>;
-  dashboardActivity!: Table<{ id: string; teamId: string; data: any; updatedAt: number }>;
   activityLogs!: Table<DexieActivityLog>;
   workSessions!: Table<DexieWorkSession>;
   syncMeta!: Table<SyncMeta>;
@@ -223,8 +176,8 @@ export class TimeharborDB extends Dexie {
   appliedOps!: Table<AppliedOp>;
   cachedKeys!: Table<{ id: string; key: CryptoKey }>;
 
-  constructor() {
-    super('TimeharborDB');
+  constructor(dbName = 'TimeharborDB') {
+    super(dbName);
     
     // Combined history from lib/db.ts and LocalTimeStore.ts
     this.version(1).stores({
@@ -342,10 +295,99 @@ export class TimeharborDB extends Dexie {
     this.version(19).stores({
       userProfiles: 'id, userId',
     });
+
+    // ── v20: Drop unused tables ──
+    this.version(20).stores({
+      events: null,
+      teams: null,
+      dashboardStats: null,
+      dashboardActivity: null
+    });
   }
 }
 
-export const db = typeof window !== 'undefined' ? new TimeharborDB() : {} as TimeharborDB;
+const DEFAULT_DB_NAME = 'TimeharborDB';
+
+let activeDb: TimeharborDB | null = null;
+let activeDbName: string | null = null;
+
+function getDatabaseNameForProfile(profileUuid?: string | null): string {
+  const trimmedUuid = profileUuid?.trim();
+  return trimmedUuid ? `${DEFAULT_DB_NAME}_${trimmedUuid}` : DEFAULT_DB_NAME;
+}
+
+function getInitialDatabaseName(): string {
+  if (typeof window === 'undefined') return DEFAULT_DB_NAME;
+  const currentUuid = localStorage.getItem('th_identity_uuid');
+  return getDatabaseNameForProfile(currentUuid);
+}
+
+function ensureActiveDb(): TimeharborDB {
+  if (typeof window === 'undefined') {
+    throw new Error('Database is only available in the browser runtime.');
+  }
+
+  if (!activeDb) {
+    activeDbName = getInitialDatabaseName();
+    activeDb = new TimeharborDB(activeDbName);
+  }
+
+  return activeDb;
+}
+
+export function getCurrentDatabaseName(): string {
+  return activeDbName ?? getInitialDatabaseName();
+}
+
+export async function hasProfileDatabase(profileUuid: string): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  const dbName = getDatabaseNameForProfile(profileUuid);
+
+  try {
+    return await Dexie.exists(dbName);
+  } catch (e) {
+    console.warn('Dexie.exists check failed', e);
+    // If we can't reliably check, allow the switch attempt
+    return true; 
+  }
+}
+
+/**
+ * Switch active IndexedDB to a profile-scoped database.
+ * Existing profile data is preserved; this only swaps which DB is active.
+ */
+export async function switchProfileDatabase(profileUuid: string): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  const nextDbName = getDatabaseNameForProfile(profileUuid);
+  const current = ensureActiveDb();
+
+  if (activeDbName === nextDbName) {
+    if (!current.isOpen()) await current.open();
+    return;
+  }
+
+  if (current.isOpen()) {
+    current.close();
+  }
+
+  activeDb = new TimeharborDB(nextDbName);
+  activeDbName = nextDbName;
+  await activeDb.open();
+}
+
+const browserDbProxy = new Proxy({} as TimeharborDB, {
+  get(_target, prop) {
+    const instance = ensureActiveDb();
+    const value = (instance as unknown as Record<PropertyKey, unknown>)[prop];
+    if (typeof value === 'function') {
+      return (value as Function).bind(instance);
+    }
+    return value;
+  },
+});
+
+export const db = typeof window !== 'undefined' ? browserDbProxy : {} as TimeharborDB;
 
 /**
  * Wipe the entire local database and re-open a fresh instance.
@@ -353,6 +395,8 @@ export const db = typeof window !== 'undefined' ? new TimeharborDB() : {} as Tim
  */
 export async function clearDatabase() {
   if (typeof window === 'undefined') return;
-  await db.delete();
-  await db.open();
+  const instance = ensureActiveDb();
+  await instance.delete();
+  activeDb = new TimeharborDB(getCurrentDatabaseName());
+  await activeDb.open();
 }

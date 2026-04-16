@@ -182,7 +182,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       startTime: new Date().toISOString(),
     });
 
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
     window.dispatchEvent(new Event('pull-to-refresh'));
     window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
 
@@ -261,7 +261,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       duration: durationStr,
     });
 
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
     window.dispatchEvent(new Event('pull-to-refresh'));
     window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
   }, [currentSession, isOnBreak, activeTicketId, stats, updateActiveSession, addActivity]);
@@ -314,7 +314,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       duration: durationStr,
     });
 
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
     window.dispatchEvent(new Event('pull-to-refresh'));
     window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
 
@@ -334,9 +334,31 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
     setStopTicketFiles([]);
   };
 
-  const handleClockInTicketSelect = (ticketId: string, ticketTitle: string) => {
+  const handleClockInTicketSelect = async (ticketId: string, ticketTitle: string) => {
     setIsClockInPromptOpen(false);
-    toggleTicketTimer(ticketId, ticketTitle);
+
+    // The session was just created by toggleSession; React state (currentSession)
+    // may not have updated yet.  Read the open session straight from Dexie so
+    // we don't silently bail out inside toggleTicketTimer's guard.
+    let session = currentSession;
+    if (!session) {
+      const allSessions = await db.workSessions.toArray();
+      session = allSessions
+        .filter(s => s.clockOut === null)
+        .sort((a, b) => b.clockIn - a.clockIn)[0] ?? null;
+    }
+    if (!session) return;
+
+    await sessionManager.startTicket(session.id, ticketId, ticketTitle);
+
+    addActivity({
+      type: 'SESSION',
+      title: 'Started Ticket',
+      subtitle: ticketTitle,
+      status: 'Active',
+      duration: '0m',
+      startTime: new Date().toISOString(),
+    });
   };
 
   const dismissClockInPrompt = () => {
@@ -425,7 +447,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
     window.dispatchEvent(new Event('pull-to-refresh'));
   }, [isSessionActive, currentSession, activeTicketId, activeTicketTitle, stats, addActivity]);
 
@@ -623,7 +645,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
               {stopTicketFiles.map((file, i) => (
                 <div key={`file-${i}`} className="relative group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                   <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <span className="text-xs truncate max-w-[120px]">{file.name}</span>
+                  <span className="text-xs truncate max-w-30">{file.name}</span>
                   <button
                     type="button"
                     onClick={() => setStopTicketFiles(prev => prev.filter((_, idx) => idx !== i))}
@@ -670,7 +692,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
                 {stopTicketLinks.map((l, i) => (
                   <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
                     <Link2 className="w-3 h-3 text-muted-foreground shrink-0" />
-                    <span className="truncate max-w-[200px]">{l}</span>
+                    <span className="truncate max-w-50">{l}</span>
                     <button type="button" onClick={() => setStopTicketLinks(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 shrink-0" aria-label="Remove link">
                       <X className="w-3 h-3" />
                     </button>

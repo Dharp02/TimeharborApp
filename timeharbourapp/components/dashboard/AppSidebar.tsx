@@ -41,18 +41,18 @@ const NAV_SECTIONS = [
   {
     label: 'Main',
     items: [
-      { label: 'Time Tracker', icon: Clock, href: '/dashboard' },
-      { label: 'Calendar', icon: CalendarDays, href: '/dashboard/calendar' },
-      { label: 'Tickets', icon: Ticket, href: '/dashboard/tickets' },
-      { label: 'Projects', icon: FolderOpen, href: '/dashboard/projects' },
-      { label: 'Notepad', icon: NotebookPen, href: '/dashboard/notepad' },
+      { label: 'Time Tracker', icon: Clock, href: '/dashboard', walkthrough: 'nav-time-tracker' },
+      { label: 'Calendar', icon: CalendarDays, href: '/dashboard/calendar', walkthrough: 'nav-calendar' },
+      { label: 'Tickets', icon: Ticket, href: '/dashboard/tickets', walkthrough: 'nav-tickets' },
+      { label: 'Projects', icon: FolderOpen, href: '/dashboard/projects', walkthrough: 'nav-projects' },
+      { label: 'Notepad', icon: NotebookPen, href: '/dashboard/notepad', walkthrough: 'nav-notepad' },
     ],
   },
   {
     label: 'Analytics',
     items: [
       { label: 'Reports', icon: BarChart3, href: '/dashboard/reports' },
-      { label: 'Timesheet', icon: Sheet, href: '/dashboard/settings/timesheet' },
+      { label: 'Timesheet', icon: Sheet, href: '/dashboard/settings/timesheet', walkthrough: 'nav-timesheet' },
     ],
   },
   {
@@ -65,7 +65,7 @@ const NAV_SECTIONS = [
   {
     label: 'General',
     items: [
-      { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
+      { label: 'Settings', icon: Settings, href: '/dashboard/settings', walkthrough: 'nav-settings' },
       { label: 'Op Logs', icon: ScrollText, href: '/dashboard/oplogs' },
       { label: 'Help & Support', icon: HelpCircle, href: '/dashboard/help' },
       { label: 'Send Feedback', icon: MessageSquarePlus, href: 'https://github.com/Dharp02/TimeharborApp/discussions/49', external: true },
@@ -111,32 +111,6 @@ export default function AppSidebar() {
     closeMobile();
   };
 
-  const handleClearCache = async () => {
-    if (!window.confirm('Clear all local data? This won\'t log you out, but will remove offline data until it syncs again.')) return;
-    try {
-      await clearDatabase();
-
-      const preserved: Record<string, string> = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (
-          key.includes('auth') || key.includes('supabase') || key.includes('token')
-          || key.startsWith('th_identity_') || key === 'th_first_share_done'
-          || key === 'th_userid_migrated'
-        )) {
-          preserved[key] = localStorage.getItem(key) || '';
-        }
-      }
-      localStorage.clear();
-      Object.entries(preserved).forEach(([k, v]) => localStorage.setItem(k, v));
-      sessionStorage.clear();
-      alert('Cache cleared successfully!');
-      window.location.reload();
-    } catch {
-      alert('Failed to clear cache. Please try again.');
-    }
-  };
-
   return (
     <>
     <Sidebar className="lg:sticky lg:top-0 z-50 pt-12 lg:pt-0">
@@ -162,6 +136,7 @@ export default function AppSidebar() {
           onClick={() => handleNavClick('/dashboard/settings/profile')}
           role="button"
           aria-label="Edit profile"
+          data-walkthrough="sidebar-profile"
         >
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white font-semibold text-sm overflow-hidden">
@@ -193,35 +168,37 @@ export default function AppSidebar() {
         <SidebarNav>
           {NAV_SECTIONS.map((section) => (
             <SidebarNavGroup key={section.label} label={section.label} defaultExpanded>
-              {section.items.map((item) => (
-                <SidebarNavItem
-                  key={'action' in item ? item.label : item.href}
-                  label={item.label}
-                  icon={<item.icon className="w-5 h-5" />}
-                  isActive={'external' in item || 'action' in item ? false : isActive(item.href)}
-                  onClick={() => {
-                    if ('action' in item && item.action === 'share') {
-                      closeMobile();
-                      setShowShareModal(true);
-                    } else if ('external' in item) {
-                      window.open(item.href, '_blank', 'noopener,noreferrer');
-                    } else {
-                      handleNavClick(item.href);
-                    }
-                  }}
-                />
-              ))}
+              {section.items.map((item) => {
+                const navItem = (
+                  <SidebarNavItem
+                    key={'action' in item ? item.label : item.href}
+                    label={item.label}
+                    icon={<item.icon className="w-5 h-5" />}
+                    isActive={'external' in item || 'action' in item ? false : isActive(item.href)}
+                    onClick={() => {
+                      if ('action' in item && item.action === 'share') {
+                        closeMobile();
+                        setShowShareModal(true);
+                      } else if ('external' in item) {
+                        window.open(item.href, '_blank', 'noopener,noreferrer');
+                      } else {
+                        handleNavClick(item.href);
+                      }
+                    }}
+                  />
+                );
+                return 'walkthrough' in item && item.walkthrough ? (
+                  <div key={item.href} data-walkthrough={item.walkthrough}>
+                    {navItem}
+                  </div>
+                ) : navItem;
+              })}
             </SidebarNavGroup>
           ))}
         </SidebarNav>
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarNavItem
-          label="Clear Cache"
-          icon={<Trash2 className="w-5 h-5" />}
-          onClick={handleClearCache}
-        />
         {!isCollapsed && (
           <div className="flex items-center justify-center px-2 mt-2">
             <span className="text-xs text-muted-foreground">

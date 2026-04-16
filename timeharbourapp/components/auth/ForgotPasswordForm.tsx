@@ -40,10 +40,10 @@ export default function ForgotPasswordForm() {
           We've sent a password reset link to <strong>{email}</strong>
         </p>
         <Link 
-          href="/login"
+          href="/dashboard"
           className="inline-block w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
         >
-          Back to Sign In
+          Back to Dashboard
         </Link>
       </div>
     );
@@ -82,8 +82,8 @@ export default function ForgotPasswordForm() {
 
         <div className="text-center text-sm text-gray-600 dark:text-gray-400">
           Remember your password?{' '}
-          <Link href="/login" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">
-            Sign in
+          <Link href="/dashboard" className="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+            Go to Dashboard
           </Link>
         </div>
       </form>

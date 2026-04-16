@@ -234,8 +234,11 @@ export default function ProfilePage() {
 
       setSaveMessage({ type: 'success', text: 'Profile saved successfully.' });
       setHasChanges(false);
-      // Refresh so sidebar/header pick up new profile data
-      window.location.href = '/dashboard/settings';
+      // Navigate back so sidebar/header pick up new profile data
+      // Skip redirect when offline — stay on page with success message
+      if (navigator.onLine) {
+        router.push('/dashboard/settings');
+      }
     } catch (err) {
       console.error('[ProfilePage] save error', err);
       setSaveMessage({ type: 'error', text: 'Failed to save profile. Please try again.' });

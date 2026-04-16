@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useRefresh } from '@/contexts/RefreshContext';
 import { Button, Alert, AlertDescription, Input } from '@mieweb/ui';
 import { Upload, ShieldCheck, AlertTriangle, KeyRound } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
@@ -41,6 +43,9 @@ interface RecoveryKeyModalProps {
 }
 
 export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyModalProps) {
+  const router = useRouter();
+  const { refreshAll } = useRefresh();
+  
   // ── Save mode state ──
   const [saveStep, setSaveStep] = useState<'confirm' | 'saving' | 'done'>('confirm');
 
@@ -178,7 +183,9 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
   const handleClose = useCallback(() => {
     // After a successful restore, reload to reset all in-memory state
     if (restoreStep === 'done') {
-      window.location.href = '/dashboard';
+      refreshAll();
+      router.push('/dashboard');
+      router.refresh();
       return;
     }
     setSaveStep('confirm');
@@ -187,7 +194,7 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
     setRestoreStep('input');
     setPulledCount(0);
     onClose();
-  }, [onClose, restoreStep]);
+  }, [onClose, restoreStep, refreshAll, router]);
 
   const isNative = isNativeKeychainAvailable();
   const canSaveKey = isNative || isCredentialManagerAvailable();

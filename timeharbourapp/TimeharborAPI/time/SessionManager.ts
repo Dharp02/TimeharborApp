@@ -231,6 +231,32 @@ export class SessionManager {
     return result;
   }
 
+
+  async forceAutoClockOut(sessionId: string): Promise<DexieWorkSession | null> {
+    const session = await db.workSessions.get(sessionId);
+    if (!session || session.clockOut !== null) return null;
+
+    const MAX_SESSION_MS = 8 * 60 * 60 * 1000;
+    const forcedOutTime = session.clockIn + MAX_SESSION_MS;
+
+    // Close open segments
+    session.ticketSegments = session.ticketSegments.map(seg =>
+      seg.end === null ? { ...seg, end: forcedOutTime } : seg
+    );
+
+    // Close open break
+    session.breaks = session.breaks.map(b =>
+      b.end === null ? { ...b, end: forcedOutTime } : b
+    );
+
+    session.clockOut = forcedOutTime;
+    session.comment = (session.comment ? session.comment + '\n' : '') + 'Auto-clocked out after 8 hours.';
+
+    const result = await this.commitSession(session, forcedOutTime);
+    await operationsLog.log({ category: 'SESSION', action: 'CLOCK_OUT', result: 'success', target: 'WorkSession', targetId: sessionId, details: { auto: true } });
+    return result;
+  }
+
   // ── Internal: recompute + persist ──
 
   private async commitSession(

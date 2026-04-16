@@ -22,6 +22,7 @@ import {
   verifySyncKey,
 } from '@/TimeharborAPI/sync/EncryptedSyncEngine';
 import { ensureIdentityAndEncryption, migrateAuthUserIdToIdentity } from '@/TimeharborAPI/sync/IdentityManager';
+import { ensureCurrentProfileSaved } from '@/TimeharborAPI/sync/ProfileRegistry';
 import { db } from '@/TimeharborAPI/db';
 import EncryptionSetupModal from './EncryptionSetupModal';
 
@@ -98,7 +99,7 @@ export default function SyncInitializer() {
     }
 
     // Trigger an immediate sync now that we have the key
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
   }, [passphraseMode]);
 
   useEffect(() => {
@@ -106,7 +107,7 @@ export default function SyncInitializer() {
     detector.init();
 
     detector.setSyncHandler(async () => {
-      await syncManager.syncNow();
+      await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
       if (wasOfflineRef.current) {
         wasOfflineRef.current = false;
         showSyncedToast();
@@ -124,6 +125,7 @@ export default function SyncInitializer() {
         // Migrate any data stored under old auth user.id to identity UUID
         await migrateAuthUserIdToIdentity();
         const syncKey = await ensureIdentityAndEncryption();
+        ensureCurrentProfileSaved();
         syncManager.setSyncKey(syncKey);
 
         // If local DB is empty but server has data, do a full restore

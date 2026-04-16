@@ -17,7 +17,7 @@ export default function BottomNav() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border pb-safe lg:hidden">
-      <div className="flex items-center justify-around h-20 px-2">
+      <div className="flex items-center justify-around h-[84px] px-2 pb-4">
         <Link
           href="/dashboard"
           className="flex flex-col items-center justify-center w-full h-full"
@@ -50,7 +50,7 @@ export default function BottomNav() {
           }`}>Tickets</span>
         </Link>
 
-        <div className="relative -top-5">
+        <div className="relative -top-7" data-walkthrough="clock-in-fab">
           <Button 
             onClick={() => isOnBreak ? resumeFromBreak() : toggleSession()}
             className={`flex flex-col items-center justify-center rounded-full text-white shadow-lg transition-all ring-4 ring-card ${
@@ -72,7 +72,7 @@ export default function BottomNav() {
               <Clock className="w-8 h-8" />
             )}
           </Button>
-          <span className={`absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap ${
+          <span className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap ${
             isOnBreak ? 'text-amber-500' : isSessionActive ? 'text-red-500' : 'text-primary-600 dark:text-primary-400'
           }`}>
             {isOnBreak ? 'On Break' : isSessionActive ? 'Clock Out' : 'Clock In'}

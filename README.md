@@ -1,352 +1,285 @@
 # TimeharborApp
 
-TimeharborApp is a comprehensive time tracking and team management solution. It features a modern web frontend, mobile applications (Android & iOS), and a robust backend API.
+A comprehensive **offline-first time tracking and team management platform** with cross-device sync, native mobile apps, and a shared calculation engine.
 
-**Youtube Short** : https://youtube.com/shorts/MfPd4NsjLQQ?feature=share
-
-**Proxmox link** : https://timeharborapp.opensource.mieweb.org
+**YouTube Short**: https://youtube.com/shorts/MfPd4NsjLQQ?feature=share
+**Live Demo**: https://timeharborapp.opensource.mieweb.org
 
 ## Project Structure
 
-The repository is organized into three main components:
+```
+TimeharborApp/
+├── timeharbourapp/                    # Frontend — Next.js + Capacitor
+├── timeharbor-timehuddle-backend/     # Backend monorepo
+│   ├── apps/api/                      #   Fastify API server
+│   └── packages/time-engine/          #   Shared time calculation library
+└── ychart/                            # Chart component library
+```
 
-*   **`express-api/`**: The backend REST API built with Node.js, Express, TypeScript, and PostgreSQL.
-*   **`timeharbourapp/`**: The frontend application built with Next.js, React, and Tailwind CSS. It also serves as the mobile app source using Capacitor.
-*   **`timeharbor-proxy/`**: A lightweight proxy server for routing requests in production environments.
+| Component | Stack |
+|-----------|-------|
+| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4, Capacitor 8 |
+| **Backend** | Fastify 5, MongoDB (native driver), Better Auth |
+| **Mobile** | Capacitor — Android + iOS |
+| **Offline** | Dexie.js (IndexedDB), field-level sync |
+| **Testing** | Playwright (Chromium, WebKit, Mobile Chrome) |
+| **Shared** | `@timeharbor/time-engine` — zero-dependency pure functions |
 
-## Architecture & App Flow
-
-TimeharborApp is designed with an **Offline-First** architecture, ensuring users can track time and manage tasks regardless of internet connectivity.
-
-### System Architecture
+## Architecture
 
 ```mermaid
 graph TD
-    subgraph Client [Client Device - Mobile/Web]
+    subgraph Client["Client — Mobile / Web"]
         UI[User Interface]
-        LocalDB[(Local DB - Dexie.js)]
-        Sync[Sync Manager]
-        Net[Network Detector]
-        
-        UI -->|1. User Action| LocalDB
-        LocalDB -->|2. Update UI| UI
-        Net -->|3. Detect Online| Sync
-        Sync -->|4. Read Pending| LocalDB
+        Engine["@timeharbor/time-engine"]
+        LocalDB[(Dexie.js / IndexedDB)]
+        Sync[SyncManager]
+        Net[NetworkDetector]
+
+        UI -->|1. User action| LocalDB
+        LocalDB -->|2. Live query| UI
+        Engine -->|3. Compute totals| UI
+        Net -->|4. Detect online| Sync
+        Sync -->|5. Push dirty records| LocalDB
     end
-    
-    subgraph Server [Backend Infrastructure]
-        API[Express API]
-        DB[(PostgreSQL)]
-        
-        API <-->|6. Persist| DB
+
+    subgraph Server["Backend — Fastify"]
+        API[Fastify API]
+        Auth[Better Auth]
+        DB[(MongoDB)]
+        ServerEngine["@timeharbor/time-engine"]
+
+        API --> Auth
+        API <-->|8. Persist| DB
+        ServerEngine -->|9. Re-verify totals| API
     end
-    
-    Sync <-->|5. Sync Data| API
+
+    Sync <-->|6. Push/Pull| API
+    API -->|7. Deduplicate| DB
+
+    classDef client fill:#e0f2fe,stroke:#0284c7
+    classDef server fill:#fef3c7,stroke:#d97706
+    class UI,Engine,LocalDB,Sync,Net client
+    class API,Auth,DB,ServerEngine server
 ```
 
-### Key Features
+## Key Features
 
-*   **Mobile-First Design**: Optimized for mobile devices using Capacitor for native Android and iOS builds.
-*   **Offline-First**: Uses `Dexie.js` (IndexedDB) to store data locally. All actions (Clock In, Create Ticket) are saved locally first (optimistic UI).
-*   **UUID Implementation**: Uses UUIDs for all primary keys to allow offline ID generation and conflict-free synchronization.
-*   **Push Notifications**: Native push notifications via Firebase Cloud Messaging (Android) and Apple Push Notification service (iOS).
-*   **Team Management**: Create and manage teams, invite members, and track team activity.
-*   **Ticket System**: Create, assign, and track tickets/tasks with time logging support.
-*   **Smart Time Tracking**: Clock in/out with automatic event logging and team/ticket association.
-*   **Real-time Sync**: Automatic synchronization of time events, tickets, and team data when online.
+- **Clock In/Out** with ticket-based time segments and break tracking
+- **Per-session documents** — one self-contained doc per work session (not many tiny events)
+- **Offline-first** — Dexie.js is the primary data store; all reads are local, writes optimistic
+- **Bi-directional sync** — push dirty records, pull updates, field-level merge for conflicts
+- **Shared calculation engine** — `@timeharbor/time-engine` runs identically on client and server
+- **Multi-device support** — each device creates separate session docs, deduped by UUID
+- **Push notifications** — FCM (Android) + APNs (iOS)
+- **OAuth** — Google, Apple, Facebook via Better Auth
+- **Biometric app lock** — native biometric authentication via Capacitor
+- **Dark mode** — Tailwind CSS dark theme
+- **Responsive** — mobile, tablet, desktop
 
-### Synchronization Process
+## Data Model
 
-1.  **Offline Action**: When a user performs an action (e.g., "Clock In"), the app generates a UUID and saves the event to the local database (`TimeEvent` table).
-2.  **Queueing**: If the device is offline, the action is queued.
-3.  **Network Detection**: The `NetworkDetector` monitors connection status.
-4.  **Auto-Sync**: When connectivity is restored, the `SyncManager` is triggered.
-    *   It replays any failed API mutations (POST/PUT/DELETE).
-    *   It pushes unsynced time events to the backend.
-5.  **Consistency**: Once acknowledged by the server, local records are marked as synced.
+Each work session is a single embedded document:
 
-## Prerequisites
+```json
+{
+  "clientSessionId": "sess-uuid",
+  "userId": "user-id",
+  "date": "2026-03-20",
+  "clockIn": 1742457600000,
+  "clockOut": 1742470200000,
+  "ticketSegments": [
+    { "segmentId": "seg-001", "ticketId": "T1", "ticketTitle": "Fix bug", "start": 1742457900000, "end": 1742463000000 }
+  ],
+  "breaks": [
+    { "breakId": "brk-001", "start": 1742464800000, "end": 1742465700000 }
+  ],
+  "totalSessionMs": 12600000,
+  "totalBreakMs": 900000,
+  "netWorkMs": 11700000,
+  "_dirty": 0,
+  "_rev": 8
+}
+```
 
-*   Node.js (v18+ recommended)
-*   PostgreSQL
-*   Android Studio (for Android development)
-*   Xcode (for iOS development, macOS only)
-*   PM2 (optional, for production process management)
+Pre-computed totals are cached for instant dashboard reads. Raw data is always preserved so totals can be recomputed.
+
+## Sync Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Dexie as Dexie.js
+    participant Engine as time-engine
+    participant Sync as SyncManager
+    participant API as Fastify API
+    participant Mongo as MongoDB
+
+    User->>Dexie: Clock In (creates session, _dirty: 1)
+    Dexie->>Engine: computeSession()
+    Engine-->>Dexie: Totals stored on doc
+    Dexie-->>User: UI updates via useLiveQuery()
+
+    Note over Sync: Network detected online
+    Sync->>Dexie: Query _dirty === 1
+    Sync->>API: POST /time/sync-sessions
+    API->>Mongo: Upsert (dedup by clientSessionId)
+    API->>Engine: Re-verify totals
+    API-->>Sync: Acknowledged
+    Sync->>Dexie: Set _dirty: 0
+
+    Sync->>API: GET /time/sessions?since=lastPulledAt
+    API->>Mongo: Query updated records
+    API-->>Sync: Return sessions
+    Sync->>Dexie: Upsert (preserve local dirty)
+    Dexie-->>User: Auto-update via useLiveQuery()
+```
 
 ## Getting Started
 
-### 1. Backend Setup (`express-api`)
+### Prerequisites
 
-1.  Navigate to the backend directory:
-    ```bash
-    cd express-api
-    ```
+- Node.js v18+
+- MongoDB
+- Android Studio (for Android builds)
+- Xcode (for iOS builds, macOS only)
 
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
+### 1. Backend Setup
 
-3.  Configure environment variables:
-    Create a `.env` file in the `express-api` directory. You can use the following template:
-    ```env
-    PORT=3001
-    NODE_ENV=development
-    DATABASE_URL=postgresql://username:password@localhost:5432/timeharbor
-    JWT_SECRET=your-super-secret-jwt-key
-    JWT_EXPIRES_IN=15m
-    FRONTEND_URL=http://localhost:3000
-    LOG_LEVEL=info
-    
-    # Push Notifications (Optional)
-    # Firebase Cloud Messaging (Android)
-    FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json
-    
-    # Apple Push Notification Service (iOS)
-    APN_KEY_PATH=./AuthKey_XXXXXXXXXX.p8
-    APN_KEY_ID=your-apn-key-id
-    APN_TEAM_ID=your-apple-team-id
-    APN_BUNDLE_ID=com.yourcompany.timeharbor
-    APN_PRODUCTION=false
-    ```
-    
-    **Push Notification Setup:**
-    - For **Android (FCM)**: Download your `firebase-service-account.json` from Firebase Console and place it in the `express-api` directory.
-    - For **iOS (APNs)**: Download your APNs authentication key (`.p8` file) from Apple Developer Portal and place it in the `express-api` directory.
-
-4.  Run database migrations:
-    ```bash
-    npx sequelize-cli db:migrate
-    ```
-
-5.  Start the development server:
-    ```bash
-    npm run dev
-    ```
-    The API will be available at `http://localhost:3001`.
-
-### 2. Frontend Setup (`timeharbourapp`)
-
-1.  Navigate to the frontend directory:
-    ```bash
-    cd timeharbourapp
-    ```
-
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-
-3.  Configure environment variables:
-    Create a `.env.local` file in the `timeharbourapp` directory:
-    ```env
-    NEXT_PUBLIC_API_URL=http://localhost:3001
-    ```
-
-4.  Start the development server:
-    ```bash
-    npm run dev
-    ```
-    The app will be available at `http://localhost:3000`.
-
-## Mobile Features (Capacitor)
-
-The mobile app leverages Capacitor plugins for native functionality:
-
-### Native Integrations
-*   **Push Notifications**: `@capacitor/push-notifications` for FCM (Android) and APNs (iOS)
-*   **Network Detection**: `@capacitor/network` for online/offline status monitoring
-*   **Clipboard**: `@capacitor/clipboard` for copy/paste functionality
-*   **App Lifecycle**: `@capacitor/app` for background/foreground event handling
-
-### Mobile-Specific Features
-*   **Automatic Re-authentication**: Hooks into auth state changes to re-register push tokens
-*   **Background Sync**: Queues offline actions and syncs when connection is restored
-*   **Native UI**: Platform-specific components and behaviors
-*   **Local Storage**: Dexie.js for client-side data persistence
-
-### User Interface Features
-*   **Dashboard**: Overview of time tracking, teams, and recent activity
-*   **Activity View**: Detailed time tracking history with filtering options
-*   **Teams Management**: Create teams, manage members, and view team statistics
-*   **Tickets/Tasks**: Create and track work items with time logging
-*   **Settings**: User profile management and app preferences
-*   **Responsive Design**: Optimized for mobile, tablet, and desktop screens
-*   **Dark Mode Ready**: Tailwind CSS with modern UI components
-
-### Build Scripts
 ```bash
-# Development builds (opens IDE)
+cd timeharbor-timehuddle-backend/apps/api
+npm install
+```
+
+Create a `.env` file:
+
+```env
+PORT=3001
+NODE_ENV=development
+DATABASE_URL=mongodb://localhost:27017/timeharbor
+BETTER_AUTH_SECRET=your-secret
+FRONTEND_URL=http://localhost:3000
+```
+
+Start the server:
+
+```bash
+npm run dev
+```
+
+The API will be available at `http://localhost:3001`.
+
+### 2. Frontend Setup
+
+```bash
+cd timeharbourapp
+npm install
+```
+
+Create a `.env.local` file:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_BETTER_AUTH_URL=http://localhost:3001
+```
+
+Start the dev server:
+
+```bash
+npm run dev
+```
+
+The app will be available at `http://localhost:3000`.
+
+### 3. Mobile Development
+
+```bash
+cd timeharbourapp
+
+# Development (opens IDE for live reload)
 npm run dev:android    # Android Studio
 npm run dev:ios        # Xcode
 
-# Production builds (with Next.js optimization)
-npm run prod:android   # Build + sync + open Android Studio
-npm run prod:ios       # Build + sync + open Xcode
+# Production (optimized Next.js build + sync)
+npm run prod:android
+npm run prod:ios
 ```
 
-## Mobile Development (Capacitor)
+## API Endpoints
 
-The `timeharbourapp` directory contains the Capacitor configuration for building mobile apps.
+All routes under `/api/timeharbor`:
 
-### Android
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/me/profile` | Get profile (auto-creates on first visit) |
+| `PUT` | `/me/profile` | Update display name, social links |
+| `POST` | `/me/register-device` | Register FCM push token |
+| `POST` | `/me/tickets` | Create personal ticket |
+| `GET` | `/me/tickets` | List personal tickets |
+| `PUT` | `/me/tickets/:ticketId` | Update ticket |
+| `DELETE` | `/me/tickets/:ticketId` | Soft-delete ticket |
+| `POST` | `/time/sync-sessions` | Push sessions (dedup by clientSessionId) |
+| `GET` | `/time/sessions` | Pull sessions since lastPulledAt |
+| `GET` | `/dashboard/stats` | Time stats + live session |
+| `GET` | `/dashboard/activity` | Recent activity feed |
+| `POST` | `/dashboard/activity/reply` | Reply to work log |
+| `GET` | `/dashboard/timesheet` | Daily hour totals |
+| `GET` | `/notifications` | List notifications |
+| `PATCH` | `/notifications/:id/read` | Mark notification read |
+| `POST` | `/projects` | Create project |
+| `GET` | `/projects` | List projects |
 
-1.  Sync the project and open Android Studio:
-    ```bash
-    cd timeharbourapp
-    npm run dev:android
-    ```
+## Shared Calculation Engine
 
-### iOS (macOS only)
+`@timeharbor/time-engine` is a zero-dependency package of pure functions that compute time totals from raw session data. It runs identically on client and server.
 
-1.  Sync the project and open Xcode:
-    ```bash
-    cd timeharbourapp
-    npm run dev:ios
-    ```
+```typescript
+import { computeSession, computeDay } from '@timeharbor/time-engine';
 
-## Production Deployment
+// Compute a single session
+const stats = computeSession(session, Date.now());
+// → { totalSessionMs, netWorkMs, totalBreakMs, ticketBreakdown[], untrackedMs, isOpen }
 
-The project includes an `ecosystem.config.js` file for managing processes with PM2.
+// Aggregate all sessions for a date
+const dayStats = computeDay(sessions, '2026-03-20', Date.now());
+// → { daily totals, merged ticket breakdown, sessionCount }
+```
 
-1.  Build the projects:
-    ```bash
-    # Build Backend
-    cd express-api
-    npm run build
-
-    # Build Frontend
-    cd ../timeharbourapp
-    npm run build
-    ```
-
-2.  Start with PM2:
-    ```bash
-    cd ..
-    pm2 start ecosystem.config.js
-    ```
-
-    This will start:
-    -   Frontend (served via `serve`) on port 3000
-    -   Backend on port 3001
-    -   Proxy on port 80
-
-## API Features & Endpoints
-
-The Express API provides comprehensive functionality for time tracking and team management:
-
-### Authentication (`/auth`)
-*   **Signup/Login**: JWT-based authentication with access and refresh tokens
-*   **Token Refresh**: Automatic token renewal using refresh tokens
-*   **Secure Password Hashing**: BCrypt implementation for password security
-*   **Session Management**: Automatic cleanup of expired tokens via scheduled jobs
-
-### Dashboard (`/dashboard`)
-*   **User Statistics**: Total hours worked, current status, recent activity
-*   **Time Summaries**: Daily, weekly, and monthly time tracking summaries
-*   **Team Overview**: Team member status and activity
-
-### Team Management (`/teams`)
-*   **Create Teams**: Create and manage multiple teams
-*   **Member Management**: Add/remove team members, assign roles
-*   **Team Activity**: Track team-wide time logs and productivity
-
-### Ticket System (`/tickets`)
-*   **Create Tickets**: Create tasks/tickets with descriptions and assignments
-*   **Ticket Assignment**: Assign tickets to team members
-*   **Time Tracking**: Associate time logs with specific tickets
-*   **Status Management**: Track ticket progress and completion
-
-### Time Tracking (`/time`)
-*   **Clock In/Out**: Start and end time tracking sessions
-*   **Time Events**: Log work sessions with start/end times
-*   **Team/Ticket Association**: Link time events to teams and tickets
-*   **Event History**: Query and analyze time tracking history
-
-### Security & Middleware
-*   **Rate Limiting**: Protection against brute force attacks
-*   **Helmet**: Security headers for HTTP protection
-*   **CORS**: Configured for frontend/mobile app access
-*   **Request Validation**: Express-validator for input sanitization
-*   **Error Handling**: Centralized error handling middleware
-
-### Push Notifications
-*   **FCM Integration**: Firebase Cloud Messaging for Android devices
-*   **APNs Integration**: Apple Push Notification service for iOS devices
-*   **Token Management**: Automatic storage and refresh of device tokens
-*   **Multi-Device Support**: Send notifications to all user devices
-
-### Logging & Monitoring
-*   **Winston Logger**: Structured logging with multiple transports
-*   **Request Logging**: Morgan middleware for HTTP request logging
-*   **Log Rotation**: Automatic log file management
-*   **Error Tracking**: Detailed error logs for debugging
-
-## Database Migrations
-
-The project uses Sequelize for database management with the following schema:
-
-*   **users**: User accounts with authentication credentials
-*   **refresh_tokens**: JWT refresh token storage
-*   **teams**: Team definitions and settings
-*   **members**: Team membership associations
-*   **tickets**: Task/ticket tracking
-*   **time_events**: Time tracking events (merged from attendance/work_logs)
-*   **fcm_tokens**: Device tokens for push notifications
+Breaks are subtracted proportionally from overlapping ticket segments. Untracked time (gaps between segments) is calculated separately.
 
 ## Testing
 
-End-to-end tests are located in the `timeharbourapp` directory and use Playwright.
-
-To run tests:
 ```bash
 cd timeharbourapp
-npm run test
+
+npm run test            # Run all tests
+npm run test:headed     # Run with browser UI
+npm run test:debug      # Debug mode
+npm run test:report     # Show HTML report
 ```
 
-To run tests with UI:
+Tests run against Chromium, WebKit, and Mobile Chrome (Pixel 7). See `playwright.config.ts` for configuration.
+
+## Production Deployment
+
 ```bash
-npm run test:headed
+# Build backend
+cd timeharbor-timehuddle-backend/apps/api
+npm run build
+
+# Build frontend
+cd ../../timeharbourapp
+npm run build
+
+# Start with PM2
+cd ..
+pm2 start ecosystem.config.js
 ```
 
-## Useful Scripts & Commands
+## Further Reading
 
-
-### Testing API Endpoints
-
-Test authentication and token refresh:
-```bash
-# Create a test user and test token refresh
-TEST_EMAIL="test-$(date +%s)@test.com"
-RESPONSE=$(curl -s -X POST http://localhost:3001/auth/signup \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"Test123456\",\"full_name\":\"Test User\"}")
-  
-REFRESH_TOKEN=$(echo $RESPONSE | jq -r '.session.refresh_token')
-
-# Test token refresh
-curl -s -X POST http://localhost:3001/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d "{\"refresh_token\":\"$REFRESH_TOKEN\"}" | jq
-```
-
-### Database Management
-
-Run migrations:
-```bash
-cd express-api
-npx sequelize-cli db:migrate
-```
-
-Rollback last migration:
-```bash
-npx sequelize-cli db:migrate:undo
-```
-
-Clear all data (development only):
-```bash
-npx ts-node scripts/clearData.ts
-```
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Full system architecture (Timeharbor + Timehuddle)
+- [TIMEHARBOR-CORE.md](TIMEHARBOR-CORE.md) — Core MVP: profiles, tickets, work sessions
 
 ### Monitoring Logs
 

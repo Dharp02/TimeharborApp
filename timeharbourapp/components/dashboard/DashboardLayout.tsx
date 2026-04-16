@@ -22,6 +22,14 @@ import PullToRefresh from '@/components/ui/PullToRefresh';
 import { Button, SidebarProvider, SidebarMobileToggle } from '@mieweb/ui';
 import SyncInitializer from '@/components/SyncInitializer';
 import { BrandWatcher } from './BrandSwitcher';
+import WalkthroughModal, { useWalkthrough } from '@/components/WalkthroughModal';
+import { WalkthroughProvider } from '@/contexts/WalkthroughContext';
+import dynamic from 'next/dynamic';
+
+const ClientSidebarProvider = dynamic(
+  () => import('@mieweb/ui').then((mod) => mod.SidebarProvider),
+  { ssr: false }
+);
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, initialSyncing } = useAuth();
@@ -105,6 +113,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
+  // ── Walkthrough ──
+  const [showWalkthrough, setShowWalkthrough] = useWalkthrough();
+
+  // Listen for manual trigger from Settings
+  useEffect(() => {
+    const handler = () => setShowWalkthrough(true);
+    window.addEventListener('open-walkthrough', handler);
+    return () => window.removeEventListener('open-walkthrough', handler);
+  }, [setShowWalkthrough]);
+
   // Scroll to top on route change
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -126,8 +144,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   return (
+    <WalkthroughProvider value={{ isActive: showWalkthrough }}>
     <ClockInProvider>
-      <SidebarProvider>
+      <ClientSidebarProvider>
         <SyncInitializer />
         <BrandWatcher />
         {initialSyncing && (
@@ -162,7 +181,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 ) : (
                   <SidebarMobileToggle className="p-1 text-muted-foreground" />
                 )}
-                <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400 truncate max-w-[200px]">
+                <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400 truncate max-w-50">
                   {pathname?.startsWith('/dashboard/member')
                     ? <Suspense fallback="Member"><MemberName /></Suspense>
                     : getHeaderTitle()}
@@ -196,7 +215,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <BottomNav />
           </div>
         </div>
-      </SidebarProvider>
+
+        {/* First-time user walkthrough */}
+        <WalkthroughModal isOpen={showWalkthrough} onClose={() => setShowWalkthrough(false)} />
+      </ClientSidebarProvider>
     </ClockInProvider>
+    </WalkthroughProvider>
   );
 }

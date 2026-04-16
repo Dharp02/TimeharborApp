@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type DexieWorkSession } from '../db';
 import { computeSession, type SessionStats } from '@timeharbor/time-engine';
+import { sessionManager } from './SessionManager';
 
 /**
  * useSession — reactive hook for the current open work session.
@@ -56,9 +57,20 @@ export function useSession(userId: string | undefined) {
 
   // Single stable interval — reads session from ref, never re-created
   useEffect(() => {
+
     intervalRef.current = setInterval(() => {
       const session = sessionRef.current;
       if (!session || session.clockOut !== null) return;
+
+      // Auto clock-out check: exact 8 hours (28800000ms)
+      const MAX_OPEN_MS = 8 * 60 * 60 * 1000;
+      if (Date.now() - session.clockIn >= MAX_OPEN_MS) {
+        sessionManager.forceAutoClockOut(session.id).catch(err => {
+          console.error('Auto clock-out failed', err);
+        });
+        return;
+      }
+
       const computed = computeSession(
         {
           clockIn: session.clockIn,
