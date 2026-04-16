@@ -71,7 +71,12 @@ export default function ProfileAvatarMenu() {
         data-walkthrough="profile-avatar"
       >
         {avatarSrc ? (
-          <img src={avatarSrc} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
+          <img 
+            src={avatarSrc} 
+            alt="Profile" 
+            className="absolute inset-0 w-full h-full object-cover" 
+            onError={() => setAvatarSrc(null)}
+          />
         ) : (
           getInitials()
         )}
