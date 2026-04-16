@@ -2,7 +2,6 @@ import { type Page, type Locator } from '@playwright/test';
 import { BasePage } from './base.page';
 
 export class DashboardPage extends BasePage {
-  readonly clearCacheButton: Locator;
   readonly timeTrackerButton: Locator;
   readonly ticketsButton: Locator;
   readonly settingsButton: Locator;
@@ -12,7 +11,6 @@ export class DashboardPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.clearCacheButton = page.getByRole('button', { name: 'Clear Cache' });
     this.timeTrackerButton = page.getByRole('button', { name: 'Time Tracker' }).first();
     this.ticketsButton = page.getByRole('button', { name: 'Tickets' }).first();
     this.settingsButton = page.getByRole('button', { name: 'Settings' }).first();

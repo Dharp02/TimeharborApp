@@ -25,7 +25,6 @@ import {
   NotebookPen,
   Settings,
   HelpCircle,
-  Trash2,
   UserPen,
   ScrollText,
   MessageSquarePlus,
@@ -33,7 +32,6 @@ import {
   Share2,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { clearDatabase } from '@/TimeharborAPI/db';
 import { getProfile } from '@/TimeharborAPI/profile';
 import ShareMyLinkModal from '@/components/ShareMyLinkModal';
 

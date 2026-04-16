@@ -301,24 +301,7 @@ test.describe('Multi-Profile — Validation', () => {
     await expect(page.getByRole('button', { name: 'Scan QR Code' })).toBeVisible();
 
     // Back button returns to list
-    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('button', { name: 'Back' }).click();
     await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible({ timeout: 3_000 });
-  });
-});
-
-test.describe('Cleanup', () => {
-  test('clean up test databases', async ({ page }) => {
-    // Go to dashboard to ensure same origin
-    await page.goto('/dashboard');
-    await page.evaluate(async () => {
-      if (window.indexedDB && window.indexedDB.databases) {
-        const dbs = await window.indexedDB.databases();
-        for (const db of dbs) {
-          if (db.name && db.name.startsWith('TimeharborDB_')) {
-            window.indexedDB.deleteDatabase(db.name);
-          }
-        }
-      }
-    });
   });
 });

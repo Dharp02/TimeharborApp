@@ -5,7 +5,7 @@ import { Button, Input, Alert, AlertDescription, Text, SmallMuted } from '@miewe
 import { Loader2, ScanLine, X, Plus, Download, UserRound, Trash2, Check, Pencil } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import jsQR from 'jsqr';
-import { hasProfileDatabase, switchProfileDatabase } from '@/TimeharborAPI/db';
+import { clearDatabase } from '@/TimeharborAPI/db';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import {
   setupEncryption,
@@ -34,9 +34,6 @@ interface ProfileSwitchModalProps {
 }
 
 type View = 'list' | 'new' | 'import';
-type SwitchOptions = {
-  allowEmptyOffline?: boolean;
-};
 
 /**
  * Modal for managing multiple profiles — switch between saved profiles,
@@ -51,7 +48,6 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
   const [syncing, setSyncing] = useState(false);
   const [done, setDone] = useState(false);
   const [pulledCount, setPulledCount] = useState(0);
-  const [switchedOffline, setSwitchedOffline] = useState(false);
 
   // Import form fields
   const [uuid, setUuid] = useState('');
@@ -179,30 +175,13 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
   // ── Core switch logic (shared by all flows) ─────────────
 
   const switchToProfile = useCallback(
-    async (
-      targetUuid: string,
-      targetPassphrase: string,
-      profileName: string,
-      options: SwitchOptions = {},
-    ) => {
+    async (targetUuid: string, targetPassphrase: string, profileName: string) => {
       setError('');
       setLoading(true);
-
-      const previousUuid = typeof window !== 'undefined' ? getIdentityUUID() : '';
-      const previousPassphrase =
-        typeof window !== 'undefined' ? localStorage.getItem('th_identity_passphrase') ?? '' : '';
 
       try {
         if (!globalThis.crypto?.subtle) {
           throw new Error('Encryption is not available. WebCrypto requires HTTPS or localhost.');
-        }
-
-        const isOnline = navigator.onLine;
-        setSwitchedOffline(!isOnline);
-        const targetHasLocalData = getSavedProfiles().some(p => p.uuid === targetUuid) || await hasProfileDatabase(targetUuid);
-
-        if (!isOnline && !targetHasLocalData && !options.allowEmptyOffline) {
-          throw new Error('This profile has no local data yet. Connect to the internet to load it once.');
         }
 
         // 1. Save current profile before switching
@@ -211,10 +190,10 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
         // 2. Stop current sync
         await syncManager.stop();
 
-        // 3. Swap active DB to target profile
-        await clearKeys();
-        await switchProfileDatabase(targetUuid);
+        // 3. Clear current database
+        await clearDatabase();
         resetTicketState();
+        await clearKeys();
 
         // 4. Set new identity
         localStorage.setItem('th_identity_uuid', targetUuid);
@@ -223,54 +202,34 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
         // 5. Derive encryption keys
         const syncKey = await setupEncryption(targetPassphrase);
 
-        // 6. Verify key against server when online
-        if (isOnline) {
-          try {
-            await verifySyncKey(syncKey);
-          } catch {
-            // Revert to previous profile context
-            await clearKeys();
-            if (previousUuid) {
-              await switchProfileDatabase(previousUuid);
-              resetTicketState();
-              localStorage.setItem('th_identity_uuid', previousUuid);
-              if (previousPassphrase) {
-                localStorage.setItem('th_identity_passphrase', previousPassphrase);
-                const previousSyncKey = await setupEncryption(previousPassphrase);
-                await cacheSyncKey(previousSyncKey);
-                syncManager.setSyncKey(previousSyncKey);
-              }
-            } else {
-              localStorage.removeItem('th_identity_uuid');
-              localStorage.removeItem('th_identity_passphrase');
-            }
-            syncManager.resume();
-            throw new Error('OperationError');
-          }
+        // 6. Verify key against server (skip for brand-new profiles with no server data)
+        try {
+          await verifySyncKey(syncKey);
+        } catch {
+          // Revert identity
+          await clearKeys();
+          localStorage.removeItem('th_identity_uuid');
+          localStorage.removeItem('th_identity_passphrase');
+          syncManager.resume();
+          throw new Error('OperationError');
         }
 
         // 7. Cache key and restart sync
         await cacheSyncKey(syncKey);
         syncManager.setSyncKey(syncKey);
         syncManager.resume();
-        if (isOnline) {
-          syncManager.requestFullRestore();
-        }
+        syncManager.requestFullRestore();
 
         // 8. Save/update profile in registry
         saveProfile({ uuid: targetUuid, passphrase: targetPassphrase, name: profileName });
 
         setLoading(false);
-        if (isOnline) {
-          setSyncing(true);
+        setSyncing(true);
 
-          // 9. Pull all data
-          const pulled = await pullOpLog(syncKey, { includeOwn: true });
-          setPulledCount(pulled);
-          setSyncing(false);
-        } else {
-          setPulledCount(0);
-        }
+        // 9. Pull all data
+        const pulled = await pullOpLog(syncKey, { includeOwn: true });
+        setPulledCount(pulled);
+        setSyncing(false);
         setDone(true);
       } catch (err: any) {
         setLoading(false);
@@ -315,7 +274,7 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
       const bytes = crypto.getRandomValues(new Uint8Array(32));
       const newPassphrase = toBase64(bytes);
 
-      await switchToProfile(newUuid, newPassphrase, name, { allowEmptyOffline: true });
+      await switchToProfile(newUuid, newPassphrase, name);
     },
     [newProfileName, switchToProfile],
   );
@@ -367,16 +326,7 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
 
   const handleRemoveProfile = useCallback(
     (profileUuid: string) => {
-      const removed = removeProfile(profileUuid);
-      if (removed) {
-        // Also delete the physical database to avoid orphans
-        try {
-          const dbName = `TimeharborDB_${profileUuid.trim()}`;
-          indexedDB.deleteDatabase(dbName);
-        } catch (e) {
-          console.warn('Failed to delete profile database', e);
-        }
-      }
+      removeProfile(profileUuid);
       refreshProfiles();
     },
     [refreshProfiles],
@@ -410,7 +360,6 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
     setSyncing(false);
     setDone(false);
     setPulledCount(0);
-    setSwitchedOffline(false);
     setEditingUuid(null);
     setEditName('');
   }, [stopScanner]);
@@ -445,9 +394,7 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
           <>
             <Alert aria-live="polite">
               <AlertDescription>
-                {switchedOffline
-                  ? 'Profile switched using local data. It will sync when you are back online.'
-                  : `Profile switched. Synced ${pulledCount} operation${pulledCount !== 1 ? 's' : ''}.`}
+                Profile switched. Synced {pulledCount} operation{pulledCount !== 1 ? 's' : ''}.
               </AlertDescription>
             </Alert>
             <Button onClick={handleClose} className="w-full">
