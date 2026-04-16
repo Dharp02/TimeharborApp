@@ -309,40 +309,42 @@ export default function ProjectsPage() {
   /* ── render ───────────────────────────────────────────── */
   return (
     <div className="projects-page max-w-7xl mx-auto px-0 py-2 space-y-4">
-      {/* ── Header ───────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-          <Text size="xl" weight="bold">Projects</Text>
+      <div className="sticky top-[102px] lg:top-[64px] z-20 bg-background -mx-4 px-4 py-2 -mt-2 space-y-4 shadow-sm shadow-background">
+        {/* ── Header ───────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <FolderOpen className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+            <Text size="xl" weight="bold">Projects</Text>
+          </div>
+          <Button size="sm" onClick={openCreate} aria-label="Create new project">
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">New Project</span>
+          </Button>
         </div>
-        <Button size="sm" onClick={openCreate} aria-label="Create new project">
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">New Project</span>
-        </Button>
-      </div>
 
-      {/* ── Search & Filter Bar ──────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="Search projects…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-            aria-label="Search projects"
+        {/* ── Search & Filter Bar ──────────────────────── */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search projects…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+              aria-label="Search projects"
+            />
+          </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v)}
+            options={[
+              { value: 'All', label: 'All Statuses' },
+              ...STATUS_OPTIONS,
+            ]}
+            aria-label="Filter by status"
+            hideLabel
           />
         </div>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v)}
-          options={[
-            { value: 'All', label: 'All Statuses' },
-            ...STATUS_OPTIONS,
-          ]}
-          aria-label="Filter by status"
-          hideLabel
-        />
       </div>
 
       {/* ── Loading / Empty ──────────────────────────── */}

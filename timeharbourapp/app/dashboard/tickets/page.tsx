@@ -524,11 +524,12 @@ export default function TicketsPage() {
       </Modal>
 
       <div className="space-y-3">
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => setActiveTab(v as SourceTab)}
-          variant="pills"
-        >
+        <div className="sticky top-[102px] lg:top-16 z-20 bg-background -mx-4 px-4 py-2 -mt-2 space-y-3 shadow-sm shadow-background">
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as SourceTab)}
+            variant="pills"
+          >
           <TabsList className="w-full">
             {tabs.map((tab) => (
               <TabsTrigger key={tab} value={tab} className="flex-1">
@@ -562,6 +563,8 @@ export default function TicketsPage() {
               </Badge>
             ))}
           </div>
+        </div>
+
         </div>
 
         {isLoading ? (
