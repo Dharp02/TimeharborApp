@@ -24,6 +24,12 @@ import SyncInitializer from '@/components/SyncInitializer';
 import { BrandWatcher } from './BrandSwitcher';
 import WalkthroughModal, { useWalkthrough } from '@/components/WalkthroughModal';
 import { WalkthroughProvider } from '@/contexts/WalkthroughContext';
+import dynamic from 'next/dynamic';
+
+const ClientSidebarProvider = dynamic(
+  () => import('@mieweb/ui').then((mod) => mod.SidebarProvider),
+  { ssr: false }
+);
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, initialSyncing } = useAuth();
@@ -140,7 +146,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <WalkthroughProvider value={{ isActive: showWalkthrough }}>
     <ClockInProvider>
-      <SidebarProvider>
+      <ClientSidebarProvider>
         <SyncInitializer />
         <BrandWatcher />
         {initialSyncing && (
@@ -212,7 +218,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* First-time user walkthrough */}
         <WalkthroughModal isOpen={showWalkthrough} onClose={() => setShowWalkthrough(false)} />
-      </SidebarProvider>
+      </ClientSidebarProvider>
     </ClockInProvider>
     </WalkthroughProvider>
   );

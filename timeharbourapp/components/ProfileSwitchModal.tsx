@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useRefresh } from '@/contexts/RefreshContext';
 import { Button, Input, Alert, AlertDescription, Text, SmallMuted } from '@mieweb/ui';
 import { Loader2, ScanLine, X, Plus, Download, UserRound, Trash2, Check, Pencil } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
@@ -44,6 +46,8 @@ type SwitchOptions = {
  */
 export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchModalProps) {
   const [view, setView] = useState<View>('list');
+  const router = useRouter();
+  const { refreshAll } = useRefresh();
 
   // Shared switch state
   const [error, setError] = useState('');
@@ -420,9 +424,11 @@ export default function ProfileSwitchModal({ isOpen, onClose }: ProfileSwitchMod
     resetState();
     onClose();
     if (wasDone) {
-      window.location.href = '/dashboard';
+      refreshAll();
+      router.push('/dashboard');
+      router.refresh();
     }
-  }, [onClose, done, resetState]);
+  }, [onClose, done, resetState, refreshAll, router]);
 
   // ── Render helpers ──────────────────────────────────────
 
