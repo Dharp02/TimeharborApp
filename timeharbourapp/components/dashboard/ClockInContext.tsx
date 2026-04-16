@@ -182,7 +182,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       startTime: new Date().toISOString(),
     });
 
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
     window.dispatchEvent(new Event('pull-to-refresh'));
     window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
 
@@ -261,7 +261,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       duration: durationStr,
     });
 
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
     window.dispatchEvent(new Event('pull-to-refresh'));
     window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
   }, [currentSession, isOnBreak, activeTicketId, stats, updateActiveSession, addActivity]);
@@ -314,7 +314,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       duration: durationStr,
     });
 
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
     window.dispatchEvent(new Event('pull-to-refresh'));
     window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
 
@@ -447,7 +447,7 @@ export function ClockInProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
     window.dispatchEvent(new Event('pull-to-refresh'));
   }, [isSessionActive, currentSession, activeTicketId, activeTicketTitle, stats, addActivity]);
 

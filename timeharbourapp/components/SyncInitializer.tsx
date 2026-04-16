@@ -99,7 +99,7 @@ export default function SyncInitializer() {
     }
 
     // Trigger an immediate sync now that we have the key
-    await syncManager.syncNow();
+    await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
   }, [passphraseMode]);
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function SyncInitializer() {
     detector.init();
 
     detector.setSyncHandler(async () => {
-      await syncManager.syncNow();
+      await syncManager.syncNow().catch(e => console.warn('Sync failed:', e));
       if (wasOfflineRef.current) {
         wasOfflineRef.current = false;
         showSyncedToast();
