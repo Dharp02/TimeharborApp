@@ -31,7 +31,7 @@ test('Session auto clocks out after 8 hours', async ({ page }) => {
 
   await expect(page.locator('text="Clock In"').first()).toBeVisible({ timeout: 5000 });
 
-  const session = await page.evaluate(async () => {
+  const session: any = await page.evaluate(async () => {
     return new Promise((resolve, reject) => {
       const dbs = indexedDB.databases();
       dbs.then(info => {

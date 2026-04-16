@@ -664,7 +664,7 @@ test.describe('Settings — Switch Profile E2E Flow', () => {
     };
 
     // ── User A: Open dashboard (no auth required) ──
-    const ctxA = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: sharedStorageState });
+    const ctxA = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: sharedStorageState as any });
     const pageA = await ctxA.newPage();
 
     await pageA.goto('/dashboard');
@@ -689,7 +689,7 @@ test.describe('Settings — Switch Profile E2E Flow', () => {
     await pageA.getByRole('button', { name: 'Done' }).click();
 
     // ── User B: Open dashboard in separate context (gets its own identity) ──
-    const ctxB = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: sharedStorageState });
+    const ctxB = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: sharedStorageState as any });
     const pageB = await ctxB.newPage();
 
     await pageB.goto('/dashboard');
