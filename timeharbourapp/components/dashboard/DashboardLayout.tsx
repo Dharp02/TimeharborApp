@@ -199,7 +199,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               pt-25.5 lg:pt-4
               pb-20 lg:pb-24
               min-h-screen
-              overflow-x-hidden
             `}>
               <PullToRefresh>
                 <div className="px-4 py-4 lg:px-6 lg:py-4">

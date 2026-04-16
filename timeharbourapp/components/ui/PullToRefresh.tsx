@@ -170,7 +170,7 @@ export default function PullToRefresh({ children }: PullToRefreshProps) {
   }, [isRefreshing, performRefresh, resetAnimation]);
 
   return (
-    <div className="relative isolate min-h-[calc(100vh-100px)] overflow-hidden">
+    <div className="relative isolate min-h-[calc(100vh-100px)] flex flex-col w-full">
       {/* Background Spinner Layer */}
       {/* Positioned fixed/absolute at the top but behind content */}
       <div 

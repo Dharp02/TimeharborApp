@@ -252,27 +252,29 @@ export default function TimesheetPage() {
   return (
     <div className="max-w-7xl mx-auto px-0 py-2 space-y-4">
       {/* Filter Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <DateRangePickerWithPresets
-          value={{ start: dateRange.from.toJSDate(), end: dateRange.to.toJSDate() }}
-          onChange={handleRangeChange}
-          activePreset={preset}
-          presets={dateFilterPresets}
-          variant="responsive"
-          className="w-full md:w-auto"
-        />
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <Clock className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground font-medium">Total:</span>
-            <span className="text-base font-bold text-gray-900 dark:text-white">
-              {formatDurationMs(totalMs)}
-            </span>
+      <div className="sticky top-[102px] lg:top-16 z-20 bg-background -mx-4 px-4 py-2 -mt-2 shadow-sm shadow-background">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <DateRangePickerWithPresets
+            value={{ start: dateRange.from.toJSDate(), end: dateRange.to.toJSDate() }}
+            onChange={handleRangeChange}
+            activePreset={preset}
+            presets={dateFilterPresets}
+            variant="responsive"
+            className="w-full md:w-auto"
+          />
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground font-medium">Total:</span>
+              <span className="text-base font-bold text-gray-900 dark:text-white">
+                {formatDurationMs(totalMs)}
+              </span>
+            </div>
+            <Button onClick={addEntry} aria-label="Add timesheet entry">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add Entry</span>
+            </Button>
           </div>
-          <Button onClick={addEntry} aria-label="Add timesheet entry">
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Add Entry</span>
-          </Button>
         </div>
       </div>
 

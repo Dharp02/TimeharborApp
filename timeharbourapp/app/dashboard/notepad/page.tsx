@@ -196,7 +196,7 @@ export default function NotepadPage() {
     <div className="notepad-page">
       {/* ── Note List Panel ──────────────────────────── */}
       <aside className={`notepad-list${showList ? ' notepad-list--open' : ''}`}>
-        <div className="notepad-list__search">
+        <div className="notepad-list__search sticky top-[102px] lg:top-16 z-20 bg-background shadow-sm shadow-background">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
