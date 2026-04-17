@@ -55,8 +55,8 @@ export default function SettingsPage() {
   const displayEmail = profileEmail || user?.email || '';
 
   const getInitials = () => {
-    if (!displayName || displayName === 'User') return displayEmail?.charAt(0).toUpperCase() || 'U';
-    const parts = displayName.split(' ');
+    if (!displayName || displayName === 'User') return 'U';
+    const parts = displayName.split(/\s+/);
     if (parts.length >= 2) {
       return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }

@@ -25,9 +25,9 @@ export default function ProfileAvatarMenu() {
   }, [user?.image]);
   // Get user initials
   const getInitials = () => {
-    const name = user?.name || user?.full_name;
-    if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
-    const parts = name.split(' ');
+    const name = (user?.name || user?.full_name || '').trim();
+    if (!name) return 'U';
+    const parts = name.split(/\s+/);
     if (parts.length >= 2) {
       return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }

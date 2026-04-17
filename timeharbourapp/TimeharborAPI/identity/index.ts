@@ -63,17 +63,19 @@ export const getSession = async (): Promise<{ data: Session | null; error: AuthE
 export const getUser = async (): Promise<{ user: User | null; error: AuthError | null }> => {
   const uid = getIdentityUUID();
   const profile = await db.userProfiles.get(uid).catch(() => null);
-  const name = profile?.displayName || 'TimeHarbor User';
+  const name = (profile?.displayName ?? '').trim();
+  const email = (profile?.email ?? '').trim();
+  const [firstName = '', ...lastNameParts] = name ? name.split(/\s+/) : [];
   const user: User = {
     id: uid,
-    email: profile?.email || 'user@timeharbor.local',
+    email,
     emailVerified: false,
     name,
     image: profile?.avatarBase64 || null,
     createdAt: profile?.createdAt ? new Date(profile.createdAt) : new Date(),
     updatedAt: profile?.updatedAt ? new Date(profile.updatedAt) : new Date(),
-    firstName: name.split(' ')[0] || 'TimeHarbor',
-    lastName: name.split(' ').slice(1).join(' ') || 'User'
+    firstName,
+    lastName: lastNameParts.join(' ')
   };
   return { user, error: null };
 };
