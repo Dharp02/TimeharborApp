@@ -21,9 +21,13 @@ import {
   hasServerData,
   verifySyncKey,
 } from '@/TimeharborAPI/sync/EncryptedSyncEngine';
-import { ensureIdentityAndEncryption, migrateAuthUserIdToIdentity } from '@/TimeharborAPI/sync/IdentityManager';
+import {
+  ensureIdentityAndEncryption,
+  migrateAuthUserIdToIdentity,
+  getIdentityUUID,
+} from '@/TimeharborAPI/sync/IdentityManager';
 import { ensureCurrentProfileSaved } from '@/TimeharborAPI/sync/ProfileRegistry';
-import { db } from '@/TimeharborAPI/db';
+import { db, getCurrentDatabaseName } from '@/TimeharborAPI/db';
 import EncryptionSetupModal from './EncryptionSetupModal';
 
 export default function SyncInitializer() {
@@ -48,6 +52,30 @@ export default function SyncInitializer() {
 
   const showOnlineToast = useCallback(() => {
     toastRef.current.info('Back online — syncing…');
+  }, []);
+
+  const logIdentityDbContext = useCallback((stage: string) => {
+    if (typeof window === 'undefined') return;
+
+    const uuid = getIdentityUUID();
+    const activeDbName = getCurrentDatabaseName();
+    const expectedDbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
+
+    if (activeDbName !== expectedDbName) {
+      console.warn('[SyncInitializer] identity/db mismatch', {
+        stage,
+        uuid,
+        activeDbName,
+        expectedDbName,
+      });
+      return;
+    }
+
+    console.info('[SyncInitializer] startup identity/db context', {
+      stage,
+      uuid,
+      activeDbName,
+    });
   }, []);
 
   // ── Handle passphrase submission (setup, unlock, or restore) ──
@@ -125,6 +153,7 @@ export default function SyncInitializer() {
         // Migrate any data stored under old auth user.id to identity UUID
         await migrateAuthUserIdToIdentity();
         const syncKey = await ensureIdentityAndEncryption();
+        logIdentityDbContext('encryption-needed');
         ensureCurrentProfileSaved();
         syncManager.setSyncKey(syncKey);
 
@@ -196,6 +225,7 @@ export default function SyncInitializer() {
         // Auto-generate UUID + passphrase + encryption key on first launch.
         // If already set up, this just loads the cached key.
         const syncKey = await ensureIdentityAndEncryption();
+        logIdentityDbContext('boot');
         syncManager.setSyncKey(syncKey);
 
         // If migration hasn't run yet, run it now
@@ -227,7 +257,7 @@ export default function SyncInitializer() {
       clearInterval(interval);
       detector.destroy();
     };
-  }, [showSyncedToast, showOfflineToast, showOnlineToast, handlePassphraseSubmit]);
+  }, [showSyncedToast, showOfflineToast, showOnlineToast, handlePassphraseSubmit, logIdentityDbContext]);
 
   return (
     <EncryptionSetupModal

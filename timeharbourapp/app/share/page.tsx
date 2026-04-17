@@ -6,6 +6,7 @@ import { Input, Button, Alert, AlertDescription, Text, SmallMuted } from '@miewe
 import { KeyRound, Download, Loader2 } from 'lucide-react';
 import { db } from '@/TimeharborAPI/db';
 import { clearDatabase } from '@/TimeharborAPI/db';
+import { switchProfileDatabase } from '@/TimeharborAPI/db';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import {
   setupEncryption,
@@ -82,6 +83,7 @@ function SharePageContent() {
       // Store the sender's UUID as our identity for this session
       localStorage.setItem('th_identity_uuid', uuid);
       localStorage.setItem('th_identity_passphrase', passphrase);
+      await switchProfileDatabase(uuid);
 
       // Derive encryption keys from the passphrase
       const syncKey = await setupEncryption(passphrase);

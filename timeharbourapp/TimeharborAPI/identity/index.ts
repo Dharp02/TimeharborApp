@@ -1,6 +1,6 @@
 import { db } from '../db';
-import { v4 as uuidv4 } from 'uuid';
 import { getApiUrl } from '../apiUrl';
+import { getIdentityUUID as getSyncIdentityUUID } from '../sync/IdentityManager';
 
 export interface User {
   id: string;
@@ -29,17 +29,8 @@ export type AuthListener = (
   session: { session: Session | null; user: User | null }
 ) => void;
 
-// Identity UUID management
-const IDENTITY_KEY = 'timeharbor_identity_uuid';
-
 export const getIdentityUUID = (): string => {
-  if (typeof window === 'undefined') return '';
-  let uuid = localStorage.getItem(IDENTITY_KEY);
-  if (!uuid) {
-    uuid = uuidv4();
-    localStorage.setItem(IDENTITY_KEY, uuid);
-  }
-  return uuid;
+  return getSyncIdentityUUID();
 };
 
 // Simplified Listeners

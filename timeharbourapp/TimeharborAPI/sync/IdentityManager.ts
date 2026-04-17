@@ -8,7 +8,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { toBase64 } from './encoding';
-import { db } from '../db';
+import { db, switchProfileDatabase } from '../db';
 import {
   setupEncryption,
   isEncryptionSetUp,
@@ -77,6 +77,9 @@ export function setIdentityPassphrase(passphrase: string): void {
  * - If nothing is set up → generate passphrase + setup encryption
  */
 export async function ensureIdentityAndEncryption(): Promise<CryptoKey> {
+  const uuid = getIdentityUUID();
+  await switchProfileDatabase(uuid);
+
   // 1. Try cached sync key first (fastest path — skip all derivation)
   const cached = await loadCachedSyncKey();
   if (cached) return cached;
