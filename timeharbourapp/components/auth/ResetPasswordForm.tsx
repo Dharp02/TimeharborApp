@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { resetPassword, clearStoredSession } from '@/TimeharborAPI/auth';
+import { resetPassword, clearStoredSession } from '@/TimeharborAPI/identity';
 import { Input, Button, Alert, AlertDescription } from '@mieweb/ui';
 
 export default function ResetPasswordForm() {

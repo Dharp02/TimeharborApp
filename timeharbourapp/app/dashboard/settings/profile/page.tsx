@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import { getProfile, upsertProfile } from '@/TimeharborAPI/profile';
 import { User, Camera, Trash2, Github, Linkedin, Bug, Save, X, Loader2, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { Button, Input } from '@mieweb/ui';
@@ -14,7 +14,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 

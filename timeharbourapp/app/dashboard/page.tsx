@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import dynamic from 'next/dynamic';
 import StoriesBar from '@/components/dashboard/StoriesBar';
 
@@ -21,7 +21,7 @@ const RecentActivity = dynamic(() => import('@/components/dashboard/RecentActivi
 });
 
 export default function Dashboard() {
-  const { user, loading } = useAuth();
+  const { user, loading } = useAppSession();
 
   if (loading) {
     return (

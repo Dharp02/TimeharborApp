@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { forgotPassword } from '@/TimeharborAPI/auth';
+import { forgotPassword } from '@/TimeharborAPI/identity';
 import { Input, Button, Alert, AlertDescription } from '@mieweb/ui';
 
 export default function ForgotPasswordForm() {

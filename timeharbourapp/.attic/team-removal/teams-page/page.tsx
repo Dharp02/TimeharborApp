@@ -6,14 +6,14 @@ import { Users, Plus, Copy, Check, Trash2, Edit2, Circle, UserPlus, UserMinus, S
 import { Modal } from '@/components/ui/Modal';
 import { Button, Input } from '@mieweb/ui';
 import { useTeam, Team, Member } from '@/components/dashboard/TeamContext';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import { TeamActivityReport } from '@/components/dashboard/TeamActivityReport';
 import { copyText } from '@/lib/utils';
 import { useLogger } from '@/hooks/useLogger';
 
 export default function TeamsPage() {
   const logger = useLogger();
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const { currentTeam, teams, deleteTeam, updateTeamName, selectTeam, addMember, removeMember, updateMemberRole, refreshTeams, joinTeam, createTeam } = useTeam();
   const [activeTab, setActiveTab] = useState<'teaminfo' | 'teamactivity'>('teaminfo');
 

@@ -44,7 +44,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useClockIn } from "@/components/dashboard/ClockInContext";
 import { useActivityLog } from "@/components/dashboard/ActivityLogContext";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAppSession } from "@/components/AppSessionProvider";
 import { Modal } from "@/components/ui/Modal";
 import { tickets as ticketsApi } from "@/TimeharborAPI";
 import { Ticket as TicketType } from "@/TimeharborAPI/tickets";
@@ -65,7 +65,7 @@ export default function TicketsPage() {
     ticketDurations,
   } = useClockIn();
   const { addActivity } = useActivityLog();
-  const { user } = useAuth();
+  const { user } = useAppSession();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);

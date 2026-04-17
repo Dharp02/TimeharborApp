@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import {
   User,
   Bell,
@@ -31,7 +31,7 @@ import AppLockToggle from '@/components/AppLockToggle';
 import { isRecoveryKeySaved } from '@/TimeharborAPI/sync/RecoveryKeyService';
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const router = useRouter();
   const { resolvedTheme, setTheme } = useThemeContext();
 

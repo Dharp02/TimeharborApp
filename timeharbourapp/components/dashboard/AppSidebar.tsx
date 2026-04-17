@@ -32,7 +32,7 @@ import {
   Bug,
   Share2,
 } from 'lucide-react';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import { clearDatabase } from '@/TimeharborAPI/db';
 import { getProfile } from '@/TimeharborAPI/profile';
 import ShareMyLinkModal from '@/components/ShareMyLinkModal';
@@ -77,7 +77,7 @@ const NAV_SECTIONS = [
 export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const { closeMobile, isCollapsed } = useSidebar();
   const [showShareModal, setShowShareModal] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);

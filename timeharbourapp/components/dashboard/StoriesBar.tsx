@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@mieweb/ui';
@@ -8,7 +8,7 @@ import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 import { getProfile } from '@/TimeharborAPI/profile';
 import styles from './StoriesBar.module.css';
 export default function StoriesBar() {
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
 

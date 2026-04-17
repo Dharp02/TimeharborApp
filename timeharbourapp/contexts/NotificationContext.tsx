@@ -10,7 +10,7 @@ import {
   deleteNotifications as apiDeleteNotifications,
   Notification as ApiNotification 
 } from '@/TimeharborAPI/notifications';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 
 export interface AppNotification {
   id: string;
@@ -38,7 +38,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const { user } = useAuth();
+  const { user } = useAppSession();
 
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) {
