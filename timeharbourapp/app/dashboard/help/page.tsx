@@ -235,9 +235,9 @@ function FaqCategorySection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className="rounded-xl border border-border bg-card overflow-hidden">
+    <section>
       <button
-        className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-muted/30 transition-colors"
+        className="flex w-full items-center gap-3 px-0 py-4 text-left hover:bg-muted/30 transition-colors"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
@@ -249,7 +249,7 @@ function FaqCategorySection({
           : <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" />}
       </button>
       {open && (
-        <div className="px-5 border-t border-border">
+        <div className="border-t border-border">
           {category.items.map((item) => (
             <FaqItemRow key={item.question} item={item} />
           ))}
@@ -282,7 +282,7 @@ export default function HelpPage() {
   }, [query]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
+    <div className="space-y-6 px-4 py-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Help &amp; Support</h1>
@@ -305,7 +305,7 @@ export default function HelpPage() {
 
       {/* Search results */}
       {filtered !== null && (
-        <section className="rounded-xl border border-border bg-card overflow-hidden">
+        <section>
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
               <HelpCircle className="w-8 h-8 text-muted-foreground/40" />
@@ -313,7 +313,7 @@ export default function HelpPage() {
               <p className="text-xs text-muted-foreground/60">Try a different search term.</p>
             </div>
           ) : (
-            <div className="px-5">
+            <div>
               <p className="py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {filtered.length} result{filtered.length !== 1 ? 's' : ''}
               </p>
@@ -341,7 +341,7 @@ export default function HelpPage() {
       {/* About Us card */}
       <Link
         href="/dashboard/about"
-        className="block rounded-xl border border-border bg-card px-5 py-4 hover:bg-muted/30 transition-colors group"
+        className="block py-4 hover:opacity-70 transition-opacity group"
         aria-label="About TimeHarbor"
       >
         <div className="flex items-center justify-between gap-3">
@@ -361,7 +361,7 @@ export default function HelpPage() {
       </Link>
 
       {/* Footer links */}
-      <div className="rounded-xl border border-border bg-muted/20 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
         <div>
           <p className="text-sm font-medium text-foreground">Still need help?</p>
           <p className="text-xs text-muted-foreground mt-0.5">
