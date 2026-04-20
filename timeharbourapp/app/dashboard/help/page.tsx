@@ -339,10 +339,12 @@ export default function HelpPage() {
       )}
 
       {/* About Us card */}
-      <Link
-        href="/dashboard/about"
+      <a
+        href="https://timeharborwebsite.os.mieweb.org/"
+        target="_blank"
+        rel="noopener noreferrer"
         className="block py-4 hover:opacity-70 transition-opacity group"
-        aria-label="About TimeHarbor"
+        aria-label="About TimeHarbor — opens external website"
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -358,7 +360,7 @@ export default function HelpPage() {
           </div>
           <ChevronDown className="w-4 h-4 text-muted-foreground -rotate-90 group-hover:text-foreground transition-colors shrink-0" />
         </div>
-      </Link>
+      </a>
 
       {/* Footer links */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
