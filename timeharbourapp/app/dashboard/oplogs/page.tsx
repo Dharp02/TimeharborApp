@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@mieweb/ui';
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Trash2, Upload, Square, CheckSquare, ShieldCheck, Wifi, Database, Key } from 'lucide-react';
 import { db, type DexieOperationLog } from '@/TimeharborAPI/db';
@@ -567,7 +567,7 @@ function DiagnosticsTab() {
     update('apiConnectivity', { status: 'running', detail: 'Calling backend…' });
     try {
       const base = getApiUrl().replace(/\/api\/?$/, '');
-      const url = `${base}/api/auth/get-session`;
+      const url = `${base}/api/health`;
       const res = await fetch(url, { credentials: 'include', headers: { 'X-App-Id': 'timeharbor' } });
       update('apiConnectivity', {
         status: res.ok ? 'pass' : 'fail',
@@ -786,34 +786,60 @@ type TabKey = 'sync-queue' | 'operation-logs' | 'diagnostics';
 
 export default function OpLogsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('sync-queue');
+  // Hidden diagnostics: tap the title 5 times to unlock
+  const [titleTaps, setTitleTaps] = useState(0);
+  const [diagUnlocked, setDiagUnlocked] = useState(false);
+  const tapTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const tabs: { key: TabKey; label: string }[] = [
+  const handleTitleTap = () => {
+    const next = titleTaps + 1;
+    setTitleTaps(next);
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+    if (next >= 5) {
+      setDiagUnlocked(true);
+      setTitleTaps(0);
+    } else {
+      tapTimerRef.current = setTimeout(() => setTitleTaps(0), 2000);
+    }
+  };
+
+  const visibleTabs: { key: TabKey; label: string }[] = [
     { key: 'sync-queue', label: 'Sync Queue' },
     { key: 'operation-logs', label: 'Operation Logs' },
-    { key: 'diagnostics', label: 'Diagnostics' },
+    ...(diagUnlocked ? [{ key: 'diagnostics' as TabKey, label: 'Diagnostics' }] : []),
   ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Sync &amp; Logs</h1>
+      {/* Sticky header: title + tab bar — top offset matches the fixed app header heights */}
+      <div className="sticky top-[102px] lg:top-16 z-10 bg-background -mx-4 px-4 pt-4 pb-0">
+        {/* Tap 5× to unlock diagnostics tab */}
+        <h1
+          className="text-2xl font-bold text-foreground select-none pb-4"
+          onClick={handleTitleTap}
+          aria-label="Sync and Logs"
+        >
+          Sync &amp; Logs
+        </h1>
 
-      {/* Tab bar */}
-      <div className="flex border-b border-border" role="tablist" aria-label="Op logs tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            role="tab"
-            aria-selected={activeTab === tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {/* Tab bar */}
+        <div className="flex border-b border-border" role="tablist" aria-label="Op logs tabs">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.key}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab content */}
