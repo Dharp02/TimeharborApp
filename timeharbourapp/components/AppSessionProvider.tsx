@@ -234,15 +234,10 @@ export default function AppSessionProvider({ children }: { children: React.React
     if (loading) return;
 
     const p = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
-    const isAuthPage = ['/forgot-password'].includes(p);
     const isRoot = p === '/';
 
     console.log('[AppSessionProvider] routing', { user: !!user, path: p });
 
-    // Authenticated user on identity pages → redirect to dashboard
-    if (user && isAuthPage) {
-      router.replace('/dashboard');
-    }
     // Root → always go to dashboard (no identity gate)
     if (isRoot) {
       router.replace('/dashboard');

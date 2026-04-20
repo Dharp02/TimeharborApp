@@ -137,14 +137,6 @@ export const refreshAccessToken = getSession;
 export const ensureIdentityConsistency = async () => {};
 export const syncPendingProfile = async () => {};
 
-export const signIn = {
-  email: async (...args: any) => ({ error: { message: 'Not implemented' } }),
-  social: async (...args: any) => ({ error: { message: 'Not implemented' } })
-};
-export const signOut = async () => ({ error: { message: 'Not implemented' } });
-export const forgotPassword = async (...args: any) => ({ error: { message: 'Not implemented' } });
-export const resetPassword = async (...args: any) => ({ error: { message: 'Not implemented' } });
-
 export const fetchProfile = async (): Promise<{ profile: any; error: AuthError | null }> => {
   try {
     const res = await apiFetch('/timeharbor/me/th-profile');
