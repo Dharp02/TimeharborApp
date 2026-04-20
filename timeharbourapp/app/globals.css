@@ -1,5 +1,6 @@
 @import "tailwindcss";
-@source "../node_modules/@mieweb/ui/dist";
+@config "../tailwind.config.mjs";
+@source "../node_modules/@mieweb/ui/dist/**/*.js";
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 :root {
