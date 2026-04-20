@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   Search,
   ChevronDown,
@@ -12,6 +13,7 @@ import {
   RefreshCw,
   Settings,
   HelpCircle,
+  Info,
 } from 'lucide-react';
 import { Input } from '@mieweb/ui';
 
@@ -335,6 +337,28 @@ export default function HelpPage() {
           ))}
         </div>
       )}
+
+      {/* About Us card */}
+      <Link
+        href="/dashboard/about"
+        className="block rounded-xl border border-border bg-card px-5 py-4 hover:bg-muted/30 transition-colors group"
+        aria-label="About TimeHarbor"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
+              <Info className="w-5 h-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">About TimeHarbor</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                What we built, why we built it, and who made it.
+              </p>
+            </div>
+          </div>
+          <ChevronDown className="w-4 h-4 text-muted-foreground -rotate-90 group-hover:text-foreground transition-colors shrink-0" />
+        </div>
+      </Link>
 
       {/* Footer links */}
       <div className="rounded-xl border border-border bg-muted/20 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

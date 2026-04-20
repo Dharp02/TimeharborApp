@@ -473,6 +473,12 @@ test.describe('Operations Logs Page — /dashboard/oplogs', () => {
     await page.goto('/dashboard/oplogs');
     await page.waitForLoadState('networkidle');
 
+    // Unlock hidden Diagnostics tab by clicking the page title 5 times
+    const pageTitle = page.getByLabel('Sync and Logs');
+    for (let i = 0; i < 5; i++) {
+      await pageTitle.click();
+    }
+
     // Switch to Diagnostics tab
     await page.getByRole('tab', { name: 'Diagnostics' }).click();
 
