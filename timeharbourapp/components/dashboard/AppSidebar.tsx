@@ -36,6 +36,7 @@ import { useAppSession } from '@/components/AppSessionProvider';
 import { clearDatabase } from '@/TimeharborAPI/db';
 import { getProfile } from '@/TimeharborAPI/profile';
 import ShareMyLinkModal from '@/components/ShareMyLinkModal';
+import { useToast } from '@mieweb/ui';
 
 const NAV_SECTIONS = [
   {
@@ -51,14 +52,14 @@ const NAV_SECTIONS = [
   {
     label: 'Analytics',
     items: [
-      { label: 'Reports', icon: BarChart3, href: '/dashboard/reports' },
+      { label: 'Reports', icon: BarChart3, href: '/dashboard/reports', comingSoon: true },
       { label: 'Timesheet', icon: Sheet, href: '/dashboard/settings/timesheet', walkthrough: 'nav-timesheet' },
     ],
   },
   {
     label: 'Social',
     items: [
-      { label: 'Pulse', icon: Activity, href: '/dashboard/pulse' },
+      { label: 'Pulse', icon: Activity, href: '/dashboard/pulse', comingSoon: true },
       { label: 'Share My Link', icon: Share2, href: '#share', action: 'share' },
     ],
   },
@@ -79,6 +80,7 @@ export default function AppSidebar() {
   const router = useRouter();
   const { user } = useAppSession();
   const { closeMobile, isCollapsed } = useSidebar();
+  const toast = useToast();
   const [showShareModal, setShowShareModal] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
@@ -176,7 +178,9 @@ export default function AppSidebar() {
                     icon={<item.icon className="w-5 h-5" />}
                     isActive={'external' in item || 'action' in item ? false : isActive(item.href)}
                     onClick={() => {
-                      if ('action' in item && item.action === 'share') {
+                      if ('comingSoon' in item && item.comingSoon) {
+                        toast.info(`${item.label} — Coming Soon!`);
+                      } else if ('action' in item && item.action === 'share') {
                         closeMobile();
                         setShowShareModal(true);
                       } else if ('external' in item) {

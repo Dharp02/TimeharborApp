@@ -20,7 +20,7 @@ import {
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { Text, SmallMuted, Switch, useThemeContext } from '@mieweb/ui';
+import { Text, SmallMuted, Switch, useThemeContext, useToast } from '@mieweb/ui';
 import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 import { getProfile } from '@/TimeharborAPI/profile';
 import ShareMyLinkModal from '@/components/ShareMyLinkModal';
@@ -77,9 +77,11 @@ export default function SettingsPage() {
       .catch(() => {});
   }, [showRecoveryModal]);
 
+  const toast = useToast();
+
   const menuItems = [
     { label: 'Edit Profile', icon: User, href: '/dashboard/settings/profile' },
-    { label: 'Language', icon: Globe, href: '/dashboard/settings/language' },
+    { label: 'Language', icon: Globe, href: '/dashboard/settings/language', comingSoon: true },
     { label: 'Timesheet Settings', icon: CalendarDays, href: '/dashboard/settings/timesheet' },
   ];
 
@@ -102,19 +104,34 @@ export default function SettingsPage() {
 
       {/* Menu Items */}
       <div className="divide-y divide-border -mx-4">
-        {menuItems.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className="flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
-          >
-            <div className="flex items-center gap-4">
-              <item.icon className="w-5 h-5 text-muted-foreground" />
-              <Text className="font-medium">{item.label}</Text>
-            </div>
-            <ChevronRight className="w-5 h-5 text-muted-foreground" />
-          </Link>
-        ))}
+        {menuItems.map((item) =>
+          item.comingSoon ? (
+            <button
+              key={item.label}
+              onClick={() => toast.info(`${item.label} — Coming Soon!`)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors text-left"
+              aria-label={`${item.label} — coming soon`}
+            >
+              <div className="flex items-center gap-4">
+                <item.icon className="w-5 h-5 text-muted-foreground" />
+                <Text className="font-medium">{item.label}</Text>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </button>
+          ) : (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="flex items-center justify-between px-6 py-4 hover:bg-muted transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <item.icon className="w-5 h-5 text-muted-foreground" />
+                <Text className="font-medium">{item.label}</Text>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </Link>
+          )
+        )}
 
         {/* Push Notifications Toggle */}
         <div className="flex items-center justify-between px-6 py-4">
