@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Button } from '@mieweb/ui';
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Trash2, Upload, Square, CheckSquare, ShieldCheck, Wifi, Database, Key } from 'lucide-react';
 import { db, type DexieOperationLog } from '@/TimeharborAPI/db';
@@ -29,51 +30,40 @@ const OP_COLORS: Record<string, string> = {
 // ── Sync Queue Tab ──────────────────────────────────────────
 
 function SyncQueueTab() {
-  const [entries, setEntries] = useState<OpLogEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const fetchEntries = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const all = await db.opLog.orderBy('hlc').reverse().toArray();
-      setEntries(all);
-    } catch (error) {
-      console.error('Failed to fetch op-log entries:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchEntries(); }, [fetchEntries]);
+  // Reactively watch opLog — updates instantly when entries are added/changed,
+  // even when offline, without needing manual refresh or event polling.
+  const entries = useLiveQuery(
+    () => db.opLog.orderBy('hlc').reverse().toArray(),
+    [],
+    [] as OpLogEntry[],
+  );
+  const isLoading = entries === undefined;
 
   // ── Selection helpers ──
 
   const toggleEntry = async (id: string, current: 0 | 1) => {
     const next: 0 | 1 = current === 1 ? 0 : 1;
     await db.opLog.update(id, { _syncEnabled: next });
-    setEntries((prev) => prev.map((e) => e.id === id ? { ...e, _syncEnabled: next } : e));
   };
 
   const selectAll = async () => {
-    const ids = entries.filter((e) => e._synced === 0 && e._syncEnabled === 0).map((e) => e.id);
+    const ids = (entries ?? []).filter((e) => e._synced === 0 && e._syncEnabled === 0).map((e) => e.id);
     if (ids.length === 0) return;
     await db.opLog.where('id').anyOf(ids).modify({ _syncEnabled: 1 });
-    setEntries((prev) => prev.map((e) => e._synced === 0 ? { ...e, _syncEnabled: 1 } : e));
   };
 
   const deselectAll = async () => {
-    const ids = entries.filter((e) => e._synced === 0 && e._syncEnabled === 1).map((e) => e.id);
+    const ids = (entries ?? []).filter((e) => e._synced === 0 && e._syncEnabled === 1).map((e) => e.id);
     if (ids.length === 0) return;
     await db.opLog.where('id').anyOf(ids).modify({ _syncEnabled: 0 });
-    setEntries((prev) => prev.map((e) => e._synced === 0 ? { ...e, _syncEnabled: 0 } : e));
   };
 
   const handleSyncSelected = async () => {
     setIsSyncing(true);
     try {
       await syncManager.syncNow();
-      await fetchEntries();
     } catch (error) {
       console.error('Sync failed:', error);
     } finally {
@@ -83,9 +73,9 @@ function SyncQueueTab() {
 
   // ── Derived counts ──
 
-  const pending = entries.filter((e) => e._synced === 0);
+  const pending = (entries ?? []).filter((e) => e._synced === 0);
   const selectedCount = pending.filter((e) => e._syncEnabled === 1).length;
-  const synced = entries.filter((e) => e._synced === 1);
+  const synced = (entries ?? []).filter((e) => e._synced === 1);
   const allPendingSelected = pending.length > 0 && selectedCount === pending.length;
 
   const formatTimestamp = (iso: string) => {
@@ -156,9 +146,6 @@ function SyncQueueTab() {
               ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
               : <Upload className="w-4 h-4 mr-2" />}
             Sync{selectedCount > 0 ? ` (${selectedCount})` : ''}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={fetchEntries} aria-label="Refresh">
-            <RefreshCw className="w-4 h-4" />
           </Button>
         </div>
       </div>

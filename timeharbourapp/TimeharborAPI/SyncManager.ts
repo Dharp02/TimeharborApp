@@ -78,6 +78,11 @@ class SyncManager {
    */
   public async syncNow() {
     if (this.syncing || this.stopped) return;
+    // Skip if browser/OS reports no network connection
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      console.warn('[sync] skipping — device is offline');
+      return;
+    }
     this.syncing = true;
     try {
       if (this.syncKey) {
