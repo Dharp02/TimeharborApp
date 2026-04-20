@@ -352,6 +352,14 @@ export async function hasProfileDatabase(profileUuid: string): Promise<boolean> 
   }
 }
 
+// Listeners notified after every successful DB switch (including no-op same-name switches).
+const dbSwitchListeners = new Set<() => void>();
+
+export function subscribeToDbSwitch(listener: () => void): () => void {
+  dbSwitchListeners.add(listener);
+  return () => dbSwitchListeners.delete(listener);
+}
+
 /**
  * Switch active IndexedDB to a profile-scoped database.
  * Existing profile data is preserved; this only swaps which DB is active.
@@ -364,6 +372,7 @@ export async function switchProfileDatabase(profileUuid: string): Promise<void> 
 
   if (activeDbName === nextDbName) {
     if (!current.isOpen()) await current.open();
+    dbSwitchListeners.forEach(fn => fn());
     return;
   }
 
@@ -374,6 +383,7 @@ export async function switchProfileDatabase(profileUuid: string): Promise<void> 
   activeDb = new TimeharborDB(nextDbName);
   activeDbName = nextDbName;
   await activeDb.open();
+  dbSwitchListeners.forEach(fn => fn());
 }
 
 const browserDbProxy = new Proxy({} as TimeharborDB, {

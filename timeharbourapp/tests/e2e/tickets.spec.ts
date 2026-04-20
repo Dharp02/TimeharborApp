@@ -24,12 +24,11 @@ test.use({
 /** Read all non-deleted tickets from IndexedDB. */
 async function getTickets(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
 
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -50,12 +49,11 @@ async function getTickets(page: import('@playwright/test').Page) {
 /** Read a ticket by id (including soft-deleted). */
 async function getTicketById(page: import('@playwright/test').Page, ticketId: string) {
   return page.evaluate(async (id) => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return null;
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
 
     return new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -72,12 +70,11 @@ async function getTicketById(page: import('@playwright/test').Page, ticketId: st
 /** Read today's activity logs from IndexedDB. */
 async function getTodayActivities(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
 
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -274,11 +271,10 @@ test.describe('Tickets — CRUD & Activity Log', () => {
 
     // Verify IndexedDB: ticket should be soft-deleted (_deleted = true)
     const deleted = await page.evaluate(async (id) => {
-      const dbs = await indexedDB.databases();
-      const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-      if (!dbInfo?.name) return null;
+      const uuid = localStorage.getItem('th_identity_uuid');
+      const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
       return new Promise<Record<string, unknown> | null>((resolve, reject) => {
-        const req = indexedDB.open(dbInfo.name!);
+        const req = indexedDB.open(dbName);
         req.onerror = () => reject(req.error);
         req.onsuccess = () => {
           const db = req.result;

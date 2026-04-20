@@ -1,0 +1,208 @@
+[dotenv@17.3.1] injecting env (11) from .env.local -- tip: ⚙️  override existing env vars with { override: true }
+
+Running 86 tests using 1 worker
+
+[1A[2K[dotenv@17.3.1] injecting env (0) from .env.local -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
+
+[1A[2K[1/86] [chromium] › tests/e2e/auto-clockout.spec.ts:18:5 › Session auto clocks out after 8 hours
+[1A[2K[2/86] [chromium] › tests/e2e/dashboard.spec.ts:5:7 › Dashboard Layout › renders brand name in sidebar
+[1A[2K[3/86] [chromium] › tests/e2e/dashboard.spec.ts:12:7 › Dashboard Layout › displays core sidebar navigation
+[1A[2K[4/86] [chromium] › tests/e2e/dashboard.spec.ts:22:7 › Dashboard Layout › shows app version in sidebar footer
+[1A[2K[5/86] [chromium] › tests/e2e/dashboard.spec.ts:29:7 › Dashboard Layout › shows dashboard summary stats
+[1A[2K[6/86] [chromium] › tests/e2e/dashboard.spec.ts:36:7 › Dashboard Layout › shows clock-in prompt
+[1A[2K[7/86] [chromium] › tests/e2e/dashboard.spec.ts:50:7 › Dashboard Navigation › navigates to tickets page via sidebar
+[1A[2K[8/86] [chromium] › tests/e2e/dashboard.spec.ts:66:7 › Dashboard Navigation › navigates to settings page via sidebar
+[1A[2K[9/86] [chromium] › tests/e2e/multi-profile.spec.ts:91:7 › Multi-Profile — Profile List › opening profiles modal shows active profile
+[1A[2K[10/86] [chromium] › tests/e2e/multi-profile.spec.ts:119:7 › Multi-Profile — Create & Switch Back › create new profile, switch back to original, data preserved
+[1A[2K[11/86] [chromium] › tests/e2e/multi-profile.spec.ts:228:7 › Multi-Profile — Rename › rename active profile via pencil icon
+[1A[2K[12/86] [chromium] › tests/e2e/multi-profile.spec.ts:267:7 › Multi-Profile — Validation › creating profile without name shows error
+[1A[2K[13/86] [chromium] › tests/e2e/multi-profile.spec.ts:283:7 › Multi-Profile — Validation › Import Profile view shows UUID and key fields
+[1A[2K[14/86] [chromium] › tests/e2e/multi-profile.spec.ts:309:7 › Cleanup › clean up test databases
+[1A[2K[15/86] [chromium] › tests/e2e/offline-tickets.spec.ts:140:7 › Offline Tickets — IndexedDB-only CRUD & OpLog › create ticket offline → stored in IndexedDB with unsynced opLog entry
+[1A[2K[16/86] [chromium] › tests/e2e/offline-tickets.spec.ts:196:7 › Offline Tickets — IndexedDB-only CRUD & OpLog › edit ticket offline → IndexedDB and opLog updated with patch
+[1A[2K[17/86] [chromium] › tests/e2e/offline-tickets.spec.ts:253:7 › Offline Tickets — IndexedDB-only CRUD & OpLog › delete ticket offline → soft-deleted in IndexedDB with DELETE opLog entry
+[1A[2K[18/86] [chromium] › tests/e2e/offline-tickets.spec.ts:306:7 › Offline Tickets — IndexedDB-only CRUD & OpLog › change status offline → IndexedDB updated with opLog UPDATE entry
+[1A[2K[19/86] [chromium] › tests/e2e/offline-tickets.spec.ts:347:7 › Offline Tickets — IndexedDB-only CRUD & OpLog › multiple offline operations → all queued in opLog as unsynced
+[1A[2K[20/86] [chromium] › tests/e2e/offline-tickets.spec.ts:397:7 › Operations Logs Page — /dashboard/oplogs › Sync Queue tab shows opLog entries after ticket creation
+[1A[2K[21/86] [chromium] › tests/e2e/offline-tickets.spec.ts:420:7 › Operations Logs Page — /dashboard/oplogs › Operation Logs tab shows ticket audit trail
+[1A[2K[22/86] [chromium] › tests/e2e/offline-tickets.spec.ts:450:7 › Operations Logs Page — /dashboard/oplogs › Operation Logs tab can filter by result
+[1A[2K[23/86] [chromium] › tests/e2e/offline-tickets.spec.ts:472:7 › Operations Logs Page — /dashboard/oplogs › Diagnostics tab runs checks
+[1A[2K[24/86] [chromium] › tests/e2e/offline-time-engine.spec.ts:234:7 › Offline Time Engine — Clock In / Clock Out › clock in offline → session in IndexedDB with CREATE opLog entry
+[1A[2K[25/86] [chromium] › tests/e2e/offline-time-engine.spec.ts:283:7 › Offline Time Engine — Clock In / Clock Out › clock out offline → session updated with clockOut timestamp and UPDATE opLog entry
+[1A[2K[26/86] [chromium] › tests/e2e/offline-time-engine.spec.ts:335:7 › Offline Time Engine — Clock In / Clock Out › full clock in + clock out offline → complete session in IndexedDB
+[1A[2K[27/86] [chromium] › tests/e2e/offline-time-engine.spec.ts:394:7 › Offline Time Engine — Clock In / Clock Out › offline session syncs when network is restored
+[1A[2K[28/86] [chromium] › tests/e2e/offline-time-engine.spec.ts:442:7 › Offline Time Engine — Clock In / Clock Out › opLog entries show on Sync Queue page after offline session
+[1A[2K[29/86] [chromium] › tests/e2e/offline-time-engine.spec.ts:468:7 › Offline Time Engine — Clock In / Clock Out › Operation Logs tab shows SESSION audit trail after offline clock-in/out
+[1A[2K[30/86] [chromium] › tests/e2e/profile.spec.ts:296:7 › Profile — Online › fill profile fields, upload avatar, save → persisted in IndexedDB with base64 avatar
+[1A[2K  1) [chromium] › tests/e2e/profile.spec.ts:296:7 › Profile — Online › fill profile fields, upload avatar, save → persisted in IndexedDB with base64 avatar 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Profile Picture')
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByText('Profile Picture')[22m
+
+
+      212 |   await page.goto('/dashboard/settings/profile');
+      213 |   await page.waitForLoadState('networkidle');
+    > 214 |   await expect(page.getByText('Profile Picture')).toBeVisible({ timeout: 10_000 });
+          |                                                   ^
+      215 | }
+      216 |
+      217 | /**
+        at goToProfileEdit (/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbourapp/tests/e2e/profile.spec.ts:214:51)
+        at /Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbourapp/tests/e2e/profile.spec.ts:299:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/profile-Profile-—-Online-f-840d1-ndexedDB-with-base64-avatar-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/profile-Profile-—-Online-f-840d1-ndexedDB-with-base64-avatar-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/profile-Profile-—-Online-f-840d1-ndexedDB-with-base64-avatar-chromium/error-context.md
+
+
+[1A[2K[dotenv@17.3.1] injecting env (0) from .env.local -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+
+[1A[2K[31/86] [chromium] › tests/e2e/profile.spec.ts:365:7 › Profile — Online › re-edit profile — change name, email, picture → IndexedDB updated
+[1A[2K[32/86] [chromium] › tests/e2e/profile.spec.ts:429:7 › Profile — Online › linked accounts — GitHub, LinkedIn, Redmine URLs stored and reloaded
+[1A[2K[33/86] [chromium] › tests/e2e/profile.spec.ts:460:7 › Profile — Online › opLog entries visible on Sync Queue page after profile save
+[1A[2K[34/86] [chromium] › tests/e2e/profile.spec.ts:494:7 › Profile — Offline › edit profile offline → all data persisted in IndexedDB with opLog unsynced
+[1A[2K[35/86] [chromium] › tests/e2e/profile.spec.ts:555:7 › Profile — Offline › offline profile changes sync when network is restored
+[1A[2K[36/86] [chromium] › tests/e2e/profile.spec.ts:596:7 › Profile — Offline › re-edit profile offline after initial online save → UPDATE opLog recorded
+[1A[2K[37/86] [chromium] › tests/e2e/settings.spec.ts:115:7 › Settings — Share My Link › modal opens and shows share URL, UUID, encryption key, and QR code toggle
+[1A[2K[38/86] [chromium] › tests/e2e/settings.spec.ts:156:7 › Settings — Share My Link › first share requires confirmation checkbox before Done is enabled
+[1A[2K[39/86] [chromium] › tests/e2e/settings.spec.ts:178:7 › Settings — Share My Link › export key file button triggers download
+[1A[2K[40/86] [chromium] › tests/e2e/settings.spec.ts:190:7 › Settings — Share My Link › share URL works offline — identity stays consistent
+[1A[2K[41/86] [chromium] › tests/e2e/settings.spec.ts:238:7 › Settings — Share My Link E2E Flow › copy share URL and encryption key → open share page in incognito → enter key → reach dashboard
+[1A[2K[42/86] [chromium] › tests/e2e/settings.spec.ts:306:7 › Settings — Recovery Key Save › Save Recovery Key button is visible and opens the modal
+[1A[2K[43/86] [chromium] › tests/e2e/settings.spec.ts:332:7 › Settings — Recovery Key Save › once recovery key is saved, the button becomes disabled with shield icon
+[1A[2K  2) [chromium] › tests/e2e/settings.spec.ts:332:7 › Settings — Recovery Key Save › once recovery key is saved, the button becomes disabled with shield icon 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Sync & Security')
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByText('Sync & Security')[22m
+
+
+      104 |   await page.goto('/dashboard/settings');
+      105 |   await page.waitForLoadState('networkidle');
+    > 106 |   await expect(page.getByText('Sync & Security')).toBeVisible({ timeout: 10_000 });
+          |                                                   ^
+      107 | }
+      108 |
+      109 | // ═══════════════════════════════════════════════════════════
+        at goToSettings (/Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbourapp/tests/e2e/settings.spec.ts:106:51)
+        at /Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbourapp/tests/e2e/settings.spec.ts:333:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/settings-Settings-—-Recove-6e1a5-s-disabled-with-shield-icon-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/settings-Settings-—-Recove-6e1a5-s-disabled-with-shield-icon-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/settings-Settings-—-Recove-6e1a5-s-disabled-with-shield-icon-chromium/error-context.md
+
+
+[1A[2K[dotenv@17.3.1] injecting env (0) from .env.local -- tip: 🤖 agentic secret storage: https://dotenvx.com/as2
+
+[1A[2K[44/86] [chromium] › tests/e2e/settings.spec.ts:358:7 › Settings — Recovery Key Save › recovery key is one per user profile — second attempt stays disabled
+[1A[2K[45/86] [chromium] › tests/e2e/settings.spec.ts:381:7 › Settings — Restore from Recovery Key › restore button opens modal with manual key input
+[1A[2K[46/86] [chromium] › tests/e2e/settings.spec.ts:408:7 › Settings — Restore from Recovery Key › restore button becomes enabled after entering a recovery key
+[1A[2K[47/86] [chromium] › tests/e2e/settings.spec.ts:427:7 › Settings — Restore from Recovery Key › invalid recovery key shows error message
+[1A[2K[48/86] [chromium] › tests/e2e/settings.spec.ts:448:7 › Settings — Regenerate Key › regenerate key button opens modal with warning
+[1A[2K[49/86] [chromium] › tests/e2e/settings.spec.ts:469:7 › Settings — Regenerate Key › cancel closes the modal without regenerating
+[1A[2K[50/86] [chromium] › tests/e2e/settings.spec.ts:491:7 › Settings — Regenerate Key › regenerate key → new key shown, requires confirmation before Done
+[1A[2K[51/86] [chromium] › tests/e2e/settings.spec.ts:555:7 › Settings — Switch Profile › switch profile button opens modal with profile list
+[1A[2K[52/86] [chromium] › tests/e2e/settings.spec.ts:572:7 › Settings — Switch Profile › import profile requires both UUID and encryption key
+[1A[2K[53/86] [chromium] › tests/e2e/settings.spec.ts:596:7 › Settings — Switch Profile › invalid UUID format shows validation error
+[1A[2K[54/86] [chromium] › tests/e2e/settings.spec.ts:615:7 › Settings — Switch Profile › incorrect encryption key shows error
+[1A[2K[55/86] [chromium] › tests/e2e/settings.spec.ts:648:7 › Settings — Switch Profile E2E Flow › share link from user A → switch profile on user B → opLogs exist
+[1A[2K  3) [chromium] › tests/e2e/settings.spec.ts:648:7 › Settings — Switch Profile E2E Flow › share link from user A → switch profile on user B → opLogs exist 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Operation Logs')
+    Expected: visible
+    Error: strict mode violation: getByText('Operation Logs') resolved to 2 elements:
+        1) <button role="tab" aria-selected="true" class="px-4 py-2 text-sm font-medium border-b-2 transition-colors border-primary text-foreground">Operation Logs</button> aka getByRole('tab', { name: 'Operation Logs' })
+        2) <div class="text-center py-12 text-muted-foreground">No operation logs found.</div> aka getByText('No operation logs found.')
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByText('Operation Logs')[22m
+
+
+      742 |     // Check Operation Logs tab for entries
+      743 |     await pageB.getByRole('tab', { name: 'Operation Logs' }).click();
+    > 744 |     await expect(pageB.getByText('Operation Logs')).toBeVisible({ timeout: 10_000 });
+          |                                                     ^
+      745 |
+      746 |     await ctxA.close();
+      747 |     await ctxB.close();
+        at /Users/mieloaner/mieprojects/TimeharborApp.worktrees/ui-ractor/timeharbourapp/tests/e2e/settings.spec.ts:744:53
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/settings-Settings-—-Switch-9223e-le-on-user-B-→-opLogs-exist-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/settings-Settings-—-Switch-9223e-le-on-user-B-→-opLogs-exist-chromium/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/settings-Settings-—-Switch-9223e-le-on-user-B-→-opLogs-exist-chromium/error-context.md
+
+
+[1A[2K[dotenv@17.3.1] injecting env (0) from .env.local -- tip: ⚙️  enable debug logging with { debug: true }
+
+[1A[2K[56/86] [chromium] › tests/e2e/settings.spec.ts:757:7 › Settings — Sync & Security Section › all sync & security options are visible on settings page
+[1A[2K[57/86] [chromium] › tests/e2e/settings.spec.ts:778:7 › Settings — Sync & Security Section › settings page shows profile header with name and email
+[1A[2K[58/86] [chromium] › tests/e2e/ticket-timers.spec.ts:366:7 › Ticket Timers — Online › start ticket timer → UI shows running timer + ticketSegment in IndexedDB
+[1A[2K[59/86] [chromium] › tests/e2e/ticket-timers.spec.ts:409:7 › Ticket Timers — Online › stop ticket timer → segment closed, trackedMs updated, opLog entry
+[1A[2K[60/86] [chromium] › tests/e2e/ticket-timers.spec.ts:473:7 › Ticket Timers — Online › switch between ticket timers → previous stops, new starts, both tracked
+[1A[2K[61/86] [chromium] › tests/e2e/ticket-timers.spec.ts:534:7 › Ticket Timers — Online › recent activity reflects ticket timer start/stop events
+[1A[2K[62/86] [chromium] › tests/e2e/ticket-timers.spec.ts:570:7 › Ticket Timers — Online › timesheet shows ticket session duration after clock out
+[1A[2K[63/86] [chromium] › tests/e2e/ticket-timers.spec.ts:605:7 › Ticket Timers — Offline › start + stop ticket timer offline → IndexedDB + opLog + operationLogs correct
+[1A[2K[64/86] [chromium] › tests/e2e/ticket-timers.spec.ts:690:7 › Ticket Timers — Offline › switch ticket timers offline → both segments persisted, opLog unsynced
+[1A[2K[65/86] [chromium] › tests/e2e/ticket-timers.spec.ts:762:7 › Ticket Timers — Offline › offline ticket timer data syncs when network is restored
+[1A[2K[66/86] [chromium] › tests/e2e/ticket-timers.spec.ts:812:7 › Ticket Timers — Offline › opLog entries appear on Sync Queue page after offline ticket timer session
+[1A[2K[67/86] [chromium] › tests/e2e/tickets.spec.ts:105:7 › Tickets — CRUD & Activity Log › create ticket from tickets page
+[1A[2K[68/86] [chromium] › tests/e2e/tickets.spec.ts:136:7 › Tickets — CRUD & Activity Log › edit ticket title and description
+[1A[2K[69/86] [chromium] › tests/e2e/tickets.spec.ts:185:7 › Tickets — CRUD & Activity Log › change ticket status via modal
+[1A[2K[70/86] [chromium] › tests/e2e/tickets.spec.ts:242:7 › Tickets — CRUD & Activity Log › delete ticket removes from UI and soft-deletes in IndexedDB
+[1A[2K[71/86] [chromium] › tests/e2e/tickets.spec.ts:299:7 › Tickets — CRUD & Activity Log › ticket search filters the list
+[1A[2K[72/86] [chromium] › tests/e2e/tickets.spec.ts:333:7 › Tickets — CRUD & Activity Log › dashboard recent activity shows ticket creation and deletion
+[1A[2K[73/86] [chromium] › tests/e2e/time-engine.spec.ts:96:7 › Time Engine — Clock In / Clock Out › clock in changes UI and creates IndexedDB entry
+[1A[2K[74/86] [chromium] › tests/e2e/time-engine.spec.ts:141:7 › Time Engine — Clock In / Clock Out › clock out updates IndexedDB entry with clockOut timestamp
+[1A[2K[75/86] [chromium] › tests/e2e/time-engine.spec.ts:174:7 › Time Engine — Clock In / Clock Out › 1-minute session records correct duration in IndexedDB and UI
+[1A[2K[76/86] [chromium] › tests/e2e/walkthrough.spec.ts:34:7 › Walkthrough Tour › displays walkthrough on first visit
+[1A[2K[77/86] [chromium] › tests/e2e/walkthrough.spec.ts:44:7 › Walkthrough Tour › Next button advances through steps
+[1A[2K[78/86] [chromium] › tests/e2e/walkthrough.spec.ts:62:7 › Walkthrough Tour › Back button returns to previous step
+[1A[2K[79/86] [chromium] › tests/e2e/walkthrough.spec.ts:80:7 › Walkthrough Tour › Skip walkthrough closes modal and sets localStorage flag
+[1A[2K[80/86] [chromium] › tests/e2e/walkthrough.spec.ts:95:7 › Walkthrough Tour › walkthrough does not reappear after completion
+[1A[2K[81/86] [chromium] › tests/e2e/walkthrough.spec.ts:112:7 › Walkthrough Tour › dot navigation jumps to correct step
+[1A[2K[82/86] [chromium] › tests/e2e/walkthrough.spec.ts:126:7 › Walkthrough Tour › progress bar advances with each step
+[1A[2K[83/86] [chromium] › tests/e2e/walkthrough.spec.ts:145:7 › Walkthrough Tour › completing all steps closes modal
+[1A[2K[84/86] [chromium] › tests/e2e/walkthrough.spec.ts:168:7 › Walkthrough Tour › spotlight highlights correct dashboard elements
+[1A[2K[85/86] [chromium] › tests/e2e/walkthrough.spec.ts:185:7 › Walkthrough Tour › walkthrough shows mock data during tour
+[1A[2K[86/86] [chromium] › tests/e2e/walkthrough.spec.ts:199:7 › Walkthrough Tour › replay walkthrough from settings navigates to dashboard
+[1A[2K  3 failed
+    [chromium] › tests/e2e/profile.spec.ts:296:7 › Profile — Online › fill profile fields, upload avatar, save → persisted in IndexedDB with base64 avatar 
+    [chromium] › tests/e2e/settings.spec.ts:332:7 › Settings — Recovery Key Save › once recovery key is saved, the button becomes disabled with shield icon 
+    [chromium] › tests/e2e/settings.spec.ts:648:7 › Settings — Switch Profile E2E Flow › share link from user A → switch profile on user B → opLogs exist 
+  83 passed (10.9m)
