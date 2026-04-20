@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { KeyRound } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { isAppLockEnabled, verifyAppLock } from './AppLockToggle';
 import { Text } from '@mieweb/ui';
 
 const APP_LOCK_PIN_KEY = 'th_app_lock_pin_hash';
+// Minimum time in background before re-locking (filters out brief inactivity from biometric prompts)
+const RELOCK_BACKGROUND_THRESHOLD_MS = 1500;
 
 async function hashPin(pin: string): Promise<string> {
   const data = new TextEncoder().encode(pin);
@@ -25,11 +27,25 @@ export default function AppLockGuard({ children }: { children: React.ReactNode }
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [checking, setChecking] = useState(true);
+  // Prevents re-entrant unlock attempts (e.g. biometric prompt triggers appStateChange)
+  const isUnlockingRef = useRef(false);
+  // Tracks when the app went to background so we can ignore brief inactivity
+  const backgroundTimeRef = useRef<number | null>(null);
+  // Tracks current locked state without causing effect re-registration
+  const lockedRef = useRef(false);
+  useEffect(() => { lockedRef.current = locked; }, [locked]);
+  // Records time of last successful biometric unlock — used to suppress spurious
+  // appStateChange re-lock events that fire shortly after the biometric dialog dismisses
+  const lastUnlockedTimeRef = useRef<number>(0);
 
   const attemptUnlock = useCallback(async () => {
+    if (isUnlockingRef.current) return; // Already in progress — ignore (prevents biometric-prompt loop)
+    isUnlockingRef.current = true;
+
     if (!isAppLockEnabled()) {
       setLocked(false);
       setChecking(false);
+      isUnlockingRef.current = false;
       return;
     }
 
@@ -37,6 +53,7 @@ export default function AppLockGuard({ children }: { children: React.ReactNode }
     const passed = await verifyAppLock();
     if (passed) {
       setLocked(false);
+      lastUnlockedTimeRef.current = Date.now();
     } else {
       // Biometric failed — show PIN fallback if configured
       const storedHash = localStorage.getItem(APP_LOCK_PIN_KEY);
@@ -48,6 +65,7 @@ export default function AppLockGuard({ children }: { children: React.ReactNode }
       }
     }
     setChecking(false);
+    isUnlockingRef.current = false;
   }, []);
 
   // Check on mount
@@ -55,26 +73,43 @@ export default function AppLockGuard({ children }: { children: React.ReactNode }
     attemptUnlock();
   }, [attemptUnlock]);
 
-  // Check when app resumes from background (Capacitor)
+  // Native: re-lock only after a genuine background event.
+  // Biometric prompts cause a brief isActive:false → isActive:true cycle — we filter
+  // those out with a threshold so we don't trigger a scan loop.
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     let handle: any;
     import('@capacitor/app').then(({ App }) => {
       App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive && isAppLockEnabled()) {
-          setLocked(true);
-          attemptUnlock();
+        if (!isActive) {
+          backgroundTimeRef.current = Date.now();
+        } else if (isActive && isAppLockEnabled()) {
+          const bgTime = backgroundTimeRef.current;
+          backgroundTimeRef.current = null;
+          const bgDuration = bgTime !== null ? Date.now() - bgTime : 0;
+          const msSinceUnlock = Date.now() - lastUnlockedTimeRef.current;
+          // Re-lock only when:
+          //  1. App was in background long enough (filters biometric dialog: ~0.5–1s)
+          //  2. No unlock completed in the last 5 s (filters appStateChange that fires
+          //     shortly after verifyIdentity resolves on slower Face ID scans)
+          //  3. Not currently mid-unlock (biometric in progress)
+          if (bgDuration > RELOCK_BACKGROUND_THRESHOLD_MS
+              && msSinceUnlock > 5000
+              && !isUnlockingRef.current) {
+            setLocked(true);
+            attemptUnlock();
+          }
         }
       }).then((h) => { handle = h; });
     });
     return () => { handle?.remove(); };
   }, [attemptUnlock]);
 
-  // Web: check on tab visibility change
+  // Web: re-trigger unlock only if currently locked (don't re-lock on every tab switch)
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return;
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && isAppLockEnabled()) {
+      if (document.visibilityState === 'visible' && isAppLockEnabled() && lockedRef.current) {
         attemptUnlock();
       }
     };
