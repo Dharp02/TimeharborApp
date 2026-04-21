@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@mieweb/ui';
@@ -8,7 +8,7 @@ import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 import { getProfile } from '@/TimeharborAPI/profile';
 import styles from './StoriesBar.module.css';
 export default function StoriesBar() {
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
 
@@ -20,7 +20,7 @@ export default function StoriesBar() {
   }, []);
 
   // Get user initials
-  const getUserInitials = (name?: string, email?: string) => {
+  const getUserInitials = (name?: string) => {
     if (name && name.trim()) {
       const parts = name.trim().split(' ');
       if (parts.length >= 2) {
@@ -28,13 +28,10 @@ export default function StoriesBar() {
       }
       return parts[0].substring(0, 2).toUpperCase();
     }
-    if (email) {
-      return email.substring(0, 2).toUpperCase();
-    }
     return 'U';
   };
 
-  const currentUserInitials = getUserInitials(profileName || user?.full_name, user?.email);
+  const currentUserInitials = getUserInitials(profileName || user?.full_name);
 
   return (
     <div className={styles.storiesBarContainer}>

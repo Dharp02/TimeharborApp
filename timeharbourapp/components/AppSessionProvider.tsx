@@ -2,24 +2,23 @@
 
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { auth } from '@/TimeharborAPI';
+import { identity } from '@/TimeharborAPI';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
 import { clearDatabase } from '@/TimeharborAPI/db';
 import { resetTicketState } from '@/TimeharborAPI/tickets';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { SocialLogin } from '@capgo/capacitor-social-login';
 
-type AuthContextType = {
+type AppSessionContextType = {
   user: any | null;
   loading: boolean;
   initialSyncing: boolean;
 };
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true, initialSyncing: false });
+const AppSessionContext = createContext<AppSessionContextType>({ user: null, loading: true, initialSyncing: false });
 
-export const useAuth = () => useContext(AuthContext);
+export const useAppSession = () => useContext(AppSessionContext);
 
 const CACHED_USER_KEY = 'th_cached_user';
 
@@ -44,7 +43,7 @@ function getCachedUser(): any | null {
   }
 }
 
-export default function AuthProvider({ children }: { children: React.ReactNode }) {
+export default function AppSessionProvider({ children }: { children: React.ReactNode }) {
   // Hydrate immediately from cache — no loading screen if we have a cached user.
   const cached = typeof window !== 'undefined' ? getCachedUser() : null;
   const [user, setUser] = useState<any | null>(cached);
@@ -66,13 +65,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // ── Fetch session and update state ───────────────────────────────────
   const refreshSession = useCallback(async () => {
-    const { user: u, error } = await auth.getUser();
+    const { user: u, error } = await identity.getUser();
 
     // If the session check returned an error (network timeout, backend
     // temporarily unreachable, etc.) keep the existing cached user so
     // transient failures don't sign the user out.
     if (error && !u) {
-      console.log('[AuthProvider] refreshSession: backend error, keeping cached user');
+      console.log('[AppSessionProvider] refreshSession: backend error, keeping cached user');
       setLoading(false);
       return user;
     }
@@ -86,21 +85,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!initRef.current) {
       initRef.current = true;
-      if (Capacitor.isNativePlatform()) {
-        SocialLogin.initialize({
-          google: {
-            iOSClientId: process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID || '',
-            iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
-          },
-        }).catch(() => {});
-      }
-    }
+          }
 
     let cancelled = false;
 
     (async () => {
       const hasCached = getCachedUser() !== null;
-      console.log('[AuthProvider] cold start', { hasCachedUser: hasCached });
+      console.log('[AppSessionProvider] cold start', { hasCachedUser: hasCached });
 
       // Defence-in-depth: on native cold start with no cached user, proactively
       // clear cookies BEFORE the session check. This covers the edge case where
@@ -110,7 +101,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         try {
           const { CapacitorCookies } = await import('@capacitor/core');
           await CapacitorCookies.clearAllCookies();
-          console.log('[AuthProvider] no cached user on native — cleared cookies');
+          console.log('[AppSessionProvider] no cached user on native — cleared cookies');
         } catch { /* best-effort */ }
       }
 
@@ -120,18 +111,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         setLoading(false);
       }
 
-      // Timeout: if auth.getUser() hangs, force loading=false after 5s.
+      // Timeout: if identity.getUser() hangs, force loading=false after 5s.
       // Keep the cached user — if the session is truly expired, the next
       // successful backend check will clear it.
       const timeout = setTimeout(() => {
         if (!cancelled) {
-          console.log('[AuthProvider] session check timed out, keeping cached user');
+          console.log('[AppSessionProvider] session check timed out, keeping cached user');
           setLoading(false);
         }
       }, 5000);
 
       // Verify with backend (may hang on cold start — that's OK if we have cache).
-      const { user: u, error } = await auth.getUser();
+      const { user: u, error } = await identity.getUser();
       clearTimeout(timeout);
       if (cancelled) return;
 
@@ -140,20 +131,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // Keep the cached user — transient errors shouldn't sign the user out.
         // If the session is truly expired, `data` will be null with NO error
         // on the next successful check, which is handled below.
-        console.log('[AuthProvider] session check error, keeping cached user', { error });
+        console.log('[AppSessionProvider] session check error, keeping cached user', { error });
         setLoading(false);
         return;
       }
 
       if (u) {
-        console.log('[AuthProvider] session verified', { id: u.id });
+        console.log('[AppSessionProvider] session verified', { id: u.id });
         setUserAndCache(u);
         // Load profile into Dexie userProfiles if not already seeded
         import('@/TimeharborAPI/profile').then(async ({ getProfile, upsertProfile }) => {
           const local = await getProfile();
           if (!local) {
             // First device bootstrap: fetch from server and seed Dexie
-            const { profile } = await auth.fetchProfile();
+            const { profile } = await identity.fetchProfile();
             if (profile) {
               await upsertProfile({
                 displayName: profile.displayName,
@@ -170,45 +161,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // they should only be signed out when they press "Sign Out"
         // (like Instagram/Facebook). The session cookie may have
         // expired but the local data is still valid for offline use.
-        console.log('[AuthProvider] no session and no cache, staying on login');
+        console.log('[AppSessionProvider] no session and no cache, staying on login');
         setUserAndCache(null);
       } else {
-        console.log('[AuthProvider] backend says no session but cached user exists, keeping cache');
+        console.log('[AppSessionProvider] backend says no session but cached user exists, keeping cache');
       }
       setLoading(false);
     })();
 
-    const subscription = auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        setUserAndCache(session?.user ?? null);
-        // Clear stale Dexie data, then sync fresh data from backend.
-        // Show a loading gate until the initial sync completes.
-        setInitialSyncing(true);
-        (async () => {
-          try {
-            await clearDatabase();
-            resetTicketState();
-            syncManager.resume?.();
-            await syncManager.syncNow?.();
-          } catch (err) {
-            console.warn('[AuthProvider] initial sync after sign-in failed', err);
-          } finally {
-            setInitialSyncing(false);
-          }
-        })();
-      } else if (event === 'USER_UPDATED') {
-        // Profile/avatar change — update user state without clearing the database
-        setUserAndCache(session?.user ?? null);
-      } else if (event === 'SIGNED_OUT') {
-        setUserAndCache(null);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+      }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Deep-link callback from OAuth on native ──────────────────────────
   useEffect(() => {
@@ -216,7 +177,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     urlOpenHandle.current?.remove();
 
     App.addListener('appUrlOpen', async ({ url }) => {
-      if (url.startsWith('timeharbor://auth/callback')) {
+      if (url.startsWith('timeharbor://identity/callback')) {
         await Browser.close().catch(() => {});
         const u = await refreshSession();
         if (u) {
@@ -239,6 +200,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
     }).then((h) => { urlOpenHandle.current = h; });
 
+
+
     return () => { urlOpenHandle.current?.remove(); urlOpenHandle.current = null; };
   }, [router, refreshSession]);
 
@@ -249,7 +212,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     App.addListener('appStateChange', async ({ isActive }) => {
       if (!isActive) return;
-      console.log('[AuthProvider] app resumed, refreshing session');
+      console.log('[AppSessionProvider] app resumed, refreshing session');
       await refreshSession();
     }).then((h) => { stateChangeHandle.current = h; });
 
@@ -259,7 +222,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // ── Re-validate session when network reconnects (offline → online) ───
   useEffect(() => {
     const handleOnline = () => {
-      console.log('[AuthProvider] network reconnected, refreshing session');
+      console.log('[AppSessionProvider] network reconnected, refreshing session');
       refreshSession();
     };
     window.addEventListener('online', handleOnline);
@@ -271,25 +234,32 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (loading) return;
 
     const p = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
-    const isAuthPage = ['/forgot-password'].includes(p);
     const isRoot = p === '/';
 
-    console.log('[AuthProvider] routing', { user: !!user, path: p });
+    console.log('[AppSessionProvider] routing', { user: !!user, path: p });
 
-    // Authenticated user on auth pages → redirect to dashboard
-    if (user && isAuthPage) {
-      router.replace('/dashboard');
-    }
-    // Root → always go to dashboard (no auth gate)
+    // Root → always go to dashboard (no identity gate)
     if (isRoot) {
       router.replace('/dashboard');
     }
-    // Unauthenticated users can access /dashboard freely — no auth gate
+    // Unauthenticated users can access /dashboard freely — no identity gate
   }, [user, loading, pathname, router]);
 
+
+  // ── Listen for local identity changes ────────────────────────────────
+  useEffect(() => {
+    const sub = identity.onAuthStateChange((event, session) => {
+      if (event === 'USER_UPDATED') {
+        console.log('[AppSessionProvider] Identity updated from event:', session.user); alert('Identity updated!!');
+        setUserAndCache(session.user);
+      }
+    });
+    return () => sub.unsubscribe();
+  }, [setUserAndCache]);
+
   return (
-    <AuthContext.Provider value={{ user, loading, initialSyncing }}>
+    <AppSessionContext.Provider value={{ user, loading, initialSyncing }}>
       {children}
-    </AuthContext.Provider>
+    </AppSessionContext.Provider>
   );
 }

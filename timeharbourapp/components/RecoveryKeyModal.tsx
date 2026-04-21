@@ -33,7 +33,7 @@ import {
   hasServerData,
 } from '@/TimeharborAPI/sync/EncryptedSyncEngine';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
-import { clearDatabase } from '@/TimeharborAPI/db';
+import { clearDatabase, switchProfileDatabase } from '@/TimeharborAPI/db';
 import { resetTicketState } from '@/TimeharborAPI/tickets';
 
 interface RecoveryKeyModalProps {
@@ -119,6 +119,7 @@ export default function RecoveryKeyModal({ isOpen, onClose, mode }: RecoveryKeyM
       // 3. Set the identity UUID and passphrase from the recovery key
       setIdentityUUID(uuid);
       setIdentityPassphrase(passphrase);
+      await switchProfileDatabase(uuid);
 
       // 4. Setup encryption BEFORE clearing DB so we can verify first
       let syncKey = await setupEncryption(passphrase);

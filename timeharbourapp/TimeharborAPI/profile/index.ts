@@ -2,6 +2,7 @@ import { db, type DexieUserProfile } from '../db';
 import { getIdentityUUID } from '../sync/IdentityManager';
 import { operationsLog } from '../OperationsLog';
 import { opLogWriter } from '../sync/OpLogWriter';
+import { updateUser } from '../identity';
 
 /**
  * Get the current user's profile from Dexie.
@@ -43,6 +44,11 @@ export async function upsertProfile(data: UpsertProfileData): Promise<DexieUserP
       await db.userProfiles.put(updated);
       await opLogWriter.recordUpdate('userProfiles', userId, patch);
       await operationsLog.log({ category: 'PROFILE', action: 'UPDATE', result: 'success', target: 'UserProfile', targetId: userId, details: { fields: Object.keys(data) } });
+      // Keep legacy identity representation in sync
+      await updateUser({
+        ...(data.displayName !== undefined ? { name: data.displayName } : {}),
+        ...(data.avatarBase64 !== undefined ? { image: data.avatarBase64 } : {})
+      }).catch(console.error);
       return updated;
     } catch (err: any) {
       await operationsLog.log({ category: 'PROFILE', action: 'UPDATE', result: 'failure', target: 'UserProfile', targetId: userId, errorMessage: err?.message });
@@ -66,6 +72,11 @@ export async function upsertProfile(data: UpsertProfileData): Promise<DexieUserP
       await db.userProfiles.put(profile);
       await opLogWriter.recordCreate('userProfiles', userId, profile as unknown as Record<string, unknown>);
       await operationsLog.log({ category: 'PROFILE', action: 'CREATE', result: 'success', target: 'UserProfile', targetId: userId });
+      // Keep legacy identity representation in sync
+      await updateUser({
+        ...(data.displayName !== undefined ? { name: data.displayName } : {}),
+        ...(data.avatarBase64 !== undefined ? { image: data.avatarBase64 } : {})
+      }).catch(console.error);
       return profile;
     } catch (err: any) {
       await operationsLog.log({ category: 'PROFILE', action: 'CREATE', result: 'failure', target: 'UserProfile', targetId: userId, errorMessage: err?.message });

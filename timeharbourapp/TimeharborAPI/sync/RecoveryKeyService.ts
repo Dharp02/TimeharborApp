@@ -77,7 +77,13 @@ export function parseRecoveryKey(key: string): { uuid: string; passphrase: strin
 
 async function apiRequest(path: string, options: RequestInit = {}) {
   const base = getApiUrl().replace(/\/api\/?$/, '');
-  const url = `${base}/api/timeharbor${path}`;
+  
+  // Split path into base path and query string to safely append trailing slash
+  const [rawPath, ...queryParts] = path.split('?');
+  const query = queryParts.join('?');
+  // Ensure the path has a trailing slash to avoid Next.js 308 redirects
+  const canonicalPath = rawPath.endsWith('/') ? rawPath : `${rawPath}/`;
+  const url = `${base}/api/timeharbor${canonicalPath}${query ? `?${query}` : ''}`;
   const identityUUID = getIdentityUUID();
 
   const headers: Record<string, string> = {

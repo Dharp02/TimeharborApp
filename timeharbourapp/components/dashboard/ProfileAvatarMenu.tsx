@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Palette } from 'lucide-react';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import { Button } from '@mieweb/ui';
 import { resolveBackendAsset } from '@/TimeharborAPI/apiUrl';
 import { db } from '@/TimeharborAPI/db';
@@ -10,34 +10,24 @@ import { getIdentityUUID } from '@/TimeharborAPI/sync/IdentityManager';
 import BrandSwitcher from './BrandSwitcher';
 
 export default function ProfileAvatarMenu() {
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Load avatar from Dexie userProfiles (base64), fall back to user.image
   useEffect(() => {
-    const uid = getIdentityUUID();
-    db.userProfiles?.get(uid).then((profile) => {
-      if (profile?.avatarBase64) {
-        setAvatarSrc(profile.avatarBase64);
-      } else if (profile?.displayName) {
-        setProfileName(profile.displayName);
-      }
-      if (!profile?.avatarBase64 && user?.image) {
-        setAvatarSrc(resolveBackendAsset(user.image) ?? null);
-      }
-    }).catch(() => {
-      if (user?.image) setAvatarSrc(resolveBackendAsset(user.image) ?? null);
-    });
-  }, [user?.id, user?.image]);
-
+    if (user?.image) {
+      setAvatarSrc(user.image.startsWith('data:') ? user.image : resolveBackendAsset(user.image) ?? null);
+    } else {
+      setAvatarSrc(null);
+    }
+  }, [user?.image]);
   // Get user initials
   const getInitials = () => {
-    const name = profileName || user?.full_name;
-    if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
-    const parts = name.split(' ');
+    const name = (user?.name || user?.full_name || '').trim();
+    if (!name) return 'U';
+    const parts = name.split(/\s+/);
     if (parts.length >= 2) {
       return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }

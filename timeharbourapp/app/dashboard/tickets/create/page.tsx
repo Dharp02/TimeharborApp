@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Ticket, ArrowLeft, Check, X } from 'lucide-react';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import { tickets as ticketsApi } from '@/TimeharborAPI';
 import { CreateTicketData } from '@/TimeharborAPI/tickets';
 import { useLogger } from '@/hooks/useLogger';
@@ -14,7 +14,7 @@ import { Button, Input, Textarea, Select } from '@mieweb/ui';
 export default function CreateTicketPage() {
   const router = useRouter();
   const logger = useLogger();
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

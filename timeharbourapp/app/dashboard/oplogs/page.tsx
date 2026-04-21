@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Button } from '@mieweb/ui';
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Trash2, Upload, Square, CheckSquare, ShieldCheck, Wifi, Database, Key } from 'lucide-react';
 import { db, type DexieOperationLog } from '@/TimeharborAPI/db';
@@ -29,51 +30,40 @@ const OP_COLORS: Record<string, string> = {
 // ── Sync Queue Tab ──────────────────────────────────────────
 
 function SyncQueueTab() {
-  const [entries, setEntries] = useState<OpLogEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const fetchEntries = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const all = await db.opLog.orderBy('hlc').reverse().toArray();
-      setEntries(all);
-    } catch (error) {
-      console.error('Failed to fetch op-log entries:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchEntries(); }, [fetchEntries]);
+  // Reactively watch opLog — updates instantly when entries are added/changed,
+  // even when offline, without needing manual refresh or event polling.
+  const entries = useLiveQuery(
+    () => db.opLog.orderBy('hlc').reverse().toArray(),
+    [],
+    [] as OpLogEntry[],
+  );
+  const isLoading = entries === undefined;
 
   // ── Selection helpers ──
 
   const toggleEntry = async (id: string, current: 0 | 1) => {
     const next: 0 | 1 = current === 1 ? 0 : 1;
     await db.opLog.update(id, { _syncEnabled: next });
-    setEntries((prev) => prev.map((e) => e.id === id ? { ...e, _syncEnabled: next } : e));
   };
 
   const selectAll = async () => {
-    const ids = entries.filter((e) => e._synced === 0 && e._syncEnabled === 0).map((e) => e.id);
+    const ids = (entries ?? []).filter((e) => e._synced === 0 && e._syncEnabled === 0).map((e) => e.id);
     if (ids.length === 0) return;
     await db.opLog.where('id').anyOf(ids).modify({ _syncEnabled: 1 });
-    setEntries((prev) => prev.map((e) => e._synced === 0 ? { ...e, _syncEnabled: 1 } : e));
   };
 
   const deselectAll = async () => {
-    const ids = entries.filter((e) => e._synced === 0 && e._syncEnabled === 1).map((e) => e.id);
+    const ids = (entries ?? []).filter((e) => e._synced === 0 && e._syncEnabled === 1).map((e) => e.id);
     if (ids.length === 0) return;
     await db.opLog.where('id').anyOf(ids).modify({ _syncEnabled: 0 });
-    setEntries((prev) => prev.map((e) => e._synced === 0 ? { ...e, _syncEnabled: 0 } : e));
   };
 
   const handleSyncSelected = async () => {
     setIsSyncing(true);
     try {
       await syncManager.syncNow();
-      await fetchEntries();
     } catch (error) {
       console.error('Sync failed:', error);
     } finally {
@@ -83,9 +73,9 @@ function SyncQueueTab() {
 
   // ── Derived counts ──
 
-  const pending = entries.filter((e) => e._synced === 0);
+  const pending = (entries ?? []).filter((e) => e._synced === 0);
   const selectedCount = pending.filter((e) => e._syncEnabled === 1).length;
-  const synced = entries.filter((e) => e._synced === 1);
+  const synced = (entries ?? []).filter((e) => e._synced === 1);
   const allPendingSelected = pending.length > 0 && selectedCount === pending.length;
 
   const formatTimestamp = (iso: string) => {
@@ -156,9 +146,6 @@ function SyncQueueTab() {
               ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
               : <Upload className="w-4 h-4 mr-2" />}
             Sync{selectedCount > 0 ? ` (${selectedCount})` : ''}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={fetchEntries} aria-label="Refresh">
-            <RefreshCw className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -567,7 +554,7 @@ function DiagnosticsTab() {
     update('apiConnectivity', { status: 'running', detail: 'Calling backend…' });
     try {
       const base = getApiUrl().replace(/\/api\/?$/, '');
-      const url = `${base}/api/auth/get-session`;
+      const url = `${base}/api/health`;
       const res = await fetch(url, { credentials: 'include', headers: { 'X-App-Id': 'timeharbor' } });
       update('apiConnectivity', {
         status: res.ok ? 'pass' : 'fail',
@@ -786,34 +773,60 @@ type TabKey = 'sync-queue' | 'operation-logs' | 'diagnostics';
 
 export default function OpLogsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('sync-queue');
+  // Hidden diagnostics: tap the title 5 times to unlock
+  const [titleTaps, setTitleTaps] = useState(0);
+  const [diagUnlocked, setDiagUnlocked] = useState(false);
+  const tapTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const tabs: { key: TabKey; label: string }[] = [
+  const handleTitleTap = () => {
+    const next = titleTaps + 1;
+    setTitleTaps(next);
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+    if (next >= 5) {
+      setDiagUnlocked(true);
+      setTitleTaps(0);
+    } else {
+      tapTimerRef.current = setTimeout(() => setTitleTaps(0), 2000);
+    }
+  };
+
+  const visibleTabs: { key: TabKey; label: string }[] = [
     { key: 'sync-queue', label: 'Sync Queue' },
     { key: 'operation-logs', label: 'Operation Logs' },
-    { key: 'diagnostics', label: 'Diagnostics' },
+    ...(diagUnlocked ? [{ key: 'diagnostics' as TabKey, label: 'Diagnostics' }] : []),
   ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Sync &amp; Logs</h1>
+      {/* Sticky header: title + tab bar — top offset matches the fixed app header heights */}
+      <div className="sticky top-[102px] lg:top-16 z-10 bg-background -mx-4 px-4 pt-4 pb-0">
+        {/* Tap 5× to unlock diagnostics tab */}
+        <h1
+          className="text-2xl font-bold text-foreground select-none pb-4"
+          onClick={handleTitleTap}
+          aria-label="Sync and Logs"
+        >
+          Sync &amp; Logs
+        </h1>
 
-      {/* Tab bar */}
-      <div className="flex border-b border-border" role="tablist" aria-label="Op logs tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            role="tab"
-            aria-selected={activeTab === tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {/* Tab bar */}
+        <div className="flex border-b border-border" role="tablist" aria-label="Op logs tabs">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.key}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab content */}

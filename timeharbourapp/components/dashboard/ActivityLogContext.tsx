@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { Activity } from '@/TimeharborAPI/dashboard';
 import { db, type DexieActivityLog } from '@/TimeharborAPI/db';
 import { useRefresh } from '../../contexts/RefreshContext';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import { opLogWriter } from '@/TimeharborAPI/sync/OpLogWriter';
 
 interface ActivityLogContextType {
@@ -20,7 +20,7 @@ const ActivityLogContext = createContext<ActivityLogContextType | undefined>(und
 
 export function ActivityLogProvider({ children }: { children: React.ReactNode }) {
   const { register, lastRefreshed } = useRefresh();
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const [activities, setActivities] = useState<Activity[]>([]);
   const isLoadedRef = React.useRef(false);
 

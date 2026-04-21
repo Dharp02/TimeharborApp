@@ -1,4 +1,4 @@
-export * as auth from './auth';
+export * as identity from './identity';
 export * as tickets from './tickets';
 export * as dashboard from './dashboard';
 export * as projects from './projects';

@@ -44,6 +44,10 @@ const nextConfig: NextConfig = {
               destination: `${backendUrl}/api/timeharbor/:path*`,
             },
             {
+              source: '/api/health',
+              destination: `${backendUrl}/api/health`,
+            },
+            {
               source: '/uploads/:path*',
               destination: `${backendUrl}/uploads/:path*`,
             },

@@ -15,6 +15,12 @@ export function middleware(request: NextRequest) {
   requestHeaders.set("x-forwarded-host", host);
   requestHeaders.set("x-forwarded-proto", proto);
 
+  // For GET/HEAD/DELETE requests without bodies, strip Content-Type to prevent backend Fastify 400 Bad Request errors
+  // Fastify strictly throws if Content-Type is application/json but the body is empty.
+  if (['GET', 'HEAD'].includes(request.method.toUpperCase())) {
+    requestHeaders.delete('content-type');
+  }
+
   return NextResponse.next({
     request: { headers: requestHeaders },
   });
