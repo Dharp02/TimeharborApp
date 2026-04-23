@@ -305,9 +305,9 @@ export default function TimesheetPage() {
                   className="absolute right-0 mt-1 w-48 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-30"
                 >
                   {([
-                    { label: 'CSV (.csv)', handler: () => exportToCSV(groupedByDay as TimesheetDayGroup[], totalMs, dateRange) },
-                    { label: 'Plain Text (.txt)', handler: () => exportToText(groupedByDay as TimesheetDayGroup[], totalMs, dateRange) },
-                    { label: 'HTML (print / PDF)', handler: () => exportToHTML(groupedByDay as TimesheetDayGroup[], totalMs, dateRange) },
+                    { label: 'CSV (.csv)', handler: () => exportToCSV(groupedByDay as TimesheetDayGroup[], totalMs, dateRange).catch(console.error) },
+                    { label: 'Plain Text (.txt)', handler: () => exportToText(groupedByDay as TimesheetDayGroup[], totalMs, dateRange).catch(console.error) },
+                    { label: 'HTML (print / PDF)', handler: () => exportToHTML(groupedByDay as TimesheetDayGroup[], totalMs, dateRange).catch(console.error) },
                   ] as const).map(({ label, handler }) => (
                     <button
                       key={label}

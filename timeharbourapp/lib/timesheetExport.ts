@@ -60,8 +60,21 @@ function buildRows(groups: TimesheetDayGroup[]): ExportRow[] {
   return rows;
 }
 
-function triggerDownload(filename: string, mimeType: string, content: string): void {
+async function triggerDownload(filename: string, mimeType: string, content: string): Promise<void> {
   const blob = new Blob([content], { type: mimeType });
+
+  // On mobile (Capacitor / iOS / Android) the `download` attribute on anchors
+  // is ignored by WKWebView. Use the native share sheet via Web Share API instead,
+  // which lets the user email/message the file directly to their manager.
+  if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
+    const file = new File([blob], filename, { type: mimeType });
+    if (navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Timesheet Export' });
+      return;
+    }
+  }
+
+  // Desktop fallback: trigger a browser download.
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -103,11 +116,11 @@ function toCsvRow(cells: string[]): string {
   return cells.map(csvEscape).join(',');
 }
 
-export function exportToCSV(
+export async function exportToCSV(
   groups: TimesheetDayGroup[],
   totalMs: number,
   dateRange: { from: DateTime; to: DateTime },
-): void {
+): Promise<void> {
   const { period, exported, total } = headerLine(dateRange, totalMs);
   const rows = buildRows(groups);
 
@@ -135,7 +148,7 @@ export function exportToCSV(
     lines.push(toCsvRow([r.date, r.day, r.startTime, r.endTime, r.duration, r.ticket, r.description, r.flag, r.status]));
   }
 
-  triggerDownload(buildFilename('csv', dateRange), 'text/csv;charset=utf-8;', lines.join('\n'));
+  await triggerDownload(buildFilename('csv', dateRange), 'text/csv;charset=utf-8;', lines.join('\n'));
 }
 
 // ── Plain Text ─────────────────────────────────────────────────────────────────
@@ -144,11 +157,11 @@ function padRight(s: string, len: number): string {
   return s.length >= len ? s : s + ' '.repeat(len - s.length);
 }
 
-export function exportToText(
+export async function exportToText(
   groups: TimesheetDayGroup[],
   totalMs: number,
   dateRange: { from: DateTime; to: DateTime },
-): void {
+): Promise<void> {
   const { period, exported, total } = headerLine(dateRange, totalMs);
   const lines: string[] = [];
 
@@ -194,16 +207,16 @@ export function exportToText(
   lines.push(`TOTAL: ${total}`);
   lines.push(separator);
 
-  triggerDownload(buildFilename('txt', dateRange), 'text/plain;charset=utf-8;', lines.join('\n'));
+  await triggerDownload(buildFilename('txt', dateRange), 'text/plain;charset=utf-8;', lines.join('\n'));
 }
 
 // ── HTML (print/PDF) ──────────────────────────────────────────────────────────
 
-export function exportToHTML(
+export async function exportToHTML(
   groups: TimesheetDayGroup[],
   totalMs: number,
   dateRange: { from: DateTime; to: DateTime },
-): void {
+): Promise<void> {
   const { period, exported, total } = headerLine(dateRange, totalMs);
 
   const dayRows = groups
@@ -292,6 +305,16 @@ export function exportToHTML(
 </body>
 </html>`;
 
+  // On mobile: share the HTML as a file via the native share sheet.
+  if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
+    const file = new File([new Blob([html], { type: 'text/html' })], buildFilename('html', dateRange), { type: 'text/html' });
+    if (navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Timesheet Report' });
+      return;
+    }
+  }
+
+  // Desktop: open in a new tab so the user can Ctrl+P → Save as PDF.
   const win = window.open('', '_blank');
   if (win) {
     win.document.write(html);
