@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
 import { DateTime } from 'luxon';
@@ -8,8 +8,9 @@ import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/date
 import { Activity, fetchActivitiesByDateRange, getTimesheetTotals, TimesheetDayTotal } from '@/TimeharborAPI/dashboard';
 import { formatDurationMs } from '@/lib/formatDuration';
 import {
-  Clock, Calendar, Pencil, X, Check, Plus, Trash2, ChevronDown, ChevronRight,
+  Clock, Calendar, Pencil, X, Check, Plus, Trash2, ChevronDown, ChevronRight, Download,
 } from 'lucide-react';
+import { exportToCSV, exportToText, exportToHTML, type TimesheetDayGroup } from '@/lib/timesheetExport';
 import { useRefresh } from '../../../../contexts/RefreshContext';
 import {
   Button, Input, Select, Badge,
@@ -84,6 +85,21 @@ export default function TimesheetPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditState | null>(null);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  /* ── export state ───────────────────────────────────── */
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportMenu]);
 
   /* ── data fetching ──────────────────────────────────── */
   useEffect(() => {
@@ -270,6 +286,43 @@ export default function TimesheetPage() {
                 {formatDurationMs(totalMs)}
               </span>
             </div>
+            {/* Export dropdown */}
+            <div ref={exportMenuRef} className="relative">
+              <Button
+                variant="outline"
+                onClick={() => setShowExportMenu(prev => !prev)}
+                disabled={activities.length === 0}
+                aria-label="Export timesheet"
+                aria-haspopup="menu"
+                aria-expanded={showExportMenu}
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+              {showExportMenu && (
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-1 w-48 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-30"
+                >
+                  {([
+                    { label: 'CSV (.csv)', handler: () => exportToCSV(groupedByDay as TimesheetDayGroup[], totalMs, dateRange) },
+                    { label: 'Plain Text (.txt)', handler: () => exportToText(groupedByDay as TimesheetDayGroup[], totalMs, dateRange) },
+                    { label: 'HTML (print / PDF)', handler: () => exportToHTML(groupedByDay as TimesheetDayGroup[], totalMs, dateRange) },
+                  ] as const).map(({ label, handler }) => (
+                    <button
+                      key={label}
+                      role="menuitem"
+                      type="button"
+                      onClick={() => { handler(); setShowExportMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <Button onClick={addEntry} aria-label="Add timesheet entry">
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Add Entry</span>
