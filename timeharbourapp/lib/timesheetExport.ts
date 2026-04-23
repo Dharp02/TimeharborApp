@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon';
+import { Capacitor } from '@capacitor/core';
 import { formatDurationMs } from './formatDuration';
 import type { Activity, TimesheetDayTotal } from '@/TimeharborAPI/dashboard';
 
@@ -63,18 +64,22 @@ function buildRows(groups: TimesheetDayGroup[]): ExportRow[] {
 async function triggerDownload(filename: string, mimeType: string, content: string): Promise<void> {
   const blob = new Blob([content], { type: mimeType });
 
-  // On mobile (Capacitor / iOS / Android) the `download` attribute on anchors
-  // is ignored by WKWebView. Use the native share sheet via Web Share API instead,
-  // which lets the user email/message the file directly to their manager.
-  if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
+  // On native iOS/Android (Capacitor) the `download` attribute on anchors is
+  // ignored by WKWebView. Use the native share sheet so the user can send the
+  // file directly to their manager via email, Messages, Slack, etc.
+  if (Capacitor.isNativePlatform() && typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
     const file = new File([blob], filename, { type: mimeType });
     if (navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Timesheet Export' });
+      try {
+        await navigator.share({ files: [file], title: 'Timesheet Export' });
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') throw err;
+      }
       return;
     }
   }
 
-  // Desktop fallback: trigger a browser download.
+  // Web (and native fallback): trigger a browser download.
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -305,11 +310,15 @@ export async function exportToHTML(
 </body>
 </html>`;
 
-  // On mobile: share the HTML as a file via the native share sheet.
-  if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
+  // On native iOS/Android: share the HTML as a file via the native share sheet.
+  if (Capacitor.isNativePlatform() && typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
     const file = new File([new Blob([html], { type: 'text/html' })], buildFilename('html', dateRange), { type: 'text/html' });
     if (navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Timesheet Report' });
+      try {
+        await navigator.share({ files: [file], title: 'Timesheet Report' });
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') throw err;
+      }
       return;
     }
   }
