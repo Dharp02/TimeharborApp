@@ -83,7 +83,7 @@ function StatusDropdown({
 
   const colorClass =
     ticket.status === 'Open'
-      ? 'bg-secondary/20 text-secondary-foreground border-secondary/40'
+      ? 'bg-secondary/20 text-secondary-700 dark:text-secondary-300 border-secondary/40'
       : ticket.status === 'In Progress'
         ? 'bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300 border-warning-300 dark:border-warning-700'
         : 'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300 border-success-300 dark:border-success-700';
@@ -113,7 +113,7 @@ function StatusDropdown({
             const isSelected = ticket.status === opt.value;
             const optColor =
               opt.value === 'Open'
-                ? 'text-foreground'
+                ? 'text-secondary-700 dark:text-secondary-300'
                 : opt.value === 'In Progress'
                   ? 'text-warning-700 dark:text-warning-300'
                   : 'text-success-700 dark:text-success-300';
