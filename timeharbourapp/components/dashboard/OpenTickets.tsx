@@ -168,8 +168,17 @@ export default function OpenTickets() {
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showClockInWarning, setShowClockInWarning] = useState(false);
+  // Tracks ticket IDs ordered by most recently active (persists after timer stops)
+  const [lastActiveOrder, setLastActiveOrder] = useState<string[]>([]);
 
   const isMountedRef = useRef(true);
+
+  // When a ticket timer starts, move it to the front of the recency order
+  useEffect(() => {
+    if (activeTicketId) {
+      setLastActiveOrder(prev => [activeTicketId, ...prev.filter(id => id !== activeTicketId)]);
+    }
+  }, [activeTicketId]);
 
   const PERSONAL_TEAM_ID = '__personal__';
 
@@ -357,8 +366,11 @@ export default function OpenTickets() {
           (isWalkthrough ? (tickets.length > 0 ? tickets : WALKTHROUGH_TICKETS) : tickets)
             .slice()
             .sort((a, b) => {
-              if (a.id === activeTicketId) return -1;
-              if (b.id === activeTicketId) return 1;
+              const ai = lastActiveOrder.indexOf(a.id);
+              const bi = lastActiveOrder.indexOf(b.id);
+              if (ai !== -1 && bi !== -1) return ai - bi;
+              if (ai !== -1) return -1;
+              if (bi !== -1) return 1;
               return 0;
             })
             .slice(0, 5).map((ticket) => {
