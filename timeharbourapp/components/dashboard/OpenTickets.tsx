@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Play, Square, ChevronRight, Clock, Video, Users, RefreshCw, Share2, Check, Paperclip, X, FileText, Link2 } from 'lucide-react';
+import { Plus, Play, Square, ChevronRight, ChevronDown, Clock, Video, Users, RefreshCw, Share2, Check, Paperclip, X, FileText, Link2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button, Input, Textarea, Badge, Card, CardContent, Text, SmallMuted } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
@@ -56,6 +56,100 @@ const WALKTHROUGH_TICKETS: TicketType[] = [
   },
 ];
 
+const STATUS_OPTIONS: { value: 'Open' | 'In Progress' | 'Closed'; label: string }[] = [
+  { value: 'Open', label: 'Open' },
+  { value: 'In Progress', label: 'In Progress' },
+  { value: 'Closed', label: 'Done' },
+];
+
+function StatusDropdown({
+  ticket,
+  onChange,
+}: {
+  ticket: TicketType;
+  onChange: (ticket: TicketType, status: 'Open' | 'In Progress' | 'Closed') => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const colorClass =
+    ticket.status === 'Open'
+      ? 'bg-secondary/20 text-secondary-foreground border-secondary/40'
+      : ticket.status === 'In Progress'
+        ? 'bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300 border-warning-300 dark:border-warning-700'
+        : 'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300 border-success-300 dark:border-success-700';
+
+  const label = STATUS_OPTIONS.find(o => o.value === ticket.status)?.label ?? ticket.status;
+
+  return (
+    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        aria-label={`Change status for ${ticket.title}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen(prev => !prev)}
+        className={`flex items-center gap-1 text-xs font-medium rounded-full px-2 py-0.5 border cursor-pointer ${colorClass}`}
+      >
+        {label}
+        <ChevronDown className="w-3 h-3" />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={`Status options for ${ticket.title}`}
+          className="absolute right-0 top-full mt-1 z-200 min-w-30 rounded-lg border border-border bg-card shadow-xl py-1 overflow-hidden"
+        >
+          {STATUS_OPTIONS.map((opt) => {
+            const isSelected = ticket.status === opt.value;
+            const optColor =
+              opt.value === 'Open'
+                ? 'text-foreground'
+                : opt.value === 'In Progress'
+                  ? 'text-warning-700 dark:text-warning-300'
+                  : 'text-success-700 dark:text-success-300';
+            return (
+              <li
+                key={opt.value}
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => {
+                  setOpen(false);
+                  if (!isSelected) onChange(ticket, opt.value);
+                }}
+                className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer transition-colors ${
+                  isSelected
+                    ? 'bg-muted font-semibold ' + optColor
+                    : 'hover:bg-muted ' + optColor
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                  opt.value === 'Open'
+                    ? 'bg-info-500'
+                    : opt.value === 'In Progress'
+                      ? 'bg-warning-500'
+                      : 'bg-success-500'
+                }`} />
+                {opt.label}
+                {isSelected && <Check className="w-3.5 h-3.5 ml-auto" />}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function OpenTickets() {
   const { isSessionActive, isOnBreak, activeTicketId, toggleTicketTimer, getFormattedTotalTime, toggleSession, ticketDuration, ticketDurations } = useClockIn();
   const { addActivity } = useActivityLog();
@@ -74,8 +168,17 @@ export default function OpenTickets() {
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showClockInWarning, setShowClockInWarning] = useState(false);
+  // Tracks ticket IDs ordered by most recently active (persists after timer stops)
+  const [lastActiveOrder, setLastActiveOrder] = useState<string[]>([]);
 
   const isMountedRef = useRef(true);
+
+  // When a ticket timer starts, move it to the front of the recency order
+  useEffect(() => {
+    if (activeTicketId) {
+      setLastActiveOrder(prev => [activeTicketId, ...prev.filter(id => id !== activeTicketId)]);
+    }
+  }, [activeTicketId]);
 
   const PERSONAL_TEAM_ID = '__personal__';
 
@@ -179,6 +282,23 @@ export default function OpenTickets() {
     setAttachedFiles([]);
   };
 
+  const handleStatusChange = async (ticket: TicketType, nextStatus: 'Open' | 'In Progress' | 'Closed') => {
+    if (ticket.id.startsWith('__wt_')) return;
+    // Optimistic update
+    setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: nextStatus } : t));
+    try {
+      await ticketsApi.updatePersonalTicket(ticket.id, { status: nextStatus });
+      // Remove from list if marked Done (Closed)
+      if (nextStatus === 'Closed') {
+        setTickets(prev => prev.filter(t => t.id !== ticket.id));
+      }
+    } catch (error) {
+      console.error('Failed to update ticket status:', error);
+      // Revert on failure
+      setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: ticket.status } : t));
+    }
+  };
+
   const handleShareToTimehuddle = async (ticketId: string) => {
     try {
       await ticketsApi.shareToTimehuddle(ticketId);
@@ -246,8 +366,11 @@ export default function OpenTickets() {
           (isWalkthrough ? (tickets.length > 0 ? tickets : WALKTHROUGH_TICKETS) : tickets)
             .slice()
             .sort((a, b) => {
-              if (a.id === activeTicketId) return -1;
-              if (b.id === activeTicketId) return 1;
+              const ai = lastActiveOrder.indexOf(a.id);
+              const bi = lastActiveOrder.indexOf(b.id);
+              if (ai !== -1 && bi !== -1) return ai - bi;
+              if (ai !== -1) return -1;
+              if (bi !== -1) return 1;
               return 0;
             })
             .slice(0, 5).map((ticket) => {
@@ -262,18 +385,7 @@ export default function OpenTickets() {
                     <Text className="text-base font-bold leading-tight">
                       {ticket.title}
                     </Text>
-                    <Badge
-                      variant={
-                        ticket.status === 'Open'
-                          ? 'secondary'
-                          : ticket.status === 'In Progress'
-                            ? 'warning'
-                            : 'success'
-                      }
-                      size="sm"
-                    >
-                      {getStatusDisplay(ticket.status)}
-                    </Badge>
+                    <StatusDropdown ticket={ticket} onChange={handleStatusChange} />
                   </div>
 
                   <SmallMuted className="flex flex-wrap items-center gap-x-2 gap-y-1">
