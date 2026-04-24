@@ -6,11 +6,13 @@ import { Clock, Loader2 } from 'lucide-react';
 import { DateTime } from 'luxon';
 import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
 import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
-import { Activity, fetchActivitiesByDateRange } from '@/TimeharborAPI/dashboard';
+import type { Activity } from '@/TimeharborAPI/dashboard';
+import { useActivityLog } from '@/components/dashboard/ActivityLogContext';
 import { useRefresh } from '../../../contexts/RefreshContext';
 
 export default function ActivityPage() {
   const { register } = useRefresh();
+  const { fetchActivitiesByDateRange } = useActivityLog();
   const [visibleCount, setVisibleCount] = useState(20);
   const [dateRange, setDateRange] = useState<LuxonDateRange>({
     from: DateTime.now().startOf('day'),
@@ -24,17 +26,18 @@ export default function ActivityPage() {
     setIsLoading(true);
     try {
       const data = await fetchActivitiesByDateRange(
-        '',
         from.toISO() || '',
         to.toISO() || '',
       );
+      // Sort newest first (same order as dashboard Recent Activity)
+      data.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
       setActivities(data);
     } catch (error) {
       console.error('Failed to fetch activities:', error);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchActivitiesByDateRange]);
 
   // Fetch on mount, date range change, or refresh
   useEffect(() => {
