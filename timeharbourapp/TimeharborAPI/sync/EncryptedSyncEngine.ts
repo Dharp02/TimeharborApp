@@ -25,7 +25,7 @@ const RETRY_DELAY_MS = 1500;
 async function apiRequest(path: string, options: RequestInit = {}) {
   const base = getApiUrl().replace(/\/api\/?$/, '');
   const [rawPath, query = ''] = path.split('?');
-  const canonicalPath = rawPath.endsWith('/') ? rawPath : `${rawPath}/`;
+  const canonicalPath = rawPath.endsWith('/') ? rawPath.slice(0, -1) : rawPath;
   const url = `${base}/api/timeharbor${canonicalPath}${query ? `?${query}` : ''}`;
   const identityUUID = getIdentityUUID();
 

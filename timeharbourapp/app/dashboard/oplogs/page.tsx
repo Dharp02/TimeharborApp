@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Button } from '@mieweb/ui';
+import { Button, useToast } from '@mieweb/ui';
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Trash2, Upload, Square, CheckSquare, ShieldCheck, Wifi, Database, Key } from 'lucide-react';
 import { db, type DexieOperationLog } from '@/TimeharborAPI/db';
 import { getApiUrl } from '@/TimeharborAPI/apiUrl';
@@ -31,6 +31,7 @@ const OP_COLORS: Record<string, string> = {
 
 function SyncQueueTab() {
   const [isSyncing, setIsSyncing] = useState(false);
+  const toast = useToast();
 
   // Reactively watch opLog — updates instantly when entries are added/changed,
   // even when offline, without needing manual refresh or event polling.
@@ -64,8 +65,11 @@ function SyncQueueTab() {
     setIsSyncing(true);
     try {
       await syncManager.syncNow();
+      toast.success('Synced successfully');
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
       console.error('Sync failed:', error);
+      toast.error(`Sync failed: ${msg}`);
     } finally {
       setIsSyncing(false);
     }

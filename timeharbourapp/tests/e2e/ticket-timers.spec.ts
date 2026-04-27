@@ -287,7 +287,7 @@ async function clockInAndStartTicket(page: import('@playwright/test').Page, tick
 
   // Verify the ticket timer actually started (Stop button visible)
   const ticketCard = page.locator('.space-y-2').filter({ has: page.getByText(ticketTitle, { exact: true }) }).first();
-  await expect(ticketCard.getByRole('button', { name: 'Stop' })).toBeVisible({ timeout: 10_000 });
+  await expect(ticketCard.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 10_000 });
 }
 
 /** Clock out via the modal option. */
@@ -334,7 +334,7 @@ async function startTicketTimer(page: import('@playwright/test').Page, ticketTit
 /** Stop a ticket timer — opens the stop modal, confirms without comment. */
 async function stopTicketTimer(page: import('@playwright/test').Page, ticketTitle: string) {
   const ticketCard = page.locator('.space-y-2').filter({ has: page.getByText(ticketTitle, { exact: true }) }).first();
-  await ticketCard.getByRole('button', { name: 'Stop' }).click();
+  await ticketCard.getByRole('button', { name: 'Stop', exact: true }).click();
 
   // Confirm the "Stop Timer?" modal
   await expect(page.getByText('Stop Timer?')).toBeVisible({ timeout: 5_000 });
