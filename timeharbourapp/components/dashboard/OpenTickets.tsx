@@ -593,7 +593,7 @@ export default function OpenTickets() {
               {attachedFiles.map((file, i) => (
                 <div key={`file-${i}`} className="relative group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                   <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <span className="text-xs truncate max-w-[120px]">{file.name}</span>
+                  <span className="text-xs truncate max-w-30">{file.name}</span>
                   <button
                     type="button"
                     onClick={() => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}
@@ -641,7 +641,7 @@ export default function OpenTickets() {
                 {links.map((l, i) => (
                   <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
                     <Link2 className="w-3 h-3 text-muted-foreground shrink-0" />
-                    <span className="truncate max-w-[200px]">{l}</span>
+                    <span className="truncate max-w-50">{l}</span>
                     <button type="button" onClick={() => setLinks(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 shrink-0" aria-label="Remove link">
                       <X className="w-3 h-3" />
                     </button>

@@ -803,7 +803,7 @@ export default function OpLogsPage() {
   return (
     <div className="space-y-6">
       {/* Sticky header: title + tab bar — top offset matches the fixed app header heights */}
-      <div className="sticky top-[102px] lg:top-16 z-10 bg-background -mx-4 px-4 pt-4 pb-0">
+      <div className="sticky top-25.5 lg:top-16 z-10 bg-background -mx-4 px-4 pt-4 pb-0">
         {/* Tap 5× to unlock diagnostics tab */}
         <h1
           className="text-2xl font-bold text-foreground select-none pb-4"

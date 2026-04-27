@@ -268,7 +268,7 @@ export default function TimesheetPage() {
   return (
     <div className="max-w-7xl mx-auto px-0 py-2 space-y-4">
       {/* Filter Bar */}
-      <div className="sticky top-[102px] lg:top-16 z-20 bg-background -mx-4 px-4 py-2 -mt-2 shadow-sm shadow-background">
+      <div className="sticky top-25.5 lg:top-16 z-20 bg-background -mx-4 px-4 py-2 -mt-2 shadow-sm shadow-background">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <DateRangePickerWithPresets
             value={{ start: dateRange.from.toJSDate(), end: dateRange.to.toJSDate() }}

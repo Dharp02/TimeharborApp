@@ -309,7 +309,7 @@ export default function ProjectsPage() {
   /* ── render ───────────────────────────────────────────── */
   return (
     <div className="projects-page max-w-7xl mx-auto px-0 py-2 space-y-4">
-      <div className="sticky top-[102px] lg:top-[64px] z-20 bg-background -mx-4 px-4 py-2 -mt-2 space-y-4 shadow-sm shadow-background">
+      <div className="sticky top-25.5 lg:top-16 z-20 bg-background -mx-4 px-4 py-2 -mt-2 space-y-4 shadow-sm shadow-background">
         {/* ── Header ───────────────────────────────────── */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -439,7 +439,7 @@ export default function ProjectsPage() {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline truncate"
                     >
-                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      <ExternalLink className="w-3 h-3 shrink-0" />
                       <span className="truncate">{project.repoUrl.replace(/^https?:\/\//, '')}</span>
                     </a>
                   )}
@@ -512,7 +512,7 @@ export default function ProjectsPage() {
                           {projectTickets.map((t) => (
                             <div key={t.id} className="ticket-row">
                               <span
-                                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                className={`w-2 h-2 rounded-full shrink-0 ${
                                   t.priority === 'High'
                                     ? 'bg-red-500'
                                     : t.priority === 'Medium'
@@ -733,7 +733,7 @@ export default function ProjectsPage() {
                       aria-pressed={isSelected}
                     >
                       <span
-                        className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                        className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
                           isSelected
                             ? 'bg-primary-600 border-primary-600 text-white'
                             : 'border-gray-300 dark:border-gray-600'
@@ -742,7 +742,7 @@ export default function ProjectsPage() {
                         {isSelected && <Check className="w-3 h-3" />}
                       </span>
                       <span
-                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        className={`w-2 h-2 rounded-full shrink-0 ${
                           t.priority === 'High'
                             ? 'bg-red-500'
                             : t.priority === 'Medium'
