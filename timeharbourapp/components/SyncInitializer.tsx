@@ -146,6 +146,13 @@ export default function SyncInitializer() {
 
     syncManager.init();
 
+    // Show a toast when any background sync cycle fails (e.g. HTTP 401/500).
+    // This makes silent failures visible so users know to investigate.
+    const handleSyncError = (err: Error) => {
+      toastRef.current.error(`Sync failed: ${err.message}`);
+    };
+    syncManager.onSyncError(handleSyncError);
+
     // Listen for the SyncManager telling us it needs encryption setup.
     // Auto-setup silently; only show modal if auto-setup fails.
     const handleEncryptionNeeded = async () => {
@@ -195,10 +202,11 @@ export default function SyncInitializer() {
       import('@capacitor/network').then(({ Network }) => {
         Network.addListener('networkStatusChange', (status) => {
           if (status.connected) {
-            if (wasOfflineRef.current) {
-              showOnlineToast();
-              syncManager.syncNow();
-            }
+            // Sync whenever connectivity is restored, regardless of whether
+            // we previously saw an offline transition (covers app resume too).
+            showOnlineToast();
+            syncManager.syncNow();
+            wasOfflineRef.current = false;
           } else {
             wasOfflineRef.current = true;
             showOfflineToast();
@@ -206,6 +214,22 @@ export default function SyncInitializer() {
         });
         networkListenerCleanup = () => Network.removeAllListeners();
       }).catch(() => { /* Network plugin not available */ });
+
+      // Sync when the app returns to the foreground (e.g. user switches back
+      // from another app). Without this, items can stay pending indefinitely
+      // since the periodic timer and write-debounce only fire while active.
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appStateChange', (state) => {
+          if (state.isActive) {
+            syncManager.syncNow();
+          }
+        });
+        const prevCleanup = networkListenerCleanup;
+        networkListenerCleanup = () => {
+          prevCleanup?.();
+          App.removeAllListeners();
+        };
+      }).catch(() => { /* App plugin not available */ });
     }
 
     // Sync on pull-to-refresh
@@ -253,6 +277,7 @@ export default function SyncInitializer() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('pull-to-refresh', onRefresh);
       syncManager.offEncryptionNeeded(handleEncryptionNeeded);
+      syncManager.offSyncError(handleSyncError);
       networkListenerCleanup?.();
       clearInterval(interval);
       detector.destroy();

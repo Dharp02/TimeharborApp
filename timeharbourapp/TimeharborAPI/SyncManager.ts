@@ -42,6 +42,9 @@ class SyncManager {
     this.pendingFullRestore = true;
   }
 
+  /** Listeners notified when a sync cycle fails with an unexpected error. */
+  private syncErrorListeners: Array<(err: Error) => void> = [];
+
   /** Register a callback that fires when encryption setup is needed. */
   public onEncryptionNeeded(listener: () => void) {
     this.encryptionNeededListeners.push(listener);
@@ -52,6 +55,16 @@ class SyncManager {
     this.encryptionNeededListeners = this.encryptionNeededListeners.filter(
       (l) => l !== listener,
     );
+  }
+
+  /** Register a callback that fires when a sync cycle throws an unexpected error. */
+  public onSyncError(listener: (err: Error) => void) {
+    this.syncErrorListeners.push(listener);
+  }
+
+  /** Remove a sync-error listener. */
+  public offSyncError(listener: (err: Error) => void) {
+    this.syncErrorListeners = this.syncErrorListeners.filter((l) => l !== listener);
   }
 
   /** Block all future syncs and wait for any in-flight sync to finish. */
@@ -99,7 +112,13 @@ class SyncManager {
       if (err instanceof TypeError) {
         console.warn('[sync] network unavailable, will retry next cycle', err.message);
       } else {
-        throw err;
+        // Non-network errors (e.g. HTTP 401/500) — log and notify listeners
+        // so the UI can show an error toast. Do NOT re-throw: that would
+        // cause the boot-sequence catch block to show the restore modal for
+        // transient API errors, which is misleading.
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error('[sync] sync cycle failed:', error.message);
+        this.syncErrorListeners.forEach((l) => l(error));
       }
     } finally {
       this.syncing = false;
