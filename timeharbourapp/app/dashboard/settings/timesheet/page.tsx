@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { v4 as uuidv4 } from 'uuid';
 import { DateRangePickerWithPresets } from '@/components/DateRangePickerWithPresets';
 import { DateTime } from 'luxon';
 import { dateFilterPresets, resolveRange, type LuxonDateRange } from '@/lib/datePresets';
@@ -17,6 +18,10 @@ import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@mieweb/ui';
 import TimesheetEntryClient from './[id]/TimesheetEntryClient';
+import { db } from '@/TimeharborAPI/db';
+import { opLogWriter } from '@/TimeharborAPI/sync/OpLogWriter';
+import { computeSession } from '@timeharbor/time-engine';
+import { getIdentityUUID } from '@/TimeharborAPI/sync/IdentityManager';
 
 /* ── flag / status options ─────────────────────────────── */
 const FLAG_OPTIONS = [
@@ -198,6 +203,14 @@ export default function TimesheetPage() {
 
   /* ── edit helpers ───────────────────────────────────── */
   const startEdit = (a: Activity) => {
+    if (a.status === 'Active') {
+      setSaveMessage({ type: 'error', text: 'Active sessions cannot be edited while running. Clock out first.' });
+      return;
+    }
+    if (DateTime.fromISO(a.startTime).toMillis() > Date.now()) {
+      setSaveMessage({ type: 'error', text: 'Future entries cannot be edited.' });
+      return;
+    }
     setEditingId(a.id);
     setEditDraft(toEditState(a));
     setSaveMessage(null);
@@ -205,38 +218,126 @@ export default function TimesheetPage() {
   const cancelEdit = () => { setEditingId(null); setEditDraft(null); };
   const updateDraft = (patch: Partial<EditState>) => setEditDraft(prev => prev ? { ...prev, ...patch } : prev);
 
-  const saveEdit = () => {
+  const saveEdit = useCallback(async () => {
     if (!editDraft || !editingId) return;
-    // TODO: Wire up to backend API
-    setActivities(prev =>
-      prev.map(a => {
-        if (a.id !== editingId) return a;
-        const start = DateTime.fromFormat(`${editDraft.date} ${editDraft.startTime}`, 'yyyy-MM-dd HH:mm');
-        const end = editDraft.endTime
-          ? DateTime.fromFormat(`${editDraft.date} ${editDraft.endTime}`, 'yyyy-MM-dd HH:mm')
-          : undefined;
-        return {
-          ...a,
-          startTime: start.toISO() || a.startTime,
-          endTime: end?.toISO() ?? a.endTime,
-          subtitle: editDraft.ticket,
-          description: editDraft.description,
-          status: editDraft.status as Activity['status'],
-          metadata: { ...a.metadata, flag: editDraft.flag },
-        };
-      }),
-    );
-    setSaveMessage({ type: 'success', text: 'Entry updated locally. Backend sync coming soon.' });
-    setEditingId(null);
-    setEditDraft(null);
-  };
 
-  const deleteEntry = (id: string) => {
-    // TODO: Wire up to backend API
-    setActivities(prev => prev.filter(a => a.id !== id));
-    if (editingId === id) cancelEdit();
-    setSaveMessage({ type: 'success', text: 'Entry removed locally.' });
-  };
+    const clockInMs = DateTime.fromFormat(
+      `${editDraft.date} ${editDraft.startTime}`, 'yyyy-MM-dd HH:mm'
+    ).toMillis();
+    const clockOutMs = editDraft.endTime
+      ? DateTime.fromFormat(`${editDraft.date} ${editDraft.endTime}`, 'yyyy-MM-dd HH:mm').toMillis()
+      : null;
+
+    const now = Date.now();
+    if (clockInMs > now) {
+      setSaveMessage({ type: 'error', text: 'Start time cannot be in the future.' });
+      return;
+    }
+    if (clockOutMs !== null && clockOutMs > now) {
+      setSaveMessage({ type: 'error', text: 'End time cannot be in the future.' });
+      return;
+    }
+    if (clockOutMs !== null && clockOutMs <= clockInMs) {
+      setSaveMessage({ type: 'error', text: 'End time must be after start time.' });
+      return;
+    }
+    const ticketTitle = editDraft.ticket.trim() || 'Manual Entry';
+    const ticketSegments = [{
+      segmentId: uuidv4(),
+      ticketId: 'manual',
+      ticketTitle,
+      start: clockInMs,
+      end: clockOutMs ?? clockInMs,
+    }];
+    const stats = computeSession(
+      { clockIn: clockInMs, clockOut: clockOutMs, ticketSegments, breaks: [] },
+      clockOutMs ?? Date.now()
+    );
+
+    try {
+      if (editingId.startsWith('new-')) {
+        // ── CREATE: new manually-added session ──────────────
+        const now = Date.now();
+        const userId = getIdentityUUID();
+        const sessionId = uuidv4();
+        const session = {
+          id: sessionId,
+          clientSessionId: uuidv4(),
+          userId,
+          date: editDraft.date,
+          clockIn: clockInMs,
+          clockOut: clockOutMs,
+          ticketSegments,
+          breaks: [] as any[],
+          totalSessionMs: stats.totalSessionMs,
+          totalBreakMs: stats.totalBreakMs,
+          netWorkMs: stats.netWorkMs,
+          ticketBreakdown: stats.ticketBreakdown,
+          comment: editDraft.description || undefined,
+          flag: editDraft.flag !== 'none' ? editDraft.flag : undefined,
+          manualTicket: editDraft.ticket.trim() || undefined,
+          manualStatus: editDraft.status as 'Active' | 'Completed' | 'Pending',
+          sourceApp: 'timeharbor' as const,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await db.workSessions.add(session);
+        await opLogWriter.recordCreate('workSessions', sessionId, session as unknown as Record<string, unknown>);
+      } else {
+        // ── UPDATE: edit an existing session ────────────────
+        const sessionId = editingId.substring(0, editingId.lastIndexOf('-'));
+        const patch = {
+          date: editDraft.date,
+          clockIn: clockInMs,
+          clockOut: clockOutMs,
+          ticketSegments,
+          breaks: [],
+          totalSessionMs: stats.totalSessionMs,
+          totalBreakMs: stats.totalBreakMs,
+          netWorkMs: stats.netWorkMs,
+          ticketBreakdown: stats.ticketBreakdown,
+          comment: editDraft.description || undefined,
+          flag: editDraft.flag !== 'none' ? editDraft.flag : undefined,
+          manualTicket: editDraft.ticket.trim() || undefined,
+          manualStatus: editDraft.status as 'Active' | 'Completed' | 'Pending',
+          updatedAt: Date.now(),
+        };
+        await db.workSessions.update(sessionId, patch);
+        await opLogWriter.recordUpdate('workSessions', sessionId, patch as unknown as Record<string, unknown>);
+      }
+
+      setEditingId(null);
+      setEditDraft(null);
+      setSaveMessage({ type: 'success', text: 'Entry saved.' });
+      window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
+      // Reload from Dexie to reflect changes
+      const [acts, totals] = await Promise.all([
+        fetchActivitiesByDateRange('', dateRange.from!.toISO() || '', dateRange.to!.toISO() || ''),
+        getTimesheetTotals(dateRange.from!.toISODate() || '', dateRange.to!.toISODate() || ''),
+      ]);
+      setActivities(acts);
+      setTimesheetTotals(totals);
+    } catch (err) {
+      console.error('Failed to save timesheet entry:', err);
+      setSaveMessage({ type: 'error', text: 'Failed to save entry. Please try again.' });
+    }
+  }, [editDraft, editingId, dateRange]);
+
+  const deleteEntry = useCallback(async (id: string) => {
+    const sessionId = id.includes('-') ? id.substring(0, id.lastIndexOf('-')) : id;
+    try {
+      await db.workSessions.delete(sessionId);
+      await opLogWriter.recordDelete('workSessions', sessionId);
+      // Remove both -in and -out entries for this session from state
+      setActivities(prev => prev.filter(a => !a.id.startsWith(sessionId + '-')));
+      if (editingId && editingId.startsWith(sessionId + '-')) cancelEdit();
+      setSaveMessage({ type: 'success', text: 'Entry deleted.' });
+      window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
+    } catch (err) {
+      console.error('Failed to delete timesheet entry:', err);
+      setSaveMessage({ type: 'error', text: 'Failed to delete entry. Please try again.' });
+    }
+  }, [editingId]);
 
   const addEntry = () => {
     const now = DateTime.now();
@@ -245,11 +346,14 @@ export default function TimesheetPage() {
       type: 'MANUAL',
       title: 'Manual Entry',
       startTime: now.toISO() || '',
-      status: 'Pending',
+      status: 'Completed',
       metadata: { flag: 'none' },
     };
     setActivities(prev => [newEntry, ...prev]);
-    startEdit(newEntry);
+    // Directly enter edit mode (active-session guard skipped — new entries are never active)
+    setEditingId(newEntry.id);
+    setEditDraft(toEditState(newEntry));
+    setSaveMessage(null);
   };
 
   /* ── format helpers ─────────────────────────────────── */

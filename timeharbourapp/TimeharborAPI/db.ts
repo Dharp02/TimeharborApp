@@ -68,6 +68,10 @@ export interface DexieWorkSession {
   links?: string[];
   attachments?: SessionAttachment[];
   autoClosedAt?: number;
+  /** Manual overrides set when editing an entry in the timesheet */
+  flag?: string;
+  manualTicket?: string;
+  manualStatus?: 'Active' | 'Completed' | 'Pending';
   sourceApp: 'timeharbor';
   createdAt: number;
   updatedAt: number;

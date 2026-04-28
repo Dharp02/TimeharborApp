@@ -179,7 +179,9 @@ export const fetchActivitiesByDateRange = async (
   const activities: Activity[] = [];
 
   for (const s of sessions) {
-    const tickets = s.ticketBreakdown?.map(t => t.ticketTitle).filter(Boolean).join(', ') || undefined;
+    const derivedTickets = s.ticketBreakdown?.map(t => t.ticketTitle).filter(Boolean).join(', ') || undefined;
+    const subtitle = s.manualTicket || derivedTickets;
+    const status = s.manualStatus ?? (s.clockOut ? 'Completed' as const : 'Active' as const);
     const clockInISO = new Date(s.clockIn).toISOString();
     const clockOutISO = s.clockOut ? new Date(s.clockOut).toISOString() : undefined;
 
@@ -188,13 +190,14 @@ export const fetchActivitiesByDateRange = async (
       id: `${s.id}-in`,
       type: 'SESSION',
       title: 'Work Session Started',
-      subtitle: tickets,
+      subtitle,
+      description: s.comment,
       startTime: clockInISO,
       endTime: clockOutISO,
-      status: s.clockOut ? 'Completed' as const : 'Active' as const,
+      status,
       duration: formatDurationMs(s.netWorkMs),
       durationMs: s.netWorkMs,
-      metadata: { eventTime: s.clockIn },
+      metadata: { eventTime: s.clockIn, flag: s.flag },
     });
 
     // Clock-out entry — event time is clockOut
@@ -203,13 +206,14 @@ export const fetchActivitiesByDateRange = async (
         id: `${s.id}-out`,
         type: 'SESSION',
         title: 'Session Ended',
-        subtitle: tickets,
+        subtitle,
+        description: s.comment,
         startTime: clockInISO,
         endTime: clockOutISO,
-        status: 'Completed',
+        status: s.manualStatus ?? 'Completed',
         duration: formatDurationMs(s.netWorkMs),
         durationMs: s.netWorkMs,
-        metadata: { eventTime: s.clockOut },
+        metadata: { eventTime: s.clockOut, flag: s.flag },
       });
     }
   }
