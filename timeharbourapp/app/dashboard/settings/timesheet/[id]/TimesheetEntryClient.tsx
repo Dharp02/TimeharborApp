@@ -367,7 +367,7 @@ export default function TimesheetEntryClient({ entryIdProp }: { entryIdProp?: st
                 {draft.links.map((l, i) => (
                   <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
                     <ExternalLink className="w-3 h-3 text-muted-foreground shrink-0" />
-                    <span className="truncate max-w-[200px]">{l}</span>
+                    <span className="truncate max-w-50">{l}</span>
                     <button type="button" onClick={() => updateDraft({ links: draft.links.filter((_, idx) => idx !== i) })} className="text-red-500 shrink-0" aria-label="Remove link">
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -457,7 +457,7 @@ export default function TimesheetEntryClient({ entryIdProp }: { entryIdProp?: st
                   !att.type.startsWith('image/') ? (
                     <div key={i} className="relative group flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                       <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <a href={att.dataUrl} download={att.name} className="text-sm hover:underline truncate max-w-[200px]">{att.name}</a>
+                      <a href={att.dataUrl} download={att.name} className="text-sm hover:underline truncate max-w-50">{att.name}</a>
                       {isEditing && (
                         <button
                           type="button"
