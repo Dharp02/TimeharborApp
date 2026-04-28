@@ -575,8 +575,8 @@ export default function TimesheetPage() {
                                   <>
                                     <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{fmtTime(a.startTime)}</TableCell>
                                     <TableCell className="whitespace-nowrap cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.endTime ? fmtTime(a.endTime) : '—'}</TableCell>
-                                    <TableCell className="text-primary-600 dark:text-primary-400 font-medium cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.subtitle || '—'}</TableCell>
-                                    <TableCell className="truncate cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}>{a.description || a.title}</TableCell>
+                                    <TableCell className="max-w-0 cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}><div className="truncate text-primary-600 dark:text-primary-400 font-medium">{a.subtitle || '—'}</div></TableCell>
+                                    <TableCell className="max-w-0 cursor-pointer" onClick={() => router.push(`/dashboard/settings/timesheet/?entryId=${a.id}`)}><div className="truncate">{a.description || a.title}</div></TableCell>
                                     <TableCell>
                                       {a.metadata?.flag && a.metadata.flag !== 'none' ? (
                                         <Badge variant="outline" size="sm">{FLAG_OPTIONS.find(f => f.value === a.metadata?.flag)?.label ?? a.metadata.flag}</Badge>
