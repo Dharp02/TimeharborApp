@@ -139,6 +139,7 @@ export default function TimesheetPage() {
     setDateRange(resolveRange(range, presetKey));
     setPreset(presetKey || '');
     setEditingId(null);
+    setExpandedDays(new Set());
   };
 
   /* ── sorted entries ─────────────────────────────────── */
@@ -333,11 +334,17 @@ export default function TimesheetPage() {
       if (editingId && editingId.startsWith(sessionId + '-')) cancelEdit();
       setSaveMessage({ type: 'success', text: 'Entry deleted.' });
       window.dispatchEvent(new CustomEvent('dashboard-stats-refresh'));
+      // Re-fetch totals so the header reflects the new total after deletion
+      const totals = await getTimesheetTotals(
+        dateRange.from!.toISODate() || '',
+        dateRange.to!.toISODate() || '',
+      );
+      setTimesheetTotals(totals);
     } catch (err) {
       console.error('Failed to delete timesheet entry:', err);
       setSaveMessage({ type: 'error', text: 'Failed to delete entry. Please try again.' });
     }
-  }, [editingId]);
+  }, [editingId, dateRange]);
 
   const addEntry = () => {
     const now = DateTime.now();
@@ -386,7 +393,7 @@ export default function TimesheetPage() {
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
               <Clock className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground font-medium">Total:</span>
-              <span className="text-base font-bold text-gray-900 dark:text-white">
+              <span data-testid="total-hours" className="text-base font-bold text-gray-900 dark:text-white">
                 {formatDurationMs(totalMs)}
               </span>
             </div>
@@ -610,12 +617,12 @@ export default function TimesheetPage() {
                               <>
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start</label>
-                                    <Input type="time" value={editDraft.startTime} onChange={e => updateDraft({ startTime: e.target.value })} />
+                                    <label htmlFor="ts-edit-start" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start</label>
+                                    <Input id="ts-edit-start" type="time" value={editDraft.startTime} onChange={e => updateDraft({ startTime: e.target.value })} />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End</label>
-                                    <Input type="time" value={editDraft.endTime} onChange={e => updateDraft({ endTime: e.target.value })} />
+                                    <label htmlFor="ts-edit-end" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End</label>
+                                    <Input id="ts-edit-end" type="time" value={editDraft.endTime} onChange={e => updateDraft({ endTime: e.target.value })} />
                                   </div>
                                   <div>
                                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Ticket</label>
@@ -627,8 +634,18 @@ export default function TimesheetPage() {
                                   <Input value={editDraft.description} onChange={e => updateDraft({ description: e.target.value })} placeholder="What did you work on?" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
-                                  <Select options={FLAG_OPTIONS} value={editDraft.flag} onValueChange={v => updateDraft({ flag: v })} label="Flag" />
-                                  <Select options={STATUS_OPTIONS} value={editDraft.status} onValueChange={v => updateDraft({ status: v })} label="Status" />
+                                  <div>
+                                    <label htmlFor="ts-edit-flag" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Flag</label>
+                                    <select id="ts-edit-flag" value={editDraft.flag} onChange={e => updateDraft({ flag: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                                      {FLAG_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label htmlFor="ts-edit-status" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
+                                    <select id="ts-edit-status" value={editDraft.status} onChange={e => updateDraft({ status: e.target.value })} className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                                      {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                    </select>
+                                  </div>
                                 </div>
                                 <div className="flex justify-end gap-2 pt-1">
                                   <Button variant="outline" onClick={cancelEdit}><X className="w-4 h-4" /> Cancel</Button>
@@ -637,10 +654,10 @@ export default function TimesheetPage() {
                               </>
                             ) : (
                               <>
-                                <div className="flex justify-between items-start">
-                                  <div>
+                                <div className="flex justify-between items-start gap-2">
+                                  <div className="min-w-0">
                                     <p className="font-medium text-foreground">{a.title}</p>
-                                    {a.subtitle && <p className="text-sm text-primary-600 dark:text-primary-400">{a.subtitle}</p>}
+                                    {a.subtitle && <p className="text-sm text-primary-600 dark:text-primary-400 truncate">{a.subtitle}</p>}
                                   </div>
                                   <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                                     <button onClick={() => startEdit(a)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Edit entry">

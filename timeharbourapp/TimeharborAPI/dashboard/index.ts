@@ -50,8 +50,8 @@ export const getStats = async (_teamId?: string): Promise<DashboardStats> => {
   for (const s of allSessions) {
     // For open sessions, recompute with current time
     const netMs = s.clockOut === null
-      ? computeSession({ clockIn: s.clockIn, clockOut: null, ticketSegments: s.ticketSegments, breaks: s.breaks }, now).netWorkMs
-      : s.netWorkMs;
+      ? computeSession({ clockIn: s.clockIn, clockOut: null, ticketSegments: s.ticketSegments ?? [], breaks: s.breaks ?? [] }, now).netWorkMs
+      : (s.netWorkMs ?? 0);
 
     if (s.date === todayStr) todayMs += netMs;
     if (s.date >= weekStartStr) weekMs += netMs;
@@ -238,8 +238,8 @@ export const getTimesheetTotals = async (
   const byDate = new Map<string, number>();
   for (const s of sessions) {
     const netMs = s.clockOut === null
-      ? computeSession({ clockIn: s.clockIn, clockOut: null, ticketSegments: s.ticketSegments, breaks: s.breaks }, now).netWorkMs
-      : s.netWorkMs;
+      ? computeSession({ clockIn: s.clockIn, clockOut: null, ticketSegments: s.ticketSegments ?? [], breaks: s.breaks ?? [] }, now).netWorkMs
+      : (s.netWorkMs ?? 0);
     byDate.set(s.date, (byDate.get(s.date) || 0) + netMs);
   }
 
