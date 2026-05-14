@@ -23,7 +23,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: timeharbourapp/package-lock.json
+          cache-dependency-path: |
+            timeharbourapp/package-lock.json
+            timeharbor-timehuddle-backend/packages/time-engine/package-lock.json
+
+      - name: Build @timeharbor/time-engine
+        working-directory: timeharbor-timehuddle-backend/packages/time-engine
+        run: |
+          npm install
+          npm run build
 
       - name: Install dependencies
         run: npm ci
