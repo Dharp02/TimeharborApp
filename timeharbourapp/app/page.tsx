@@ -163,7 +163,7 @@ export default function Home() {
     )[0] as PerformanceNavigationTiming | undefined;
     const navType = navEntry?.type ?? 'navigate';
 
-    if (navType === 'reload' || navType === 'back_forward') {
+    if (navType === 'reload') {
       router.replace('/dashboard');
     } else {
       setReady(true);
