@@ -492,15 +492,28 @@ export default function TimesheetPage() {
                       ? <ChevronDown className="w-5 h-5 text-muted-foreground" />
                       : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
                     <div className="text-left">
-                      <span className="font-semibold text-foreground">
-                        {dayName}
-                      </span>
-                      {isToday && (
-                        <span className="ml-2 text-xs font-medium px-2 py-0.5 bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400 rounded-full">
-                          Today
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-foreground">
+                          {dayName}
                         </span>
+                        {isToday && (
+                          <span className="text-xs font-medium px-2 py-0.5 bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400 rounded-full">
+                            Today
+                          </span>
+                        )}
+                      </div>
+                      {dayActivities.some(a => a.id === editingId) && editDraft ? (
+                        <input
+                          type="date"
+                          value={editDraft.date}
+                          onChange={e => { e.stopPropagation(); updateDraft({ date: e.target.value }); }}
+                          onClick={e => e.stopPropagation()}
+                          className="mt-0.5 text-xs rounded border border-input bg-background px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
+                          aria-label="Entry date"
+                        />
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{fullDate}</p>
                       )}
-                      <p className="text-xs text-muted-foreground">{fullDate}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
