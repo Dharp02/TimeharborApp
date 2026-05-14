@@ -16,6 +16,7 @@ import {
   UserRoundCog,
   Upload,
   HelpCircle,
+  Link2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -83,6 +84,7 @@ export default function SettingsPage() {
     { label: 'Edit Profile', icon: User, href: '/dashboard/settings/profile' },
     { label: 'Language', icon: Globe, href: '/dashboard/settings/language', comingSoon: true },
     { label: 'Timesheet Settings', icon: CalendarDays, href: '/dashboard/settings/timesheet' },
+    { label: 'TimeHuddle Connection', icon: Link2, href: '/dashboard/settings/timehuddle' },
   ];
 
   return (

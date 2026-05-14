@@ -706,7 +706,7 @@ test.describe('Timesheet: sync queue captures operations', () => {
     await page.goto('/dashboard/oplogs');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByText('CREATE', { exact: true })).toBeVisible();
+    await expect(page.getByText('CREATE', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('workSessions')).toBeVisible();
   });
 });
