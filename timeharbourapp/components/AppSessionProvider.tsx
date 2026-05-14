@@ -233,15 +233,9 @@ export default function AppSessionProvider({ children }: { children: React.React
   useEffect(() => {
     if (loading) return;
 
-    const p = pathname === '/' ? '/' : pathname?.replace(/\/$/, '') || '';
-    const isRoot = p === '/';
+    console.log('[AppSessionProvider] routing', { user: !!user, path: pathname });
 
-    console.log('[AppSessionProvider] routing', { user: !!user, path: p });
-
-    // Root → always go to dashboard (no identity gate)
-    if (isRoot) {
-      router.replace('/dashboard');
-    }
+    // Root (/) is handled by page.tsx — no redirect here.
     // Unauthenticated users can access /dashboard freely — no identity gate
   }, [user, loading, pathname, router]);
 
