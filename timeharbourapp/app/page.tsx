@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { TimeHarborLogo } from '@/components/ui/TimeHarborLogo';
 import {
@@ -11,6 +11,7 @@ import {
   useSpring,
   useMotionValue,
   useMotionTemplate,
+  useInView,
 } from 'motion/react';
 
 // ── Prefers-reduced-motion ────────────────────────────────────
@@ -130,6 +131,132 @@ const screenTabs = [
   { label: 'Calendar', name: 'calendar', idx: 4 },
   { label: 'Notepad', name: 'notepad', idx: 5 },
 ];
+
+// ── Quick Start terminal lines ────────────────────────────────
+const quickStartLines = [
+  { type: 'comment' as const, text: '# Clone the repository' },
+  { type: 'cmd' as const,     text: 'git clone https://github.com/Dharp02/TimeharborApp' },
+  { type: 'cmd' as const,     text: 'cd TimeharborApp' },
+  { type: 'blank' as const,   text: '' },
+  { type: 'comment' as const, text: '# Install & start both services' },
+  { type: 'cmd' as const,     text: 'npm install' },
+  { type: 'cmd' as const,     text: 'npm run dev' },
+  { type: 'blank' as const,   text: '' },
+  { type: 'success' as const, text: '✓ frontend   →  https://localhost:8080' },
+  { type: 'success' as const, text: '✓ backend    →  http://localhost:3001' },
+];
+
+function QuickStart({ reduced }: { reduced: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: '-100px' });
+  const [visibleCount, setVisibleCount] = useState(0);
+
+  useEffect(() => {
+    if (!inView) return;
+    if (reduced) { setVisibleCount(quickStartLines.length); return; }
+    let i = 0;
+    const tick = () => {
+      i++;
+      setVisibleCount(i);
+      if (i < quickStartLines.length) {
+        // blank lines appear instantly, others stagger
+        const delay = quickStartLines[i]?.type === 'blank' ? 80 : 320;
+        setTimeout(tick, delay);
+      }
+    };
+    const t = setTimeout(tick, 200);
+    return () => clearTimeout(t);
+  }, [inView, reduced]);
+
+  return (
+    <section className="max-w-4xl mx-auto px-6 pb-24" aria-labelledby="quickstart-heading" ref={ref}>
+      {/* Heading */}
+      <motion.div
+        className="text-center mb-10"
+        initial={reduced ? false : { opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-80px' }}
+        transition={{ duration: 0.6 }}
+      >
+        <div className="inline-flex items-center gap-2 border border-white/10 bg-white/5 rounded-full px-4 py-1.5 text-sm text-neutral-300 mb-5">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-primary-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Developer friendly
+        </div>
+        <h2 id="quickstart-heading" className="text-3xl sm:text-4xl font-bold text-white mb-3">
+          Quick Start
+        </h2>
+        <p className="text-neutral-400">
+          One command gets the full stack running.
+        </p>
+        <motion.div
+          className="w-12 h-0.5 bg-primary-500 mx-auto mt-4 origin-left"
+          initial={reduced ? false : { scaleX: 0 }}
+          whileInView={{ scaleX: 1 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          aria-hidden="true"
+        />
+      </motion.div>
+
+      {/* Terminal window */}
+      <motion.div
+        className="rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black/60 font-mono text-sm"
+        initial={reduced ? false : { opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-80px' }}
+        transition={{ duration: 0.7 }}
+      >
+        {/* Fake title bar */}
+        <div className="flex items-center gap-2 bg-[#1a1a1a] px-4 py-3 border-b border-white/5">
+          <div className="flex gap-1.5" aria-hidden="true">
+            <span className="w-3 h-3 rounded-full bg-[#ff5f57]" />
+            <span className="w-3 h-3 rounded-full bg-[#febc2e]" />
+            <span className="w-3 h-3 rounded-full bg-[#28c840]" />
+          </div>
+          <span className="text-neutral-500 text-xs ml-2">bash — timeharbor</span>
+        </div>
+
+        {/* Lines */}
+        <div className="bg-[#111111] px-6 py-6 space-y-1.5 min-h-65" role="region" aria-label="Quick start commands">
+          {quickStartLines.slice(0, visibleCount).map((line, i) => {
+            if (line.type === 'blank') return <div key={i} className="h-3" aria-hidden="true" />;
+            return (
+              <motion.div
+                key={i}
+                className="flex items-start gap-3"
+                initial={reduced ? false : { opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                {line.type === 'comment' && (
+                  <span className="text-neutral-600 leading-6">{line.text}</span>
+                )}
+                {line.type === 'cmd' && (
+                  <>
+                    <span className="text-[#f0a832] select-none shrink-0 leading-6">$</span>
+                    <span className="text-white leading-6 break-all">{line.text}</span>
+                  </>
+                )}
+                {line.type === 'success' && (
+                  <span className="text-[#27aae1] leading-6">{line.text}</span>
+                )}
+              </motion.div>
+            );
+          })}
+          {/* Blinking cursor while still typing */}
+          {visibleCount < quickStartLines.length && (
+            <motion.span
+              className="inline-block w-2 h-4 bg-primary-500"
+              animate={{ opacity: [1, 0] }}
+              transition={{ duration: 0.6, repeat: Infinity }}
+              aria-hidden="true"
+            />
+          )}
+        </div>
+      </motion.div>
+    </section>
+  );
+}
 
 export default function Home() {
   const router = useRouter();
@@ -465,6 +592,9 @@ export default function Home() {
           ))}
         </motion.div>
       </section>
+
+      {/* ── Quick Start ─────────────────────────────────────── */}
+      <QuickStart reduced={reduced} />
 
       {/* ── See It in Action ────────────────────────────────── */}
       <section className="max-w-6xl mx-auto px-6 pb-24" aria-labelledby="screenshots-heading">
