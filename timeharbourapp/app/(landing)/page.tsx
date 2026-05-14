@@ -285,16 +285,7 @@ export default function Home() {
   }, [scrollY]);
 
   useEffect(() => {
-    const navEntry = performance.getEntriesByType(
-      'navigation'
-    )[0] as PerformanceNavigationTiming | undefined;
-    const navType = navEntry?.type ?? 'navigate';
-
-    if (navType === 'reload') {
-      router.replace('/dashboard');
-    } else {
-      setReady(true);
-    }
+    setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
