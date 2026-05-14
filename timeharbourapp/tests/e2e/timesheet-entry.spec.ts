@@ -855,3 +855,152 @@ test.describe('Timesheet: date range filter presets', () => {
     await expect(page.getByText('YEST-FILTER')).not.toBeVisible();
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 7. PAST DATE ENTRY
+// ═════════════════════════════════════════════════════════════════════════════
+
+test.describe('Timesheet: adding and editing entries for past dates', () => {
+  test.beforeEach(async ({ page }) => {
+    await initApp(page);
+  });
+
+  test('date input appears in day header when entry is in edit mode', async ({ page }) => {
+    const session = makeSession({
+      date: todayStr(),
+      clockIn: localMs(todayStr(), 8, 0),
+      clockOut: localMs(todayStr(), 9, 0),
+      netWorkMs: 3_600_000,
+      totalSessionMs: 3_600_000,
+    });
+    await seedWorkSession(page, session);
+    await gotoTimesheet(page);
+
+    await clickEditOnCard(page, 'Session Ended');
+
+    await expect(page.getByLabel('Entry date')).toBeVisible();
+  });
+
+  test('date input pre-fills with the entry current date', async ({ page }) => {
+    const session = makeSession({
+      date: yesterdayStr(),
+      clockIn: localMs(yesterdayStr(), 8, 0),
+      clockOut: localMs(yesterdayStr(), 9, 0),
+      netWorkMs: 3_600_000,
+      totalSessionMs: 3_600_000,
+    });
+    await seedWorkSession(page, session);
+
+    await gotoTimesheet(page);
+    await page.getByRole('button', { name: 'Yesterday' }).click();
+    await page.waitForTimeout(500);
+
+    await clickEditOnCard(page, 'Session Ended');
+
+    await expect(page.getByLabel('Entry date')).toHaveValue(yesterdayStr());
+  });
+
+  test('can create a new entry for yesterday via the date field', async ({ page }) => {
+    await gotoTimesheet(page);
+    // Switch to Past Week so both today and yesterday are visible after save
+    await page.getByRole('button', { name: 'Past Week' }).click();
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'Add timesheet entry' }).click();
+
+    // Change date to yesterday in the day header date input
+    await page.getByLabel('Entry date').fill(yesterdayStr());
+    await page.getByLabel('Start').fill('09:00');
+    await page.getByLabel('End').fill('10:00');
+    await mobileList(page).getByPlaceholder('TKT-123').fill('PAST-DATE-001');
+    await page.getByRole('button', { name: /Save/ }).click();
+
+    await expect(saveAlert(page)).toContainText('Entry saved');
+
+    // Entry should appear under yesterday's day group — expand it first
+    const yestDT = new Date(`${yesterdayStr()}T12:00:00`);
+    const yestDayName = yestDT.toLocaleDateString('en-US', { weekday: 'long' });
+    const yestHeader = page.locator('button').filter({ hasText: yestDayName }).first();
+    await expect(yestHeader).toBeVisible();
+    await yestHeader.click();
+    await expect(mobileList(page).getByText('PAST-DATE-001').first()).toBeVisible();
+  });
+
+  test('new entry for past date persists in IndexedDB with correct date', async ({ page }) => {
+    await gotoTimesheet(page);
+    await page.getByRole('button', { name: 'Past Week' }).click();
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'Add timesheet entry' }).click();
+
+    await page.getByLabel('Entry date').fill(yesterdayStr());
+    await page.getByLabel('Start').fill('08:00');
+    await page.getByLabel('End').fill('08:30');
+    await mobileList(page).getByPlaceholder('TKT-123').fill('PAST-PERSIST-001');
+    await page.getByRole('button', { name: /Save/ }).click();
+
+    await expect(saveAlert(page)).toContainText('Entry saved');
+
+    // Verify the stored session has yesterday's date
+    const found = await page.evaluate(async (yest) => {
+      const uuid = localStorage.getItem('th_identity_uuid');
+      const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
+      return new Promise<Record<string, unknown> | null>((resolve, reject) => {
+        const req = indexedDB.open(dbName);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction('workSessions', 'readonly');
+          const getAll = tx.objectStore('workSessions').getAll();
+          getAll.onsuccess = () => {
+            const match = (getAll.result as Record<string, unknown>[]).find(
+              (s) => s.manualTicket === 'PAST-PERSIST-001',
+            );
+            resolve(match ?? null);
+          };
+          getAll.onerror = () => reject(getAll.error);
+        };
+      });
+    }, yesterdayStr());
+
+    expect(found).not.toBeNull();
+    expect(found?.date).toBe(yesterdayStr());
+  });
+
+  test('can change the date of an existing entry to an earlier date', async ({ page }) => {
+    const twoDaysAgo = daysAgoStr(2);
+    const threeDaysAgo = daysAgoStr(3);
+
+    const session = makeSession({
+      date: twoDaysAgo,
+      clockIn: localMs(twoDaysAgo, 10, 0),
+      clockOut: localMs(twoDaysAgo, 11, 0),
+      netWorkMs: 3_600_000,
+      totalSessionMs: 3_600_000,
+      manualTicket: 'MOVE-DATE-001',
+    });
+    await seedWorkSession(page, session);
+
+    await gotoTimesheet(page);
+    await page.getByRole('button', { name: 'Past Week' }).click();
+    await page.waitForTimeout(500);
+
+    await clickEditOnCard(page, 'Session Ended');
+    await page.getByLabel('Entry date').fill(threeDaysAgo);
+    await page.getByRole('button', { name: /Save/ }).click();
+
+    await expect(saveAlert(page)).toContainText('Entry saved');
+
+    // Entry should now appear under the three-days-ago group — expand it first
+    const dt = new Date(`${threeDaysAgo}T12:00:00`);
+    const dayName = dt.toLocaleDateString('en-US', { weekday: 'long' });
+    const dayHeader = page.locator('button').filter({ hasText: dayName }).first();
+    await expect(dayHeader).toBeVisible();
+    await dayHeader.click();
+    await expect(mobileList(page).getByText('MOVE-DATE-001').first()).toBeVisible();
+
+    // Verify stored date in IndexedDB
+    const updated = await getWorkSession(page, session.id as string);
+    expect(updated?.date).toBe(threeDaysAgo);
+  });
+});
