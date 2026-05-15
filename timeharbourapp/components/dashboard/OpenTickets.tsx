@@ -376,7 +376,9 @@ export default function OpenTickets() {
             .slice(0, 5).map((ticket) => {
             const isTimehuddle = ticket.source === 'timehuddle';
             const isPersonal = !isTimehuddle;
-            const assignerName = ticket.creator?.full_name?.split(' ')[0] || 'Someone';
+            const assignerName = ticket.source === 'timehuddle'
+              ? ((ticket as any).createdByName || (ticket as any).createdBy || 'Unknown')
+              : (ticket.creator?.full_name?.split(' ')[0] || 'Someone');
 
             return (
               <Card key={ticket.id} className={`border transition-all duration-300 ${activeTicketId === ticket.id ? 'ring-2 ring-primary-500 border-primary-500 bg-primary-50 dark:bg-primary-950/20' : ''}`}>

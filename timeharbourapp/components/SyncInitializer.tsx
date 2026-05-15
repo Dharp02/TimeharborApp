@@ -29,6 +29,13 @@ import {
 import { ensureCurrentProfileSaved } from '@/TimeharborAPI/sync/ProfileRegistry';
 import { db, getCurrentDatabaseName } from '@/TimeharborAPI/db';
 import EncryptionSetupModal from './EncryptionSetupModal';
+import {
+  syncAllTimehudleSharedTickets,
+  syncTimehudleTeamTickets,
+  getTimehudleLinkedTeams,
+  getTimehudleStatus,
+  markTimehudleTicketsDisconnected,
+} from '@/TimeharborAPI/timehuddle';
 
 export default function SyncInitializer() {
   const toast = useToast();
@@ -54,8 +61,27 @@ export default function SyncInitializer() {
     toastRef.current.info('Back online — syncing…');
   }, []);
 
-  const logIdentityDbContext = useCallback((stage: string) => {
-    if (typeof window === 'undefined') return;
+  /**
+   * Pull tickets from all linked TimeHuddle teams + any individually shared tickets.
+   * Triggered on boot and by the 'timehuddle-sync' window event.
+   */
+  const syncTimehudleTickets = useCallback(async () => {
+    try {
+      const status = await getTimehudleStatus();
+      if (!status.connected) return;
+      // Pull individually shared tickets (no team linking required)
+      await syncAllTimehudleSharedTickets();
+      // Also pull all linked teams in bulk
+      const linked = await getTimehudleLinkedTeams();
+      for (const team of linked) {
+        await syncTimehudleTeamTickets(team.teamId, team.teamName);
+      }
+    } catch {
+      // Network failures during background sync are silent — no toast noise
+    }
+  }, []);
+
+  const logIdentityDbContext = useCallback((stage: string) => {    if (typeof window === 'undefined') return;
 
     const uuid = getIdentityUUID();
     const activeDbName = getCurrentDatabaseName();
@@ -236,12 +262,16 @@ export default function SyncInitializer() {
     const onRefresh = () => syncManager.syncNow();
     window.addEventListener('pull-to-refresh', onRefresh);
 
-    // Periodic sync every 5 minutes
+    // Periodic sync every 5 minutes (op-log only)
     const interval = setInterval(() => {
       if (detector.getStatus() === 'online') {
         syncManager.syncNow();
       }
     }, 5 * 60 * 1000);
+
+    // On-demand: fire when any page dispatches 'timehuddle-sync' event
+    const handleTimehudleSync = () => { void syncTimehudleTickets(); };
+    window.addEventListener('timehuddle-sync', handleTimehudleSync);
 
     // ── Boot sequence: auto-setup encryption silently ──
     (async () => {
@@ -264,6 +294,8 @@ export default function SyncInitializer() {
 
         // Trigger initial sync
         syncManager.syncNow();
+        // Pull tickets from all linked TimeHuddle teams (background, best-effort)
+        syncTimehudleTickets();
       } catch (err) {
         console.error('[SyncInitializer] auto-setup failed:', err);
         // Fallback: if auto-setup fails (e.g. corrupted keys), prompt for restore
@@ -276,6 +308,7 @@ export default function SyncInitializer() {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('pull-to-refresh', onRefresh);
+      window.removeEventListener('timehuddle-sync', handleTimehudleSync);
       syncManager.offEncryptionNeeded(handleEncryptionNeeded);
       syncManager.offSyncError(handleSyncError);
       networkListenerCleanup?.();

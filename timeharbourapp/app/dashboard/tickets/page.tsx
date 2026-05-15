@@ -48,6 +48,7 @@ import { useAppSession } from "@/components/AppSessionProvider";
 import { Modal } from "@/components/ui/Modal";
 import { tickets as ticketsApi } from "@/TimeharborAPI";
 import { Ticket as TicketType } from "@/TimeharborAPI/tickets";
+import { syncAllTimehudleSharedTickets } from "@/TimeharborAPI/timehuddle";
 import { collectAttachments } from "@/TimeharborAPI/time/attachmentUtils";
 import { formatDuration } from '@timeharbor/time-engine';
 
@@ -97,6 +98,13 @@ export default function TicketsPage() {
 
   useEffect(() => {
     loadTickets();
+
+    // On mount: immediately pull any individually shared TimeHuddle tickets.
+    // Works without team linking — any ticket flagged in TimeHuddle appears here.
+    // Always reload after sync since tickets may have been removed too.
+    syncAllTimehudleSharedTickets().then(() => {
+      loadTickets();
+    }).catch(() => {});
 
     // Re-read Dexie after SyncEngine pulls new tickets from the server
     const handleSyncComplete = () => loadTickets();
@@ -259,16 +267,20 @@ export default function TicketsPage() {
 
   const renderTicketCard = (ticket: TicketType, borderColor: string) => {
     const isTimehuddle = ticket.source === "timehuddle";
+    const isDisconnected = isTimehuddle && (ticket as any)._disconnected === 1;
     const isPersonal = !isTimehuddle;
-    const assignerName =
-      ticket.creator?.full_name?.split(" ")[0] || "Someone";
+    const assignerName = isTimehuddle
+      ? ((ticket as any).createdByName || (ticket as any).createdBy || "Unknown")
+      : (ticket.creator?.full_name?.split(" ")[0] || "Someone");
 
     return (
       <Card
         className={
           "border-2 !overflow-visible " +
+          (isDisconnected ? "opacity-60 " : "") +
           borderColor
         }
+        aria-disabled={isDisconnected || undefined}
       >
         <CardContent className="space-y-2">
           <div className="flex items-start justify-between gap-3">
@@ -336,6 +348,7 @@ export default function TicketsPage() {
                   <DropdownItem
                     icon={<Pencil className="w-4 h-4" />}
                     onClick={() => router.push(`/dashboard/tickets/edit/?id=${ticket.id}`)}
+                    disabled={isDisconnected}
                   >
                     Edit Ticket
                   </DropdownItem>
@@ -345,6 +358,7 @@ export default function TicketsPage() {
                       setSelectedTicketForAction({ id: ticket.id, title: ticket.title });
                       setIsStatusModalOpen(true);
                     }}
+                    disabled={isDisconnected}
                   >
                     Change Status
                   </DropdownItem>
@@ -356,6 +370,7 @@ export default function TicketsPage() {
                       setSelectedTicketForAction({ id: ticket.id, title: ticket.title });
                       setIsDeleteModalOpen(true);
                     }}
+                    disabled={isDisconnected}
                   >
                     Delete Ticket
                   </DropdownItem>
@@ -384,9 +399,14 @@ export default function TicketsPage() {
             </>
           )}
           <span>{(ticketDurations[ticket.id] ? formatDuration(ticketDurations[ticket.id]) : ticket.trackedTime) || "0m"} tracked</span>
-          {isTimehuddle && ticket.syncedWithTimehuddle && (
+          {isTimehuddle && ticket.syncedWithTimehuddle && !isDisconnected && (
             <Badge variant="default" size="sm" icon={<RefreshCw className="w-3 h-3" />}>
               synced
+            </Badge>
+          )}
+          {isDisconnected && (
+            <Badge variant="secondary" size="sm">
+              Disconnected
             </Badge>
           )}
         </SmallMuted>

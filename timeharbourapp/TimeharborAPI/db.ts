@@ -307,6 +307,16 @@ export class TimeharborDB extends Dexie {
       dashboardStats: null,
       dashboardActivity: null
     });
+
+    // ── v21: Add _disconnected index to tickets for TimeHuddle disconnection state ──
+    // _disconnected: 0 = active, 1 = disconnected (read-only, team was unlinked)
+    this.version(21).stores({
+      tickets: 'id, teamId, [source+_disconnected]',
+    }).upgrade(async (tx) => {
+      await tx.table('tickets').toCollection().modify((t: Record<string, unknown>) => {
+        if (t._disconnected === undefined) t._disconnected = 0;
+      });
+    });
   }
 }
 
