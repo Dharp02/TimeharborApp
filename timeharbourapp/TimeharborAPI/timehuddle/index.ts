@@ -13,17 +13,11 @@ export const getTimehudleStatus = async (): Promise<TimehudleConnectionStatus> =
   return res.json() as Promise<TimehudleConnectionStatus>;
 };
 
-export const connectTimehuddle = async (
-  token: string
-): Promise<{ connected: boolean; timehudleEmail: string; timehudleName: string }> => {
-  const res = await apiFetch('/v1/timehuddle/connect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
-  });
-  const data = (await res.json()) as { connected: boolean; timehudleEmail: string; timehudleName: string; error?: string };
-  if (!res.ok) throw new Error(data.error ?? 'Connection failed');
-  return data;
+export const startTimehudleOAuth = async (): Promise<string> => {
+  const res = await apiFetch('/v1/timehuddle/oauth/start');
+  if (!res.ok) throw new Error('Failed to start TimeHuddle OAuth');
+  const data = await res.json() as { authorizeUrl: string };
+  return data.authorizeUrl;
 };
 
 export const disconnectTimehuddle = async (): Promise<void> => {
