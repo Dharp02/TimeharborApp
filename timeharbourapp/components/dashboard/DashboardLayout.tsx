@@ -15,7 +15,7 @@ import AppSidebar from './AppSidebar';
 import { ClockInProvider } from './ClockInContext';
 import DesktopFooter from './DesktopFooter';
 import { ChevronLeft } from 'lucide-react';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import ProfileAvatarMenu from './ProfileAvatarMenu';
 import NotificationBell from './NotificationBell';
 import PullToRefresh from '@/components/ui/PullToRefresh';
@@ -32,7 +32,7 @@ const ClientSidebarProvider = dynamic(
 );
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, initialSyncing } = useAuth();
+  const { user, initialSyncing } = useAppSession();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -199,7 +199,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               pt-25.5 lg:pt-4
               pb-20 lg:pb-24
               min-h-screen
-              overflow-x-hidden
             `}>
               <PullToRefresh>
                 <div className="px-4 py-4 lg:px-6 lg:py-4">

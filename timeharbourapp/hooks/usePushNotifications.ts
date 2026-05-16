@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
-import { onAuthStateChange } from '@/TimeharborAPI/auth';
+import { onAuthStateChange } from '@/TimeharborAPI/identity';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { getApiUrl } from '@/TimeharborAPI/apiUrl';
 

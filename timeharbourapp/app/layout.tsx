@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import AuthProvider from "@/components/auth/AuthProvider";
+import AppSessionProvider from "@/components/AppSessionProvider";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import ThemeWrapper from "@/components/ThemeWrapper";
 import AppLockGuard from "@/components/AppLockGuard";
@@ -32,13 +32,13 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <ThemeWrapper>
-          <AuthProvider>
+          <AppSessionProvider>
             <NotificationProvider>
               <AppLockGuard>
                 {children}
               </AppLockGuard>
             </NotificationProvider>
-          </AuthProvider>
+          </AppSessionProvider>
         </ThemeWrapper>
       </body>
     </html>

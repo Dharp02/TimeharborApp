@@ -27,11 +27,10 @@ test.use({
 /** Read all userProfiles from IndexedDB. */
 async function getUserProfile(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return null;
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -53,11 +52,10 @@ async function getUserProfile(page: import('@playwright/test').Page) {
 /** Read all opLog entries from IndexedDB. */
 async function getOpLogEntries(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -75,11 +73,10 @@ async function getOpLogEntries(page: import('@playwright/test').Page) {
 /** Read all operationLogs (audit trail) from IndexedDB. */
 async function getOperationLogs(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;

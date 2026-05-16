@@ -26,11 +26,10 @@ test.use({
 /** Read all non-deleted tickets from IndexedDB. */
 async function getTickets(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -50,11 +49,10 @@ async function getTickets(page: import('@playwright/test').Page) {
 /** Read the latest open workSession (clockOut === null). */
 async function getOpenSession(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return null;
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -78,11 +76,10 @@ async function getOpenSession(page: import('@playwright/test').Page) {
 /** Read a workSession by id from IndexedDB. */
 async function getSessionById(page: import('@playwright/test').Page, sessionId: string) {
   return page.evaluate(async (id) => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return null;
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -99,11 +96,10 @@ async function getSessionById(page: import('@playwright/test').Page, sessionId: 
 /** Read all workSessions from IndexedDB. */
 async function getWorkSessions(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -121,11 +117,10 @@ async function getWorkSessions(page: import('@playwright/test').Page) {
 /** Read all opLog entries from IndexedDB. */
 async function getOpLogEntries(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -143,11 +138,10 @@ async function getOpLogEntries(page: import('@playwright/test').Page) {
 /** Read all operationLogs (audit trail) from IndexedDB. */
 async function getOperationLogs(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -165,11 +159,10 @@ async function getOperationLogs(page: import('@playwright/test').Page) {
 /** Read today's activity logs from IndexedDB. */
 async function getTodayActivities(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -234,7 +227,7 @@ async function waitForAppReady(page: import('@playwright/test').Page) {
 
 /** Click the central BottomNav clock button. */
 async function clickClockButton(page: import('@playwright/test').Page) {
-  const btn = page.locator('.fixed.bottom-0 .relative.-top-5 button');
+  const btn = page.locator('[data-walkthrough="clock-in-fab"] button');
   await btn.click();
 }
 
@@ -294,7 +287,7 @@ async function clockInAndStartTicket(page: import('@playwright/test').Page, tick
 
   // Verify the ticket timer actually started (Stop button visible)
   const ticketCard = page.locator('.space-y-2').filter({ has: page.getByText(ticketTitle, { exact: true }) }).first();
-  await expect(ticketCard.getByRole('button', { name: 'Stop' })).toBeVisible({ timeout: 10_000 });
+  await expect(ticketCard.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 10_000 });
 }
 
 /** Clock out via the modal option. */
@@ -341,7 +334,7 @@ async function startTicketTimer(page: import('@playwright/test').Page, ticketTit
 /** Stop a ticket timer — opens the stop modal, confirms without comment. */
 async function stopTicketTimer(page: import('@playwright/test').Page, ticketTitle: string) {
   const ticketCard = page.locator('.space-y-2').filter({ has: page.getByText(ticketTitle, { exact: true }) }).first();
-  await ticketCard.getByRole('button', { name: 'Stop' }).click();
+  await ticketCard.getByRole('button', { name: 'Stop', exact: true }).click();
 
   // Confirm the "Stop Timer?" modal
   await expect(page.getByText('Stop Timer?')).toBeVisible({ timeout: 5_000 });

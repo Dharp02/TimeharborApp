@@ -2,9 +2,18 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type DexieWorkSession } from '../db';
+import { db, getCurrentDatabaseName, subscribeToDbSwitch, type DexieWorkSession } from '../db';
 import { computeSession, type SessionStats } from '@timeharbor/time-engine';
 import { sessionManager } from './SessionManager';
+
+/** Reactively tracks the active database name — re-renders callers after DB switch. */
+function useActiveDbName(): string {
+  const [dbName, setDbName] = useState(() =>
+    typeof window !== 'undefined' ? getCurrentDatabaseName() : ''
+  );
+  useEffect(() => subscribeToDbSwitch(() => setDbName(getCurrentDatabaseName())), []);
+  return dbName;
+}
 
 /**
  * useSession — reactive hook for the current open work session.
@@ -20,6 +29,9 @@ export function useSession(userId: string | undefined) {
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const sessionRef = useRef<DexieWorkSession | undefined>(undefined);
 
+  // Re-subscribe to liveQuery whenever the active DB changes (after switchProfileDatabase).
+  const activeDbName = useActiveDbName();
+
   // Reactively query the open session for this user
   const currentSession = useLiveQuery(
     () => {
@@ -30,7 +42,7 @@ export function useSession(userId: string | undefined) {
         .filter(s => s.clockOut === null)
         .first();
     },
-    [userId],
+    [userId, activeDbName],
     undefined
   );
 

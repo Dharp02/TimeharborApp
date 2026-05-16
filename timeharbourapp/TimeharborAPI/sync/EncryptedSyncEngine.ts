@@ -24,7 +24,9 @@ const RETRY_DELAY_MS = 1500;
 
 async function apiRequest(path: string, options: RequestInit = {}) {
   const base = getApiUrl().replace(/\/api\/?$/, '');
-  const url = `${base}/api/timeharbor${path}`;
+  const [rawPath, query = ''] = path.split('?');
+  const canonicalPath = rawPath.endsWith('/') ? rawPath.slice(0, -1) : rawPath;
+  const url = `${base}/api/timeharbor${canonicalPath}${query ? `?${query}` : ''}`;
   const identityUUID = getIdentityUUID();
 
   let lastError: unknown;
@@ -209,8 +211,8 @@ export async function syncAll(
   const pulled = await pullOpLog(syncKey, { includeOwn });
   console.log('[sync] ── sync cycle done ── pushed:', pushed, 'pulled:', pulled);
 
-  // Notify UI components that new data is available in Dexie
-  if (typeof window !== 'undefined' && pulled > 0) {
+  // Notify UI components that data was pushed or pulled
+  if (typeof window !== 'undefined' && (pushed > 0 || pulled > 0)) {
     window.dispatchEvent(new Event('sync-complete'));
   }
 

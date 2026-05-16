@@ -25,11 +25,10 @@ test.use({
 /** Read all opLog entries from IndexedDB. */
 async function getOpLogEntries(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -47,11 +46,10 @@ async function getOpLogEntries(page: import('@playwright/test').Page) {
 /** Read all operationLogs (audit trail) from IndexedDB. */
 async function getOperationLogs(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -743,7 +741,7 @@ test.describe('Settings — Switch Profile E2E Flow', () => {
 
     // Check Operation Logs tab for entries
     await pageB.getByRole('tab', { name: 'Operation Logs' }).click();
-    await expect(pageB.getByText('Operation Logs')).toBeVisible({ timeout: 10_000 });
+    await expect(pageB.getByRole('tab', { name: 'Operation Logs' })).toBeVisible({ timeout: 10_000 });
 
     await ctxA.close();
     await ctxB.close();

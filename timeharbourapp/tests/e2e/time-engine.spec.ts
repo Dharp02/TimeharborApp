@@ -25,12 +25,11 @@ test.use({
 /** Read the latest open workSession from IndexedDB for the given userId. */
 async function getOpenSession(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return null;
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
 
     return new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -55,12 +54,11 @@ async function getOpenSession(page: import('@playwright/test').Page) {
 /** Read a workSession by id from IndexedDB. */
 async function getSessionById(page: import('@playwright/test').Page, sessionId: string) {
   return page.evaluate(async (id) => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return null;
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
 
     return new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -74,11 +72,20 @@ async function getSessionById(page: import('@playwright/test').Page, sessionId: 
   }, sessionId);
 }
 
+/**
+ * Wait for the app to finish its boot sequence (DB switch, encryption setup).
+ * Without this, useLiveQuery may be subscribed to the wrong IndexedDB instance
+ * and never detect the newly created session.
+ */
+async function waitForAppReady(page: import('@playwright/test').Page) {
+  const overlay = page.locator('.fixed.inset-0.z-50');
+  await page.waitForTimeout(1_000);
+  await overlay.waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
+}
+
 /** Click the central BottomNav clock button. */
 async function clickClockButton(page: import('@playwright/test').Page) {
-  // The central button is the only one inside the `relative -top-5` wrapper.
-  // It's the round button between "Tickets" and "Timesheet".
-  const btn = page.locator('.fixed.bottom-0 .relative.-top-5 button');
+  const btn = page.locator('[data-walkthrough="clock-in-fab"] button');
   await btn.click();
 }
 
@@ -89,6 +96,7 @@ test.describe('Time Engine — Clock In / Clock Out', () => {
   test('clock in changes UI and creates IndexedDB entry', async ({ page }) => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
     // Verify "Clock In" label is shown beneath the central button
     await expect(page.getByText('Clock In', { exact: true })).toBeVisible();
@@ -101,11 +109,15 @@ test.describe('Time Engine — Clock In / Clock Out', () => {
     await expect(skipBtn).toBeVisible({ timeout: 10_000 });
     await skipBtn.click();
 
+    // Wait for modal overlay to close before checking state
+    await page.locator('.fixed.inset-0.z-50').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+    await page.waitForTimeout(500);
+
     // UI should now show "Clock Out" label (red state)
     await expect(page.getByText('Clock Out', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
 
     // The central button should be pulsing red (animate-pulse + bg-red-500)
-    const clockBtn = page.locator('.fixed.bottom-0 .relative.-top-5 button');
+    const clockBtn = page.locator('[data-walkthrough="clock-in-fab"] button');
     await expect(clockBtn).toHaveClass(/bg-red-500/);
     await expect(clockBtn).toHaveClass(/animate-pulse/);
 
@@ -129,12 +141,15 @@ test.describe('Time Engine — Clock In / Clock Out', () => {
   test('clock out updates IndexedDB entry with clockOut timestamp', async ({ page }) => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
     // Clock In
     await clickClockButton(page);
     const skipBtn = page.getByRole('button', { name: 'Skip for now' });
     await expect(skipBtn).toBeVisible({ timeout: 10_000 });
     await skipBtn.click();
+    await page.locator('.fixed.inset-0.z-50').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+    await page.waitForTimeout(500);
     await expect(page.getByText('Clock Out', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
 
     // Capture the session id
@@ -161,12 +176,15 @@ test.describe('Time Engine — Clock In / Clock Out', () => {
 
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
     // --- Clock In ---
     await clickClockButton(page);
     const skipBtn = page.getByRole('button', { name: 'Skip for now' });
     await expect(skipBtn).toBeVisible({ timeout: 10_000 });
     await skipBtn.click();
+    await page.locator('.fixed.inset-0.z-50').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+    await page.waitForTimeout(500);
     await expect(page.getByText('Clock Out', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
 
     const openSession = await getOpenSession(page);
@@ -178,7 +196,7 @@ test.describe('Time Engine — Clock In / Clock Out', () => {
     await page.waitForTimeout(60_000);
 
     // The timer display in the central button should show approximately 01:XX (mm:ss)
-    const timerText = page.locator('.fixed.bottom-0 .relative.-top-5 button .font-mono');
+    const timerText = page.locator('[data-walkthrough="clock-in-fab"] button .font-mono');
     await expect(timerText).toBeVisible();
     const displayedTime = await timerText.textContent();
     // Should be around 00:55 – 01:09 (±10 s tolerance around 60 s)

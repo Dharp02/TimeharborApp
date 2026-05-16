@@ -22,6 +22,7 @@ import {
   X,
   Paperclip,
   FileText,
+  Upload,
 } from "lucide-react";
 import {
   Button,
@@ -44,10 +45,11 @@ import {
 import { useRouter } from "next/navigation";
 import { useClockIn } from "@/components/dashboard/ClockInContext";
 import { useActivityLog } from "@/components/dashboard/ActivityLogContext";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAppSession } from "@/components/AppSessionProvider";
 import { Modal } from "@/components/ui/Modal";
 import { tickets as ticketsApi } from "@/TimeharborAPI";
 import { Ticket as TicketType } from "@/TimeharborAPI/tickets";
+import { syncAllTimehudleSharedTickets, pushTicketToTimehuddle } from "@/TimeharborAPI/timehuddle";
 import { collectAttachments } from "@/TimeharborAPI/time/attachmentUtils";
 import { formatDuration } from '@timeharbor/time-engine';
 
@@ -65,7 +67,7 @@ export default function TicketsPage() {
     ticketDurations,
   } = useClockIn();
   const { addActivity } = useActivityLog();
-  const { user } = useAuth();
+  const { user } = useAppSession();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -95,8 +97,22 @@ export default function TicketsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [allTickets, setAllTickets] = useState<TicketType[]>([]);
 
+  // Push-to-TimeHuddle panel state
+  const [pushTicketId, setPushTicketId] = useState<string | null>(null);
+  const [pushStatus, setPushStatus] = useState("");
+  const [pushDescription, setPushDescription] = useState("");
+  const [pushGithub, setPushGithub] = useState("");
+  const [isPushing, setIsPushing] = useState(false);
+
   useEffect(() => {
     loadTickets();
+
+    // On mount: immediately pull any individually shared TimeHuddle tickets.
+    // Works without team linking — any ticket flagged in TimeHuddle appears here.
+    // Always reload after sync since tickets may have been removed too.
+    syncAllTimehudleSharedTickets().then(() => {
+      loadTickets();
+    }).catch(() => {});
 
     // Re-read Dexie after SyncEngine pulls new tickets from the server
     const handleSyncComplete = () => loadTickets();
@@ -245,6 +261,39 @@ export default function TicketsPage() {
     }
   };
 
+  const openPushPanel = (ticket: TicketType) => {
+    const thStatus = ticket.status === 'Open' ? 'open' : ticket.status === 'In Progress' ? 'in-progress' : 'closed';
+    setPushTicketId(ticket.id);
+    setPushStatus(thStatus);
+    setPushDescription(ticket.description ?? '');
+    setPushGithub(ticket.link ?? '');
+  };
+
+  const handlePushToTimehuddle = async () => {
+    if (!pushTicketId) return;
+    const ticket = allTickets.find(t => t.id === pushTicketId);
+    if (!ticket) return;
+    const trackedMs = (ticket as any).trackedMs ?? 0;
+    const pushedMs = (ticket as any)._pushedMs ?? 0;
+    const addMs = Math.max(0, trackedMs - pushedMs);
+
+    setIsPushing(true);
+    try {
+      await pushTicketToTimehuddle(pushTicketId, {
+        addMs: addMs > 0 ? addMs : undefined,
+        status: pushStatus || undefined,
+        description: pushDescription || undefined,
+        github: pushGithub || undefined,
+      });
+      setPushTicketId(null);
+      loadTickets();
+    } catch (err) {
+      console.error('Push failed:', err);
+    } finally {
+      setIsPushing(false);
+    }
+  };
+
   const getStatusDisplay = (status: string) =>
     status === "Closed" ? "Done" : status;
 
@@ -259,16 +308,20 @@ export default function TicketsPage() {
 
   const renderTicketCard = (ticket: TicketType, borderColor: string) => {
     const isTimehuddle = ticket.source === "timehuddle";
+    const isDisconnected = isTimehuddle && (ticket as any)._disconnected === 1;
     const isPersonal = !isTimehuddle;
-    const assignerName =
-      ticket.creator?.full_name?.split(" ")[0] || "Someone";
+    const assignerName = isTimehuddle
+      ? ((ticket as any).createdByName || (ticket as any).createdBy || "Unknown")
+      : (ticket.creator?.full_name?.split(" ")[0] || "Someone");
 
     return (
       <Card
         className={
           "border-2 !overflow-visible " +
+          (isDisconnected ? "opacity-60 " : "") +
           borderColor
         }
+        aria-disabled={isDisconnected || undefined}
       >
         <CardContent className="space-y-2">
           <div className="flex items-start justify-between gap-3">
@@ -336,6 +389,7 @@ export default function TicketsPage() {
                   <DropdownItem
                     icon={<Pencil className="w-4 h-4" />}
                     onClick={() => router.push(`/dashboard/tickets/edit/?id=${ticket.id}`)}
+                    disabled={isDisconnected}
                   >
                     Edit Ticket
                   </DropdownItem>
@@ -345,6 +399,7 @@ export default function TicketsPage() {
                       setSelectedTicketForAction({ id: ticket.id, title: ticket.title });
                       setIsStatusModalOpen(true);
                     }}
+                    disabled={isDisconnected}
                   >
                     Change Status
                   </DropdownItem>
@@ -356,6 +411,7 @@ export default function TicketsPage() {
                       setSelectedTicketForAction({ id: ticket.id, title: ticket.title });
                       setIsDeleteModalOpen(true);
                     }}
+                    disabled={isDisconnected}
                   >
                     Delete Ticket
                   </DropdownItem>
@@ -384,9 +440,14 @@ export default function TicketsPage() {
             </>
           )}
           <span>{(ticketDurations[ticket.id] ? formatDuration(ticketDurations[ticket.id]) : ticket.trackedTime) || "0m"} tracked</span>
-          {isTimehuddle && ticket.syncedWithTimehuddle && (
+          {isTimehuddle && ticket.syncedWithTimehuddle && !isDisconnected && (
             <Badge variant="default" size="sm" icon={<RefreshCw className="w-3 h-3" />}>
               synced
+            </Badge>
+          )}
+          {isDisconnected && (
+            <Badge variant="secondary" size="sm">
+              Disconnected
             </Badge>
           )}
         </SmallMuted>
@@ -488,6 +549,80 @@ export default function TicketsPage() {
             </Badge>
           )}
         </div>
+
+        {isTimehuddle && !isDisconnected && (() => {
+          const trackedMs = (ticket as any).trackedMs ?? 0;
+          const pushedMs = (ticket as any)._pushedMs ?? 0;
+          const pendingMs = Math.max(0, trackedMs - pushedMs);
+          if (pendingMs === 0) return null;
+          const isPanelOpen = pushTicketId === ticket.id;
+          return (
+            <div className="mt-2 space-y-2">
+              {!isPanelOpen ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full border-dashed border-blue-400 dark:border-blue-600 text-blue-600 dark:text-blue-400 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-950"
+                  onClick={() => openPushPanel(ticket)}
+                >
+                  <Upload className="w-3 h-3 mr-1" />
+                  Push {formatDuration(pendingMs)} to TimeHuddle
+                </Button>
+              ) : (
+                <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2 bg-blue-50/50 dark:bg-blue-950/20">
+                  <SmallMuted className="font-semibold text-blue-700 dark:text-blue-400">
+                    Push {formatDuration(pendingMs)} to TimeHuddle
+                  </SmallMuted>
+                  <div className="space-y-1.5">
+                    <select
+                      value={pushStatus}
+                      onChange={e => setPushStatus(e.target.value)}
+                      className="w-full text-sm border border-input rounded-md px-2 py-1 bg-background"
+                      aria-label="Status to push"
+                    >
+                      <option value="open">Open</option>
+                      <option value="in-progress">In Progress</option>
+                      <option value="blocked">Blocked</option>
+                      <option value="reviewed">Reviewed</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                    <Input
+                      value={pushDescription}
+                      onChange={e => setPushDescription(e.target.value)}
+                      placeholder="Description (optional)"
+                      className="text-sm"
+                    />
+                    <Input
+                      value={pushGithub}
+                      onChange={e => setPushGithub(e.target.value)}
+                      placeholder="GitHub URL / issue (optional)"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handlePushToTimehuddle}
+                      disabled={isPushing}
+                      className="rounded-full"
+                    >
+                      <Upload className="w-3 h-3 mr-1" />
+                      {isPushing ? 'Pushing...' : 'Confirm Push'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPushTicketId(null)}
+                      className="rounded-full"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         </CardContent>
       </Card>
     );
@@ -524,11 +659,12 @@ export default function TicketsPage() {
       </Modal>
 
       <div className="space-y-3">
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => setActiveTab(v as SourceTab)}
-          variant="pills"
-        >
+        <div className="sticky top-[102px] lg:top-16 z-20 bg-background -mx-4 px-4 py-2 -mt-2 space-y-3 shadow-sm shadow-background">
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as SourceTab)}
+            variant="pills"
+          >
           <TabsList className="w-full">
             {tabs.map((tab) => (
               <TabsTrigger key={tab} value={tab} className="flex-1">
@@ -562,6 +698,8 @@ export default function TicketsPage() {
               </Badge>
             ))}
           </div>
+        </div>
+
         </div>
 
         {isLoading ? (

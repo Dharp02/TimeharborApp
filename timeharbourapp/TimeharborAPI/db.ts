@@ -29,6 +29,8 @@ export interface Ticket {
   };
   trackedTime?: string;
   trackedMs?: number;
+  /** Milliseconds already pushed to TimeHuddle backend. Used to compute pending delta. */
+  _pushedMs?: number;
   teamName?: string;
   projectId?: string;
   projectName?: string;
@@ -68,6 +70,10 @@ export interface DexieWorkSession {
   links?: string[];
   attachments?: SessionAttachment[];
   autoClosedAt?: number;
+  /** Manual overrides set when editing an entry in the timesheet */
+  flag?: string;
+  manualTicket?: string;
+  manualStatus?: 'Active' | 'Completed' | 'Pending';
   sourceApp: 'timeharbor';
   createdAt: number;
   updatedAt: number;
@@ -303,6 +309,24 @@ export class TimeharborDB extends Dexie {
       dashboardStats: null,
       dashboardActivity: null
     });
+
+    // ── v21: Add _disconnected index to tickets for TimeHuddle disconnection state ──
+    // _disconnected: 0 = active, 1 = disconnected (read-only, team was unlinked)
+    this.version(21).stores({
+      tickets: 'id, teamId, [source+_disconnected]',
+    }).upgrade(async (tx) => {
+      await tx.table('tickets').toCollection().modify((t: Record<string, unknown>) => {
+        if (t._disconnected === undefined) t._disconnected = 0;
+      });
+    });
+
+    // ── v22: Track how much time has been pushed to TimeHuddle per ticket ──
+    // _pushedMs: cumulative ms already pushed; pendingMs = trackedMs - _pushedMs
+    this.version(22).stores({}).upgrade(async (tx) => {
+      await tx.table('tickets').toCollection().modify((t: Record<string, unknown>) => {
+        if (t._pushedMs === undefined) t._pushedMs = 0;
+      });
+    });
   }
 }
 
@@ -352,6 +376,14 @@ export async function hasProfileDatabase(profileUuid: string): Promise<boolean> 
   }
 }
 
+// Listeners notified after every successful DB switch (including no-op same-name switches).
+const dbSwitchListeners = new Set<() => void>();
+
+export function subscribeToDbSwitch(listener: () => void): () => void {
+  dbSwitchListeners.add(listener);
+  return () => dbSwitchListeners.delete(listener);
+}
+
 /**
  * Switch active IndexedDB to a profile-scoped database.
  * Existing profile data is preserved; this only swaps which DB is active.
@@ -364,6 +396,7 @@ export async function switchProfileDatabase(profileUuid: string): Promise<void> 
 
   if (activeDbName === nextDbName) {
     if (!current.isOpen()) await current.open();
+    dbSwitchListeners.forEach(fn => fn());
     return;
   }
 
@@ -374,6 +407,7 @@ export async function switchProfileDatabase(profileUuid: string): Promise<void> 
   activeDb = new TimeharborDB(nextDbName);
   activeDbName = nextDbName;
   await activeDb.open();
+  dbSwitchListeners.forEach(fn => fn());
 }
 
 const browserDbProxy = new Proxy({} as TimeharborDB, {

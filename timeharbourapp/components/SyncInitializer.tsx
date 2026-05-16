@@ -21,10 +21,21 @@ import {
   hasServerData,
   verifySyncKey,
 } from '@/TimeharborAPI/sync/EncryptedSyncEngine';
-import { ensureIdentityAndEncryption, migrateAuthUserIdToIdentity } from '@/TimeharborAPI/sync/IdentityManager';
+import {
+  ensureIdentityAndEncryption,
+  migrateAuthUserIdToIdentity,
+  getIdentityUUID,
+} from '@/TimeharborAPI/sync/IdentityManager';
 import { ensureCurrentProfileSaved } from '@/TimeharborAPI/sync/ProfileRegistry';
-import { db } from '@/TimeharborAPI/db';
+import { db, getCurrentDatabaseName } from '@/TimeharborAPI/db';
 import EncryptionSetupModal from './EncryptionSetupModal';
+import {
+  syncAllTimehudleSharedTickets,
+  syncTimehudleTeamTickets,
+  getTimehudleLinkedTeams,
+  getTimehudleStatus,
+  markTimehudleTicketsDisconnected,
+} from '@/TimeharborAPI/timehuddle';
 
 export default function SyncInitializer() {
   const toast = useToast();
@@ -48,6 +59,49 @@ export default function SyncInitializer() {
 
   const showOnlineToast = useCallback(() => {
     toastRef.current.info('Back online — syncing…');
+  }, []);
+
+  /**
+   * Pull tickets from all linked TimeHuddle teams + any individually shared tickets.
+   * Triggered on boot and by the 'timehuddle-sync' window event.
+   */
+  const syncTimehudleTickets = useCallback(async () => {
+    try {
+      const status = await getTimehudleStatus();
+      if (!status.connected) return;
+      // Pull individually shared tickets (no team linking required)
+      await syncAllTimehudleSharedTickets();
+      // Also pull all linked teams in bulk
+      const linked = await getTimehudleLinkedTeams();
+      for (const team of linked) {
+        await syncTimehudleTeamTickets(team.teamId, team.teamName);
+      }
+    } catch {
+      // Network failures during background sync are silent — no toast noise
+    }
+  }, []);
+
+  const logIdentityDbContext = useCallback((stage: string) => {    if (typeof window === 'undefined') return;
+
+    const uuid = getIdentityUUID();
+    const activeDbName = getCurrentDatabaseName();
+    const expectedDbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
+
+    if (activeDbName !== expectedDbName) {
+      console.warn('[SyncInitializer] identity/db mismatch', {
+        stage,
+        uuid,
+        activeDbName,
+        expectedDbName,
+      });
+      return;
+    }
+
+    console.info('[SyncInitializer] startup identity/db context', {
+      stage,
+      uuid,
+      activeDbName,
+    });
   }, []);
 
   // ── Handle passphrase submission (setup, unlock, or restore) ──
@@ -118,6 +172,13 @@ export default function SyncInitializer() {
 
     syncManager.init();
 
+    // Show a toast when any background sync cycle fails (e.g. HTTP 401/500).
+    // This makes silent failures visible so users know to investigate.
+    const handleSyncError = (err: Error) => {
+      toastRef.current.error(`Sync failed: ${err.message}`);
+    };
+    syncManager.onSyncError(handleSyncError);
+
     // Listen for the SyncManager telling us it needs encryption setup.
     // Auto-setup silently; only show modal if auto-setup fails.
     const handleEncryptionNeeded = async () => {
@@ -125,6 +186,7 @@ export default function SyncInitializer() {
         // Migrate any data stored under old auth user.id to identity UUID
         await migrateAuthUserIdToIdentity();
         const syncKey = await ensureIdentityAndEncryption();
+        logIdentityDbContext('encryption-needed');
         ensureCurrentProfileSaved();
         syncManager.setSyncKey(syncKey);
 
@@ -166,10 +228,11 @@ export default function SyncInitializer() {
       import('@capacitor/network').then(({ Network }) => {
         Network.addListener('networkStatusChange', (status) => {
           if (status.connected) {
-            if (wasOfflineRef.current) {
-              showOnlineToast();
-              syncManager.syncNow();
-            }
+            // Sync whenever connectivity is restored, regardless of whether
+            // we previously saw an offline transition (covers app resume too).
+            showOnlineToast();
+            syncManager.syncNow();
+            wasOfflineRef.current = false;
           } else {
             wasOfflineRef.current = true;
             showOfflineToast();
@@ -177,18 +240,38 @@ export default function SyncInitializer() {
         });
         networkListenerCleanup = () => Network.removeAllListeners();
       }).catch(() => { /* Network plugin not available */ });
+
+      // Sync when the app returns to the foreground (e.g. user switches back
+      // from another app). Without this, items can stay pending indefinitely
+      // since the periodic timer and write-debounce only fire while active.
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appStateChange', (state) => {
+          if (state.isActive) {
+            syncManager.syncNow();
+          }
+        });
+        const prevCleanup = networkListenerCleanup;
+        networkListenerCleanup = () => {
+          prevCleanup?.();
+          App.removeAllListeners();
+        };
+      }).catch(() => { /* App plugin not available */ });
     }
 
     // Sync on pull-to-refresh
     const onRefresh = () => syncManager.syncNow();
     window.addEventListener('pull-to-refresh', onRefresh);
 
-    // Periodic sync every 5 minutes
+    // Periodic sync every 5 minutes (op-log only)
     const interval = setInterval(() => {
       if (detector.getStatus() === 'online') {
         syncManager.syncNow();
       }
     }, 5 * 60 * 1000);
+
+    // On-demand: fire when any page dispatches 'timehuddle-sync' event
+    const handleTimehudleSync = () => { void syncTimehudleTickets(); };
+    window.addEventListener('timehuddle-sync', handleTimehudleSync);
 
     // ── Boot sequence: auto-setup encryption silently ──
     (async () => {
@@ -196,6 +279,7 @@ export default function SyncInitializer() {
         // Auto-generate UUID + passphrase + encryption key on first launch.
         // If already set up, this just loads the cached key.
         const syncKey = await ensureIdentityAndEncryption();
+        logIdentityDbContext('boot');
         syncManager.setSyncKey(syncKey);
 
         // If migration hasn't run yet, run it now
@@ -210,6 +294,8 @@ export default function SyncInitializer() {
 
         // Trigger initial sync
         syncManager.syncNow();
+        // Pull tickets from all linked TimeHuddle teams (background, best-effort)
+        syncTimehudleTickets();
       } catch (err) {
         console.error('[SyncInitializer] auto-setup failed:', err);
         // Fallback: if auto-setup fails (e.g. corrupted keys), prompt for restore
@@ -222,12 +308,14 @@ export default function SyncInitializer() {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('pull-to-refresh', onRefresh);
+      window.removeEventListener('timehuddle-sync', handleTimehudleSync);
       syncManager.offEncryptionNeeded(handleEncryptionNeeded);
+      syncManager.offSyncError(handleSyncError);
       networkListenerCleanup?.();
       clearInterval(interval);
       detector.destroy();
     };
-  }, [showSyncedToast, showOfflineToast, showOnlineToast, handlePassphraseSubmit]);
+  }, [showSyncedToast, showOfflineToast, showOnlineToast, handlePassphraseSubmit, logIdentityDbContext]);
 
   return (
     <EncryptionSetupModal

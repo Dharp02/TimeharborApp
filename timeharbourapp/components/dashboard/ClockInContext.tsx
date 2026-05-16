@@ -8,7 +8,7 @@ import type { SessionAttachment } from '@/TimeharborAPI/db';
 import { db } from '@/TimeharborAPI/db';
 import { useSession } from '@/TimeharborAPI/time/useSession';
 import { syncManager } from '@/TimeharborAPI/SyncManager';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAppSession } from '@/components/AppSessionProvider';
 import { getIdentityUUID } from '@/TimeharborAPI/sync/IdentityManager';
 import { Modal } from '@/components/ui/Modal';
 import { useActivityLog } from './ActivityLogContext';
@@ -63,7 +63,7 @@ function formatTimer(ms: number): { display: string; format: string } {
 }
 
 export function ClockInProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user } = useAppSession();
   const { addActivity, updateActivity, updateActiveSession } = useActivityLog();
   const router = useRouter();
 

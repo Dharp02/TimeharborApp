@@ -19,11 +19,10 @@ test.use({
 /** Read all workSessions from IndexedDB. */
 async function getWorkSessions(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -41,11 +40,10 @@ async function getWorkSessions(page: import('@playwright/test').Page) {
 /** Read a workSession by id from IndexedDB. */
 async function getSessionById(page: import('@playwright/test').Page, sessionId: string) {
   return page.evaluate(async (id) => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return null;
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -62,11 +60,10 @@ async function getSessionById(page: import('@playwright/test').Page, sessionId: 
 /** Read the latest open workSession (clockOut === null). */
 async function getOpenSession(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return null;
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -90,11 +87,10 @@ async function getOpenSession(page: import('@playwright/test').Page) {
 /** Read all opLog entries from IndexedDB. */
 async function getOpLogEntries(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -112,11 +108,10 @@ async function getOpLogEntries(page: import('@playwright/test').Page) {
 /** Read all operationLogs (audit trail) from IndexedDB. */
 async function getOperationLogs(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
-    const dbs = await indexedDB.databases();
-    const dbInfo = dbs.find(d => d.name?.toLowerCase().includes('timeharbor'));
-    if (!dbInfo?.name) return [];
+    const uuid = localStorage.getItem('th_identity_uuid');
+    const dbName = uuid ? `TimeharborDB_${uuid}` : 'TimeharborDB';
     return new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      const req = indexedDB.open(dbInfo.name!);
+      const req = indexedDB.open(dbName);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;
@@ -158,9 +153,20 @@ async function goOnline(cdp: import('playwright-core').CDPSession) {
 
 // ─── UI helpers ─────────────────────────────────────────────
 
+/**
+ * Wait for the app to finish its boot sequence (DB switch, encryption setup).
+ * Without this, useLiveQuery may be subscribed to the wrong IndexedDB instance
+ * and never detect the newly created session.
+ */
+async function waitForAppReady(page: import('@playwright/test').Page) {
+  const overlay = page.locator('.fixed.inset-0.z-50');
+  await page.waitForTimeout(1_000);
+  await overlay.waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
+}
+
 /** Click the central BottomNav clock button. */
 async function clickClockButton(page: import('@playwright/test').Page) {
-  const btn = page.locator('.fixed.bottom-0 .relative.-top-5 button');
+  const btn = page.locator('[data-walkthrough="clock-in-fab"] button');
   await btn.click();
 }
 
@@ -198,6 +204,16 @@ async function clockIn(page: import('@playwright/test').Page) {
 
 /** Clock out via the modal option. */
 async function clockOut(page: import('@playwright/test').Page) {
+  // Dismiss any "What are you working on?" prompt that opened after clock-in
+  // (can happen when syncNow() fails offline, running setIsClockInPromptOpen after
+  // the clock-out label was already visible and clockIn() returned).
+  const skipBtn = page.getByRole('button', { name: 'Skip for now' });
+  if (await skipBtn.isVisible()) {
+    await skipBtn.click();
+    await page.waitForTimeout(500);
+  }
+  await page.locator('.fixed.inset-0.z-50').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+
   await clickClockButton(page);
   const clockOutOption = page.getByLabel('Clock out');
   await expect(clockOutOption).toBeVisible({ timeout: 5_000 });
@@ -219,6 +235,7 @@ test.describe('Offline Time Engine — Clock In / Clock Out', () => {
     // Load dashboard online (JS bundles cached)
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
     await expect(page.getByText('Clock In', { exact: true })).toBeVisible();
 
     // Snapshot opLog count before
@@ -267,6 +284,7 @@ test.describe('Offline Time Engine — Clock In / Clock Out', () => {
     // Load dashboard and clock in while online
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
     await clockIn(page);
 
     // Capture session id
@@ -318,6 +336,7 @@ test.describe('Offline Time Engine — Clock In / Clock Out', () => {
     // Load dashboard online
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
     await expect(page.getByText('Clock In', { exact: true })).toBeVisible();
 
     // Go offline for the entire flow
@@ -378,6 +397,7 @@ test.describe('Offline Time Engine — Clock In / Clock Out', () => {
     // Load dashboard online
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
     // Go offline
     const cdp = await goOffline(page);
@@ -423,6 +443,7 @@ test.describe('Offline Time Engine — Clock In / Clock Out', () => {
     // Load dashboard and go offline for a clock-in/clock-out
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
     const cdp = await goOffline(page);
 
@@ -448,6 +469,7 @@ test.describe('Offline Time Engine — Clock In / Clock Out', () => {
     // Clock in + clock out so audit entries exist
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
+    await waitForAppReady(page);
 
     const cdp = await goOffline(page);
 

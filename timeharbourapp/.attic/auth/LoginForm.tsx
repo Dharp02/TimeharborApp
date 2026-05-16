@@ -30,7 +30,7 @@ export default function LoginForm() {
         }
         setIsLoading(false);
       } else if (data) {
-        // Success - AuthProvider will handle redirect
+        // Success - AppSessionProvider will handle redirect
       }
     } catch (err) {
       setError('An unexpected error occurred');

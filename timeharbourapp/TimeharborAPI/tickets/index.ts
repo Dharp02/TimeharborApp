@@ -27,6 +27,8 @@ export interface Ticket {
   };
   trackedTime?: string;
   trackedMs?: number;
+  /** Milliseconds already pushed to TimeHuddle. pendingMs = trackedMs - _pushedMs */
+  _pushedMs?: number;
   projectId?: string;
   projectName?: string;
   creator?: {

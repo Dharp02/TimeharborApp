@@ -19,11 +19,11 @@ test.describe('Dashboard Layout', () => {
     }
   });
 
-  test('shows clear cache button in sidebar', async ({ page }) => {
+  test('shows app version in sidebar footer', async ({ page }) => {
     const dash = new DashboardPage(page);
     await dash.navigate();
 
-    await expect(dash.clearCacheButton).toBeVisible();
+    await expect(dash.versionText).toBeVisible();
   });
 
   test('shows dashboard summary stats', async ({ page }) => {
@@ -50,6 +50,7 @@ test.describe('Dashboard Navigation', () => {
   test('navigates to tickets page via sidebar', async ({ page }) => {
     const dash = new DashboardPage(page);
     await dash.navigate();
+    await page.waitForLoadState('networkidle');
 
     // On mobile viewports the sidebar is hidden — open it first.
     // SidebarMobileToggle only renders on mobile, so use its presence as the indicator.
@@ -66,6 +67,7 @@ test.describe('Dashboard Navigation', () => {
   test('navigates to settings page via sidebar', async ({ page }) => {
     const dash = new DashboardPage(page);
     await dash.navigate();
+    await page.waitForLoadState('networkidle');
 
     const mobileToggle = page.getByRole('button', { name: 'Open navigation' });
     if (await mobileToggle.isVisible({ timeout: 2_000 }).catch(() => false)) {
