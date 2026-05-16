@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Play, Square, ChevronRight, ChevronDown, Clock, Video, Users, RefreshCw, Share2, Check, Paperclip, X, FileText, Link2 } from 'lucide-react';
+import { Plus, Play, Square, ChevronRight, ChevronDown, Clock, Video, Users, RefreshCw, Share2, Check, Paperclip, X, FileText, Link2, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { Button, Input, Textarea, Badge, Card, CardContent, Text, SmallMuted } from '@mieweb/ui';
 import { useClockIn } from './ClockInContext';
@@ -13,6 +13,7 @@ import { useRefresh } from '../../contexts/RefreshContext';
 import { useWalkthroughActive } from '@/contexts/WalkthroughContext';
 import { db } from '@/TimeharborAPI/db';
 import { collectAttachments } from '@/TimeharborAPI/time/attachmentUtils';
+import { pushTicketToTimehuddle } from '@/TimeharborAPI/timehuddle';
 import { formatDuration } from '@timeharbor/time-engine';
 
 const getStatusDisplay = (status: string) =>
@@ -171,13 +172,30 @@ export default function OpenTickets() {
   // Tracks ticket IDs ordered by most recently active (persists after timer stops)
   const [lastActiveOrder, setLastActiveOrder] = useState<string[]>([]);
 
+  // Push-to-TimeHuddle inline panel
+  const [pushTicketId, setPushTicketId] = useState<string | null>(null);
+  const [pushStatus, setPushStatus] = useState('');
+  const [pushDescription, setPushDescription] = useState('');
+  const [pushGithub, setPushGithub] = useState('');
+  const [isPushing, setIsPushing] = useState(false);
+
   const isMountedRef = useRef(true);
 
-  // When a ticket timer starts, move it to the front of the recency order
+  // When a ticket timer starts, move it to the front of the recency order.
+  // Also inject timehuddle tickets into the list when their timer is active —
+  // they are not fetched by getPersonalTickets but should appear here while running.
   useEffect(() => {
-    if (activeTicketId) {
-      setLastActiveOrder(prev => [activeTicketId, ...prev.filter(id => id !== activeTicketId)]);
-    }
+    if (!activeTicketId) return;
+    setLastActiveOrder(prev => [activeTicketId, ...prev.filter(id => id !== activeTicketId)]);
+
+    db.tickets.get(activeTicketId).then(t => {
+      if (!t || t.source !== 'timehuddle') return;
+      if (!isMountedRef.current) return;
+      setTickets(prev => {
+        if (prev.some(p => p.id === t.id)) return prev;
+        return [t as TicketType, ...prev];
+      });
+    }).catch(() => {});
   }, [activeTicketId]);
 
   const PERSONAL_TEAM_ID = '__personal__';
@@ -308,6 +326,39 @@ export default function OpenTickets() {
     }
   };
 
+  const openPushPanel = (ticket: TicketType) => {
+    const thStatus = ticket.status === 'Open' ? 'open' : ticket.status === 'In Progress' ? 'in-progress' : 'closed';
+    setPushTicketId(ticket.id);
+    setPushStatus(thStatus);
+    setPushDescription(ticket.description ?? '');
+    setPushGithub((ticket as any).link ?? '');
+  };
+
+  const handlePushToTimehuddle = async () => {
+    if (!pushTicketId) return;
+    const ticket = tickets.find(t => t.id === pushTicketId);
+    if (!ticket) return;
+    const trackedMs = (ticket as any).trackedMs ?? 0;
+    const pushedMs = (ticket as any)._pushedMs ?? 0;
+    const addMs = Math.max(0, trackedMs - pushedMs);
+
+    setIsPushing(true);
+    try {
+      await pushTicketToTimehuddle(pushTicketId, {
+        addMs: addMs > 0 ? addMs : undefined,
+        status: pushStatus || undefined,
+        description: pushDescription || undefined,
+        github: pushGithub || undefined,
+      });
+      setPushTicketId(null);
+      fetchTickets();
+    } catch (err) {
+      console.error('Push failed:', err);
+    } finally {
+      setIsPushing(false);
+    }
+  };
+
   return (
     <>
     <Modal
@@ -376,7 +427,9 @@ export default function OpenTickets() {
             .slice(0, 5).map((ticket) => {
             const isTimehuddle = ticket.source === 'timehuddle';
             const isPersonal = !isTimehuddle;
-            const assignerName = ticket.creator?.full_name?.split(' ')[0] || 'Someone';
+            const assignerName = ticket.source === 'timehuddle'
+              ? ((ticket as any).createdByName || (ticket as any).createdBy || 'Unknown')
+              : (ticket.creator?.full_name?.split(' ')[0] || 'Someone');
 
             return (
               <Card key={ticket.id} className={`border transition-all duration-300 ${activeTicketId === ticket.id ? 'ring-2 ring-primary-500 border-primary-500 bg-primary-50 dark:bg-primary-950/20' : ''}`}>
@@ -515,6 +568,66 @@ export default function OpenTickets() {
                       </Badge>
                     )}
                   </div>
+
+                  {isTimehuddle && (() => {
+                    const trackedMs = (ticket as any).trackedMs ?? 0;
+                    const pushedMs = (ticket as any)._pushedMs ?? 0;
+                    const pendingMs = Math.max(0, trackedMs - pushedMs);
+                    if (pendingMs === 0) return null;
+                    const isPanelOpen = pushTicketId === ticket.id;
+                    return (
+                      <div className="mt-2 space-y-2">
+                        {!isPanelOpen ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-full border-dashed border-blue-400 dark:border-blue-600 text-blue-600 dark:text-blue-400 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-950 w-full text-xs"
+                            onClick={() => openPushPanel(ticket)}
+                          >
+                            <Upload className="w-3 h-3 mr-1" />
+                            Push {formatDuration(pendingMs)} to TimeHuddle
+                          </Button>
+                        ) : (
+                          <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-2 space-y-2 bg-blue-50/50 dark:bg-blue-950/20">
+                            <SmallMuted className="font-semibold text-blue-700 dark:text-blue-400 text-xs">
+                              Push {formatDuration(pendingMs)} to TimeHuddle
+                            </SmallMuted>
+                            <select
+                              value={pushStatus}
+                              onChange={e => setPushStatus(e.target.value)}
+                              className="w-full text-xs border border-input rounded-md px-2 py-1 bg-background"
+                              aria-label="Status to push"
+                            >
+                              <option value="open">Open</option>
+                              <option value="in-progress">In Progress</option>
+                              <option value="blocked">Blocked</option>
+                              <option value="reviewed">Reviewed</option>
+                              <option value="closed">Closed</option>
+                            </select>
+                            <div className="flex gap-1.5">
+                              <Button
+                                size="sm"
+                                onClick={handlePushToTimehuddle}
+                                disabled={isPushing}
+                                className="rounded-full flex-1 text-xs"
+                              >
+                                <Upload className="w-3 h-3 mr-1" />
+                                {isPushing ? 'Pushing...' : 'Push'}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPushTicketId(null)}
+                                className="rounded-full text-xs"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             );

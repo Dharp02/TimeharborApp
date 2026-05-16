@@ -293,6 +293,26 @@ export class SessionManager {
       attachments: session.attachments,
       updatedAt: session.updatedAt,
     });
+
+    // Write accumulated tracked time back to each ticket in Dexie so the
+    // push-to-TimeHuddle UI can compute the pending delta (trackedMs - _pushedMs).
+    // We accumulate across all sessions by reading the current value first.
+    if (stats.ticketBreakdown.length > 0) {
+      for (const { ticketId, totalMs } of stats.ticketBreakdown) {
+        const existing = await db.tickets.get(ticketId);
+        if (!existing) continue;
+        // totalMs is only for this session — add what was already stored from prior sessions
+        const previousMs = (existing as any)._sessionTrackedMs ?? 0;
+        // _sessionTrackedMs tracks this session's contribution so we don't double-count
+        const delta = totalMs - previousMs;
+        if (delta === 0) continue;
+        await db.tickets.update(ticketId, {
+          trackedMs: ((existing.trackedMs ?? 0) + delta),
+          _sessionTrackedMs: totalMs,
+        } as any);
+      }
+    }
+
     return session;
   }
 }

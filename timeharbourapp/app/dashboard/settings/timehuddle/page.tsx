@@ -1,14 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronLeft, Link2, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { ChevronLeft, Link2, CheckCircle2, XCircle, Loader2, Users, Plus, Trash2, RefreshCw, Upload } from 'lucide-react';
 import { Button, Text } from '@mieweb/ui';
+import Link from 'next/link';
 import {
   getTimehudleStatus,
   disconnectTimehuddle,
   startTimehudleOAuth,
+  getTimehudleTeams,
+  getTimehudleLinkedTeams,
+  linkTimehudleTeam,
+  unlinkTimehudleTeam,
+  syncTimehudleTeamTickets,
+  markTimehudleTicketsDisconnected,
   type TimehudleConnectionStatus,
+  type TimehudleTeam,
+  type TimehudleLinkedTeam,
 } from '@/TimeharborAPI/timehuddle';
 
 export default function TimehudlePage() {
@@ -20,6 +29,12 @@ export default function TimehudlePage() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // ── Teams state ──
+  const [availableTeams, setAvailableTeams] = useState<TimehudleTeam[]>([]);
+  const [linkedTeams, setLinkedTeams] = useState<TimehudleLinkedTeam[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [syncing, setSyncing] = useState<string | null>(null);
+
   const loadStatus = async () => {
     try {
       const s = await getTimehudleStatus();
@@ -30,6 +45,19 @@ export default function TimehudlePage() {
       setLoading(false);
     }
   };
+
+  const loadTeams = useCallback(async () => {
+    setTeamsLoading(true);
+    try {
+      const [all, linked] = await Promise.all([getTimehudleTeams(), getTimehudleLinkedTeams()]);
+      setAvailableTeams(all);
+      setLinkedTeams(linked);
+    } catch {
+      // teams fetch is best-effort
+    } finally {
+      setTeamsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     // Handle OAuth callback result passed as query params
@@ -47,6 +75,13 @@ export default function TimehudlePage() {
     }
     void loadStatus();
   }, [searchParams]);
+
+  // Load teams once connected
+  useEffect(() => {
+    if (status?.connected) {
+      void loadTeams();
+    }
+  }, [status?.connected, loadTeams]);
 
   const [connecting, setConnecting] = useState(false);
 
@@ -66,7 +101,11 @@ export default function TimehudlePage() {
     setMessage(null);
     try {
       await disconnectTimehuddle();
+      // Mark all timehuddle tickets as disconnected
+      await markTimehudleTicketsDisconnected();
       setStatus({ connected: false });
+      setLinkedTeams([]);
+      setAvailableTeams([]);
       setMessage({ type: 'success', text: 'Disconnected from TimeHuddle' });
     } catch (err: unknown) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Disconnect failed' });
@@ -74,6 +113,42 @@ export default function TimehudlePage() {
       setDisconnecting(false);
     }
   };
+
+  const handleLinkTeam = async (team: TimehudleTeam) => {
+    try {
+      await linkTimehudleTeam(team.id, team.name);
+      // Immediately pull tickets for the newly linked team
+      await syncTimehudleTeamTickets(team.id, team.name);
+      await loadTeams();
+    } catch (err: unknown) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to link team' });
+    }
+  };
+
+  const handleUnlinkTeam = async (teamId: string) => {
+    try {
+      await unlinkTimehudleTeam(teamId);
+      await markTimehudleTicketsDisconnected(teamId);
+      setLinkedTeams((prev) => prev.filter((t) => t.teamId !== teamId));
+    } catch (err: unknown) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to unlink team' });
+    }
+  };
+
+  const handleSyncTeam = async (team: TimehudleLinkedTeam) => {
+    setSyncing(team.teamId);
+    try {
+      const count = await syncTimehudleTeamTickets(team.teamId, team.teamName);
+      setMessage({ type: 'success', text: `Synced ${count} ticket${count !== 1 ? 's' : ''} from ${team.teamName}` });
+    } catch (err: unknown) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Sync failed' });
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const linkedTeamIds = new Set(linkedTeams.map((t) => t.teamId));
+  const unlinkableTeams = availableTeams.filter((t) => !linkedTeamIds.has(t.id));
 
   return (
     <div className="space-y-6 pb-8">
@@ -157,6 +232,102 @@ export default function TimehudlePage() {
             {status?.connected ? 'Reconnect with TimeHuddle' : 'Connect with TimeHuddle'}
           </Button>
         </div>
+
+        {/* ── Linked teams (shown only when connected) ── */}
+        {status?.connected && (
+          <>
+            {/* Review pending pushes */}
+            <Link href="/dashboard/settings/timehuddle/push-review">
+              <Button variant="outline" className="w-full" aria-label="Review pending work to push to TimeHuddle">
+                <Upload className="w-4 h-4 mr-2" />
+                Review Pending Work
+              </Button>
+            </Link>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-muted-foreground" />
+              <Text className="font-semibold">Linked Teams</Text>
+            </div>
+
+            {teamsLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <Text className="text-sm">Loading teams…</Text>
+              </div>
+            ) : linkedTeams.length === 0 ? (
+              <Text className="text-sm text-muted-foreground">
+                No teams linked yet. Add a team below to start pulling its tickets.
+              </Text>
+            ) : (
+              <ul className="space-y-2" aria-label="Linked TimeHuddle teams">
+                {linkedTeams.map((team) => (
+                  <li
+                    key={team.teamId}
+                    className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2"
+                  >
+                    <div>
+                      <Text className="text-sm font-medium">{team.teamName}</Text>
+                      <Text className="text-xs text-muted-foreground">
+                        Linked {new Date(team.linkedAt).toLocaleDateString()}
+                      </Text>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => void handleSyncTeam(team)}
+                        disabled={syncing === team.teamId}
+                        className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
+                        aria-label={`Sync tickets from ${team.teamName}`}
+                        title="Sync tickets now"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${syncing === team.teamId ? 'animate-spin' : ''}`} />
+                      </button>
+                      <button
+                        onClick={() => void handleUnlinkTeam(team.teamId)}
+                        className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
+                        aria-label={`Unlink ${team.teamName}`}
+                        title="Unlink team"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Add a team */}
+            {unlinkableTeams.length > 0 && (
+              <div className="space-y-2">
+                <Text className="text-sm text-muted-foreground">Add a team:</Text>
+                <ul className="space-y-1" aria-label="Available TimeHuddle teams">
+                  {unlinkableTeams.map((team) => (
+                    <li
+                      key={team.id}
+                      className="flex items-center justify-between rounded-lg border border-dashed border-border px-3 py-2 text-muted-foreground"
+                    >
+                      <div>
+                        <Text className="text-sm">{team.name}</Text>
+                        {team.memberCount > 0 && (
+                          <Text className="text-xs">{team.memberCount} member{team.memberCount !== 1 ? 's' : ''}</Text>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => void handleLinkTeam(team)}
+                        className="p-1.5 rounded hover:bg-muted transition-colors"
+                        aria-label={`Link team ${team.name}`}
+                        title="Link team"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          </>
+        )}
 
         {/* Feedback message */}
         {message && (

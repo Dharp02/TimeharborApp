@@ -29,6 +29,8 @@ export interface Ticket {
   };
   trackedTime?: string;
   trackedMs?: number;
+  /** Milliseconds already pushed to TimeHuddle backend. Used to compute pending delta. */
+  _pushedMs?: number;
   teamName?: string;
   projectId?: string;
   projectName?: string;
@@ -306,6 +308,24 @@ export class TimeharborDB extends Dexie {
       teams: null,
       dashboardStats: null,
       dashboardActivity: null
+    });
+
+    // ── v21: Add _disconnected index to tickets for TimeHuddle disconnection state ──
+    // _disconnected: 0 = active, 1 = disconnected (read-only, team was unlinked)
+    this.version(21).stores({
+      tickets: 'id, teamId, [source+_disconnected]',
+    }).upgrade(async (tx) => {
+      await tx.table('tickets').toCollection().modify((t: Record<string, unknown>) => {
+        if (t._disconnected === undefined) t._disconnected = 0;
+      });
+    });
+
+    // ── v22: Track how much time has been pushed to TimeHuddle per ticket ──
+    // _pushedMs: cumulative ms already pushed; pendingMs = trackedMs - _pushedMs
+    this.version(22).stores({}).upgrade(async (tx) => {
+      await tx.table('tickets').toCollection().modify((t: Record<string, unknown>) => {
+        if (t._pushedMs === undefined) t._pushedMs = 0;
+      });
     });
   }
 }
