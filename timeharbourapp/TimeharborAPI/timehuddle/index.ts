@@ -215,3 +215,44 @@ export const markTimehudleTicketsDisconnected = async (teamId?: string): Promise
   await query.modify({ _disconnected: 1 } as any);
 };
 
+// ── Push to TimeHuddle ────────────────────────────────────────────────────────
+
+export interface PushPayload {
+  /** Additional milliseconds to record on the TimeHuddle ticket. */
+  addMs?: number;
+  /** New status (TimeHuddle format: "open", "in-progress", etc.) */
+  status?: string;
+  description?: string;
+  github?: string;
+}
+
+/**
+ * Push tracked time and optional field updates for a single ticket back to
+ * the TimeHuddle backend, then update _pushedMs in Dexie so subsequent calls
+ * only push the delta.
+ */
+export const pushTicketToTimehuddle = async (
+  ticketId: string,
+  payload: PushPayload
+): Promise<void> => {
+  const res = await apiFetch(`/v1/timehuddle/tickets/${encodeURIComponent(ticketId)}/push`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to push ticket to TimeHuddle: ${res.status} ${text}`);
+  }
+
+  // Record how many ms we just pushed so future pushes only send the delta.
+  if (payload.addMs && payload.addMs > 0) {
+    const existing = await db.tickets.get(ticketId);
+    if (existing) {
+      await db.tickets.update(ticketId, {
+        _pushedMs: ((existing as any)._pushedMs ?? 0) + payload.addMs,
+      } as any);
+    }
+  }
+};
+

@@ -22,6 +22,7 @@ import {
   X,
   Paperclip,
   FileText,
+  Upload,
 } from "lucide-react";
 import {
   Button,
@@ -48,7 +49,7 @@ import { useAppSession } from "@/components/AppSessionProvider";
 import { Modal } from "@/components/ui/Modal";
 import { tickets as ticketsApi } from "@/TimeharborAPI";
 import { Ticket as TicketType } from "@/TimeharborAPI/tickets";
-import { syncAllTimehudleSharedTickets } from "@/TimeharborAPI/timehuddle";
+import { syncAllTimehudleSharedTickets, pushTicketToTimehuddle } from "@/TimeharborAPI/timehuddle";
 import { collectAttachments } from "@/TimeharborAPI/time/attachmentUtils";
 import { formatDuration } from '@timeharbor/time-engine';
 
@@ -95,6 +96,13 @@ export default function TicketsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [isLoading, setIsLoading] = useState(false);
   const [allTickets, setAllTickets] = useState<TicketType[]>([]);
+
+  // Push-to-TimeHuddle panel state
+  const [pushTicketId, setPushTicketId] = useState<string | null>(null);
+  const [pushStatus, setPushStatus] = useState("");
+  const [pushDescription, setPushDescription] = useState("");
+  const [pushGithub, setPushGithub] = useState("");
+  const [isPushing, setIsPushing] = useState(false);
 
   useEffect(() => {
     loadTickets();
@@ -250,6 +258,39 @@ export default function TicketsPage() {
       loadTickets();
     } catch (error: any) {
       console.error("Failed to share:", error);
+    }
+  };
+
+  const openPushPanel = (ticket: TicketType) => {
+    const thStatus = ticket.status === 'Open' ? 'open' : ticket.status === 'In Progress' ? 'in-progress' : 'closed';
+    setPushTicketId(ticket.id);
+    setPushStatus(thStatus);
+    setPushDescription(ticket.description ?? '');
+    setPushGithub(ticket.link ?? '');
+  };
+
+  const handlePushToTimehuddle = async () => {
+    if (!pushTicketId) return;
+    const ticket = allTickets.find(t => t.id === pushTicketId);
+    if (!ticket) return;
+    const trackedMs = (ticket as any).trackedMs ?? 0;
+    const pushedMs = (ticket as any)._pushedMs ?? 0;
+    const addMs = Math.max(0, trackedMs - pushedMs);
+
+    setIsPushing(true);
+    try {
+      await pushTicketToTimehuddle(pushTicketId, {
+        addMs: addMs > 0 ? addMs : undefined,
+        status: pushStatus || undefined,
+        description: pushDescription || undefined,
+        github: pushGithub || undefined,
+      });
+      setPushTicketId(null);
+      loadTickets();
+    } catch (err) {
+      console.error('Push failed:', err);
+    } finally {
+      setIsPushing(false);
     }
   };
 
@@ -508,6 +549,80 @@ export default function TicketsPage() {
             </Badge>
           )}
         </div>
+
+        {isTimehuddle && !isDisconnected && (() => {
+          const trackedMs = (ticket as any).trackedMs ?? 0;
+          const pushedMs = (ticket as any)._pushedMs ?? 0;
+          const pendingMs = Math.max(0, trackedMs - pushedMs);
+          if (pendingMs === 0) return null;
+          const isPanelOpen = pushTicketId === ticket.id;
+          return (
+            <div className="mt-2 space-y-2">
+              {!isPanelOpen ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full border-dashed border-blue-400 dark:border-blue-600 text-blue-600 dark:text-blue-400 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-950"
+                  onClick={() => openPushPanel(ticket)}
+                >
+                  <Upload className="w-3 h-3 mr-1" />
+                  Push {formatDuration(pendingMs)} to TimeHuddle
+                </Button>
+              ) : (
+                <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2 bg-blue-50/50 dark:bg-blue-950/20">
+                  <SmallMuted className="font-semibold text-blue-700 dark:text-blue-400">
+                    Push {formatDuration(pendingMs)} to TimeHuddle
+                  </SmallMuted>
+                  <div className="space-y-1.5">
+                    <select
+                      value={pushStatus}
+                      onChange={e => setPushStatus(e.target.value)}
+                      className="w-full text-sm border border-input rounded-md px-2 py-1 bg-background"
+                      aria-label="Status to push"
+                    >
+                      <option value="open">Open</option>
+                      <option value="in-progress">In Progress</option>
+                      <option value="blocked">Blocked</option>
+                      <option value="reviewed">Reviewed</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                    <Input
+                      value={pushDescription}
+                      onChange={e => setPushDescription(e.target.value)}
+                      placeholder="Description (optional)"
+                      className="text-sm"
+                    />
+                    <Input
+                      value={pushGithub}
+                      onChange={e => setPushGithub(e.target.value)}
+                      placeholder="GitHub URL / issue (optional)"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handlePushToTimehuddle}
+                      disabled={isPushing}
+                      className="rounded-full"
+                    >
+                      <Upload className="w-3 h-3 mr-1" />
+                      {isPushing ? 'Pushing...' : 'Confirm Push'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPushTicketId(null)}
+                      className="rounded-full"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         </CardContent>
       </Card>
     );
